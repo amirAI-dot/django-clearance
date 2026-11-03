@@ -98,11 +98,21 @@
 * **هم با DRF و هم بدون آن.** یک mixin هم ویوهای class-based جنگو و هم
   ویوهای generic در DRF را محدود می‌کند؛ permission class مربوط به DRF از
   روی policy ساخته می‌شود.
+* **همین امکانات برای تمپلیت و فرم.** `PolicyRequiredMixin` از داخل ویوهای
+  generic خود جنگو policy را صدا می‌زند - action از نوع ویو خوانده می‌شود و
+  شیء به hook داده می‌شود - و `@policy_required` همین کار را برای ویوی
+  تابعی انجام می‌دهد.
 * **قابل استفاده بیرون از ویو.** `policy.authorize(user, 'approve', loan)`
   از داخل یک سرویس، یک دستور مدیریتی یا یک تسک، خطای `PermissionDenied` خود
   جنگو را بالا می‌اندازد.
 * **signal برای هر تغییر.** انتساب نقش، سلب مجوز، دادن مجوزهای اولیه - تا هر
   پروژه audit مخصوص خودش را بنویسد.
+* **در پنل ادمین.** هر مجوز همراه با گروه‌ها و نقش‌هایی که آن را دارند فهرست
+  می‌شود؛ گروه‌ها از صفحه‌ی گروه ساخته و به نقش‌ها داده می‌شوند؛ نقش‌ها و
+  سلب مجوزهای هر شخص در صفحه‌ی خود او دیده می‌شوند.
+* **هر مجوز به هر زبانی.** مدیر سایت هر مجوز یا گروه را به هر زبانی که پروژه
+  ارائه می‌دهد، از داخل پنل ادمین نام‌گذاری می‌کند؛ بدون فایل ترجمه و بدون
+  deploy.
 * **ترجمه‌شده.** همه‌ی پیام‌ها برای ترجمه علامت‌گذاری شده‌اند؛ انگلیسی و
   فارسی همراه بسته می‌آیند.
 * **دارای type.** type hint در همه‌جا، و فایل `py.typed` همراه بسته.
@@ -121,7 +131,10 @@ src/clearance/
     policies.py            BasePolicy, SignedInReadPolicy
     resolvers.py           RoleResolver, AttributeResolver, roles_of(), reaches_every_row()
     querysets.py           ScopedQuerySet, SignedInReadQuerySet, OwnedQuerySet
-    views.py               ScopedQuerySetMixin - Django CBVs and DRF generic views
+    views.py               ScopedQuerySetMixin, PolicyRequiredMixin - Django CBVs (and DRF)
+    decorators.py          policy_required - function views
+    labels.py              label_of() - a permission's or group's name, in the reader's language
+    admin.py               the permission page, and the group page extended
     checks.py              the core system checks
     signals.py             every signal the library sends
     locale/fa/LC_MESSAGES/ the Persian catalogue
@@ -140,9 +153,17 @@ src/clearance/
         resolvers.py       AssignmentResolver
         services.py        assign_role, unassign_role, revoke_permission, restore_permission
         seeding.py         giving the starting permissions once
-        admin.py
+        admin.py           roles on the group and user pages
         migrations/
         management/commands/clearance_seed.py
+
+    translations/          a Django app with models: INSTALLED_APPS += ['clearance.translations']
+        __init__.py        empty
+        apps.py            label 'clearance_translations'
+        models.py          PermissionTranslation, GroupTranslation
+        sources.py         the label source that reads them
+        admin.py           translations on the permission and group pages
+        migrations/
 ```
 
 قواعد این ساختار:
@@ -150,11 +171,12 @@ src/clearance/
 * **فایل‌های `__init__.py` خالی می‌مانند.** هر چیزی از همان ماژولی import
   می‌شود که تعریفش کرده: `from clearance.policies import BasePolicy`. نسخه
   با `importlib.metadata.version('django-clearance')` خوانده می‌شود.
-* **هسته هیچ چیزی از `drf` یا `roles` import نمی‌کند.** `drf` هسته را import
-  می‌کند؛ `roles` هسته را import می‌کند. این با import کردن هسته بدون نصب DRF
-  و بدون اپ نقش‌ها تست می‌شود.
-* **label اپ نقش‌ها `clearance_roles` است**، تا با اپی به اسم `roles` در
-  پروژه تداخل نکند.
+* **هسته هیچ چیزی از `drf`، `roles` یا `translations` import نمی‌کند.** هر
+  کدام از آن‌ها هسته را import می‌کند و از طریق hookی که هسته ارائه می‌دهد -
+  یک صفحه‌ی ادمین، یک منبع اسم - به آن وصل می‌شود. این با import کردن هسته
+  بدون نصب هیچ‌کدام از آن‌ها تست می‌شود.
+* **label اپ‌ها `clearance_roles` و `clearance_translations` است**، تا هیچ
+  کدام با اپی با همان اسم کوتاه در پروژه تداخل نکند.
 
 ---
 
@@ -269,13 +291,31 @@ class LoanViewSet(ScopedModelViewSet):
         ...
 ```
 
-یک ویوی معمولی جنگو هم از همان mixin استفاده می‌کند:
+یک ویوی جنگو با تمپلیت و فرم هم از همان mixin استفاده می‌کند، و policy را
+با `PolicyRequiredMixin` صدا می‌زند:
 
 ```python
-from clearance.views import ScopedQuerySetMixin
+from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
 
-class LoanListView(ScopedQuerySetMixin, ListView):
+class LoanListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):
+    policy = loan_access.policy          # 'list', read off ListView
     queryset = Loan.objects.all()
+
+class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):
+    policy = loan_access.policy
+    policy_action = 'approve'            # can_approve(user, loan)
+    queryset = Loan.objects.all()
+    form_class = LoanApprovalForm
+```
+
+و یک ویوی تابعی:
+
+```python
+from clearance.decorators import policy_required
+
+@policy_required(loan_access.policy, 'create')
+def apply(request):
+    ...
 ```
 
 ### ۴.۶ بیرون از ویو
@@ -309,6 +349,28 @@ assign_role(person, 'officer', by=admin)
 revoke_permission(person, 'loans.loan_approve', by=admin, reason='Under review')
 person.has_perm('loans.loan_approve')   # False - the officer group still gives it to everybody else
 ```
+
+### ۴.۸ اسم‌ها به هر زبانی
+
+```python
+from django.utils.translation import gettext_lazy as _
+
+permissions = build_permissions('loan', _('loans'), actions=(...))
+```
+
+```python
+from clearance.labels import label_of
+
+label_of(permission)                 # in the language of the request
+label_of(permission, language='fa')  # in a language named
+label_of(group)                      # a group's name, the same way
+```
+
+اسم منبع می‌تواند برای ترجمه علامت بخورد: چیزی که `migrate` در
+`auth_permission.name` می‌نویسد همچنان انگلیسی است - با خاموش بودن ترجمه
+خوانده می‌شود - در حالی که `label_of` آن را به زبان خواننده می‌گوید. اسمی
+که مدیر سایت خودش در پنل ادمین برای یک مجوز یا گروه نوشته، اولویت اول است
+(۸.۳).
 
 ---
 
@@ -392,7 +454,9 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 
 ---
 
-## ۶. پل DRF
+## ۶. از ویو تا policy
+
+### ۶.۱ DRF
 
 `PolicyPermission` هر درخواست را به یک hook می‌رساند:
 
@@ -414,6 +478,35 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 خواندن ساخته شده، نه با کم کردن از `ModelViewSet`، تا DRF مسیرهای نوشتنی‌ای را
 که هرگز سرویس نمی‌دهد منتشر نکند.
 
+### ۶.۲ ویوهای جنگو
+
+`PolicyRequiredMixin` همان پل برای ویوهای generic جنگوست. یک `policy` و در
+صورت نیاز یک `policy_action` می‌گیرد؛ اگر `policy_action` داده نشود، action
+مثل DRF از نوع ویو خوانده می‌شود:
+
+| ویو | hook |
+|---|---|
+| `ListView` | `can_list` |
+| `DetailView` | `can_view` |
+| `CreateView` | `can_create` |
+| `UpdateView` | `can_edit` |
+| `DeleteView` | `can_delete` |
+| هر ویوی دیگری، بدون `policy_action` | **`ImproperlyConfigured`** - هرگز به‌طور پیش‌فرض اجازه داده نمی‌شود |
+
+ویویی که شیء دارد (`DetailView`، `UpdateView`، `DeleteView`، یا هر چیزی که
+از `SingleObjectMixin` استفاده می‌کند)، وقتی `get_object()` شیء را پیدا کرد،
+hook را با همان شیء صدا می‌زند - پس با `ScopedQuerySetMixin` شیء از میان
+ردیف‌هایی پیدا می‌شود که کاربر اجازه‌ی دیدنشان را دارد، و فقط بعد از آن
+قضاوت می‌شود. ویویی که شیء ندارد، در `dispatch` و پیش از اجرای هر چیزی، با
+`obj=None` می‌پرسد.
+
+رد شدن همان رفتار خود جنگوست: `AccessMixin.handle_no_permission`. پس کسی که
+وارد نشده به صفحه‌ی ورود فرستاده می‌شود و کسی که وارد شده جواب 403 می‌گیرد.
+
+`@policy_required(policy, action)` بررسی در سطح action را برای ویوی تابعی
+انجام می‌دهد. ویوی تابعی‌ای که درباره‌ی یک شیء تصمیم می‌گیرد، بعد از پیدا
+کردن آن `policy.authorize(user, action, obj)` را صدا می‌زند.
+
 ---
 
 ## ۷. تنظیمات
@@ -431,7 +524,9 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 
 ---
 
-## ۸. مدل‌ها (`clearance.roles`)
+## ۸. مدل‌ها و پنل ادمین
+
+### ۸.۱ `clearance.roles`
 
 | مدل | فیلدها | قیدها |
 |---|---|---|
@@ -445,7 +540,7 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 لیست `choices` دیتابیس - تا اضافه کردن یک نقش فقط تغییر تنظیمات باشد، نه یک
 migration.
 
-### ۸.۱ مجوزهای اولیه، فقط یک بار
+### ۸.۲ مجوزهای اولیه، فقط یک بار
 
 `clearance_seed`، که بعد از هر `migrate` اجرا می‌شود:
 
@@ -462,6 +557,61 @@ codenameی در جدول که وجود نداشته باشد، دستور را �
 می‌گوید: مجوزی که بی‌صدا نادیده گرفته شود، یعنی نقشی که نمی‌تواند کارش را
 بکند - و این با رد شدن یک آدم کشف می‌شود، نه با شکست خوردن یک deploy.
 
+### ۸.۳ `clearance.translations`
+
+مدیر سایت مجوزها و گروه‌ها را از داخل پنل ادمین به هر زبانی نام‌گذاری
+می‌کند. این اسم‌ها ردیف‌های دیتابیس هستند، نه فایل ترجمه، چون کسی که آن‌ها
+را می‌نویسد برنامه‌نویس نیست و اضافه کردن یک زبان نباید یک deploy باشد.
+
+| مدل | فیلدها | قیدها |
+|---|---|---|
+| `PermissionTranslation` | `permission` (`auth.Permission`)، `language`، `name`، `description` | یکتا روی `(permission, language)`؛ `language` از میان `LANGUAGES` |
+| `GroupTranslation` | `group` (`auth.Group`)، `language`، `name`، `description` | یکتا روی `(group, language)`؛ `language` از میان `LANGUAGES` |
+
+زبان‌ها همان تنظیم `LANGUAGES` خود پروژه هستند؛ ارائه‌ی یک زبان جدید فقط
+تغییر تنظیمات است، نه یک migration.
+
+`label_of` به ترتیب از یک زنجیره از **منبع‌های اسم** می‌پرسد و اولین منبعی
+که جواب داشته باشد برنده است:
+
+1. اسمی که مدیر سایت به زبان خواننده نوشته - `clearance.translations`، اگر
+   نصب باشد؛
+2. اسمی که برنامه‌نویس در کد برای ترجمه علامت زده و در کاتالوگ پروژه ترجمه
+   شده؛
+3. اسمی که در `auth_permission` یا `auth_group` ذخیره شده.
+
+هر منبع یک کلاس با یک متد است؛ اپ ترجمه‌ها هنگام بارگذاری منبع خودش را به
+اول زنجیره اضافه می‌کند، و یک پروژه هم می‌تواند منبع خودش را اضافه کند.
+زبان اول دقیق تطبیق داده می‌شود و بعد بر اساس زبان پایه (اول `fa-ir`، بعد
+`fa`). اسم‌گذاری یک صفحه از مجوزها برای همه‌ی آن‌ها یک کوئری می‌زند، هرگز
+یک کوئری به‌ازای هر ردیف.
+
+ستون `name` ذخیره‌شده دست نمی‌خورد: `migrate` آن را می‌نویسد، و اسمی که مدیر
+آنجا بنویسد با `migrate` بعدی پاک می‌شد.
+
+### ۸.۴ پنل ادمین
+
+هر اپ سهم خودش را از طریق hookهای ادمین هسته به صفحه‌ها اضافه می‌کند؛ هیچ
+کدام به نصب بودن دیگری نیاز ندارد.
+
+| صفحه | از | چه چیزی نشان می‌دهد |
+|---|---|---|
+| **مجوزها** (جدید) | `clearance` | همه‌ی مجوزها، فقط‌خواندنی - اپ، codename، اسمش به زبان خواننده، گروه‌هایی که آن را دارند - با جستجو و فیلتر بر اساس اپ و گروه. مجوزها از کد می‌آیند، پس این صفحه هیچ مجوزی اضافه یا حذف نمی‌کند. |
+| + نقش‌ها | `clearance.roles` | کدام نقش‌ها هر مجوز را دارند، و فیلتر بر اساس نقش |
+| + ترجمه‌ها | `clearance.translations` | اسم و توضیحش به هر زبان، قابل ویرایش |
+| **گروه‌ها** (صفحه‌ی جنگو، گسترش‌یافته) | `clearance` | ساختن گروه با مجوزهایش، انتخاب‌شده در دو ستون کنار هم |
+| + نقش‌ها | `clearance.roles` | نقش‌هایی که گروه به آن‌ها داده شده (`RoleGroup`) |
+| + ترجمه‌ها | `clearance.translations` | اسم و توضیحش به هر زبان |
+| **صفحه‌ی کاربر** (مال خود پروژه) | `clearance.roles` | نقش‌های شخص، و مجوزهایی که از او گرفته شده همراه با دلیل |
+| **انتساب نقش‌ها**، **سلب مجوزها** | `clearance.roles` | هر کدام یک لیست جدا، برای پیدا کردن اینکه چه کسی یک نقش را دارد یا یک مجوز را از دست داده |
+
+صفحه‌ی کاربر مال پروژه است: اپ نقش‌ها دو بخش خودش را به همان ادمینی اضافه
+می‌کند که پروژه برای مدل کاربرش ثبت کرده، به‌جای اینکه آن را جایگزین کند.
+
+تا نسخه‌ی 0.2 صفحه‌ها مستقیم می‌نویسند. وقتی قواعد ایمنی بیایند (بخش ۱۵)،
+هر فرم از همان سرویسی عبور می‌کند که بقیه‌ی چیزها، تا پنل ادمین هرگز راه دور
+زدن آن‌ها نشود.
+
 ---
 
 ## ۹. بررسی‌های سیستمی (system checks)
@@ -475,6 +625,8 @@ codenameی در جدول که وجود نداشته باشد، دستور را �
 | `clearance.E005` | `EVERY_ROW_ROLES` یا `STARTING_PERMISSIONS` نقشی را نام برده که `ROLES` آن را ندارد |
 | `clearance.E006` | `clearance.roles` نصب است ولی `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست - سلب مجوزها و گروه‌های نقش هیچ اثری نداشتند |
 | `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` در `AUTHENTICATION_BACKENDS` است - جنگو وقتی *هر کدام* از Backendها مجوزی بدهد آن را قبول می‌کند، پس همه‌ی مجوزهای سلب‌شده برمی‌گشتند |
+| `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده - این‌ها به صفحه‌های ادمین و زنجیره‌ی اسم هسته وصل می‌شوند، که باید اول بارگذاری شود |
+| `clearance.E009` | یک ویوی `PolicyRequiredMixin` هیچ `policy`ی ندارد، یا `policy_action` ندارد در جایی که نمی‌شود آن را از نوع ویو خواند |
 
 E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا می‌آید، برای ویوستی
 که پیکربندی URL به آن نمی‌رسد و check در نتیجه نمی‌تواند ببیندش.
@@ -508,6 +660,7 @@ E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا م
 | `Role` | یک `TextChoices` در `apps/core/enums.py` | مال خود پروژه، که در `ROLES` نام برده می‌شود |
 | `User.role` | یک ستون | هر resolverی؛ `RoleAssignment` برای چند نقش |
 | `RoleAccessGroup` | `role` -> `AccessGroup` (با اسم‌های ترجمه‌شده) | `RoleGroup`: `role` -> `auth.Group` |
+| `AccessGroupTranslation` | اسم یک گروه به هر زبان | `GroupTranslation`، و `PermissionTranslation` کنارش |
 | `RevocableModelBackend` | گروه‌های نقش + گروه‌های خود شخص - سلب‌ها | `ClearanceBackend`، همان قاعده روی چند نقش |
 | `seed_roles`، `ROLE_PERMISSIONS` | «یک بار» با یک ردیف audit ثبت می‌شود | `clearance_seed`، «یک بار» با یک ردیف `StartingPermissions` ثبت می‌شود |
 | ویوست‌های پایه | همراه با قالب پاسخ و صفحه‌بندی | فقط mixin محدودسازی |
@@ -560,11 +713,12 @@ E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا م
 | 0 | همین سند |
 | 1 | اسکلت: `pyproject.toml` (hatchling، ساختار `src/`، وابستگی اختیاری `drf`)، پروژه‌ی تست، pytest، ruff، mypy، nox، و GitHub Actions که ماتریس تست را اجرا می‌کند - بدون هیچ قابلیتی |
 | 2 | `permissions`، `registry`، `policies`، با تست‌هایشان |
-| 3 | `resolvers`، `querysets`، `views` و system checkهای هسته، با تست‌ها و شمارش کوئری‌هایشان |
+| 3 | `resolvers`، `querysets`، `views` (`ScopedQuerySetMixin`، `PolicyRequiredMixin`)، `decorators` و system checkهای هسته، با تست‌ها و شمارش کوئری‌هایشان |
 | 4 | `drf`: پل، ویوست‌ها و checkهایشان |
-| 5 | `roles`: مدل‌ها و migrationها، Backend، resolver، سرویس‌ها، `clearance_seed`، signalها، پنل ادمین |
-| 6 | مستندات: README با شروع پنج‌دقیقه‌ای، سایت مستندات، یک پروژه‌ی نمونه؛ کاتالوگ فارسی |
-| 7 | استفاده در iranbobco؛ رفع هر چیزی که آنجا معلوم شود؛ تگ `0.1.0`، public کردن ریپو، انتشار در PyPI |
+| 5 | `roles`: مدل‌ها و migrationها، Backend، resolver، سرویس‌ها، `clearance_seed`، signalها؛ صفحه‌های ادمین - مجوزها، گروه‌ها، صفحه‌ی کاربر |
+| 6 | `translations`: مدل‌ها، `label_of` و منبع‌هایش، ترجمه‌ها در صفحه‌های ادمین |
+| 7 | مستندات: README با شروع پنج‌دقیقه‌ای، سایت مستندات، یک پروژه‌ی نمونه؛ کاتالوگ فارسی |
+| 8 | استفاده در iranbobco؛ رفع هر چیزی که آنجا معلوم شود؛ تگ `0.1.0`، public کردن ریپو، انتشار در PyPI |
 
 ## ۱۵. بعد از 0.1
 
@@ -581,7 +735,6 @@ E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا م
 * **توصیف مجوزها برای فرانت‌اند** - هر کدام به‌صورت یک بخش، یک action، و
   اینکه می‌خواند یا می‌نویسد - و endpointهای REST برای صفحه‌ی مجوزها و برای
   «من چه کارهایی می‌توانم بکنم».
-* **اسم گروه‌ها به چند زبان.**
 
 ---
 
@@ -597,3 +750,12 @@ E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا م
 4. **resolver پیش‌فرض `AttributeResolver` است که `user.role` را می‌خواند**،
    یعنی همان شکلی که بیشتر پروژه‌ها از قبل دارند. پروژه‌ای که بدون ستون
    مخصوص خودش چند نقش می‌خواهد، به `AssignmentResolver` تغییر می‌دهد.
+5. **ویوهای خود جنگو همان پلی را می‌گیرند که DRF دارد** - `PolicyRequiredMixin`
+   و `@policy_required` - تا پروژه‌ای که با تمپلیت و فرم ساخته شده چیزی از
+   دست ندهد. در مرحله‌ی ۳ ساخته می‌شود.
+6. **پنل ادمین مجوزها را نشان می‌دهد و گروه می‌سازد** - یک صفحه‌ی مجوزها،
+   صفحه‌ی گروه گسترش‌یافته با نقش‌ها، و نقش‌ها و سلب مجوزهای هر شخص در صفحه‌ی
+   خودش. در مرحله‌ی ۵ ساخته می‌شود.
+7. **هر مجوز و هر گروه می‌تواند به هر زبانی نام‌گذاری شود**، توسط مدیر سایت
+   و از داخل پنل ادمین - `clearance.translations`، در نسخه‌ی 0.1 و نه 0.2. در
+   مرحله‌ی ۶ ساخته می‌شود.
