@@ -15,3 +15,11 @@ class ClearanceConfig(AppConfig):
 
     # A product name, the same in every language - so not marked for translation.
     verbose_name = 'Clearance'
+
+    def ready(self) -> None:
+        from django.core.checks import register
+
+        from clearance.checks import CHECKS
+
+        for check in CHECKS:
+            register(check, 'clearance')

@@ -111,8 +111,8 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Written by makemigrations, not by hand: Django declares these as plain lists.
-"**/migrations/*.py" = ["RUF012"]
+# Written by makemigrations, not by hand: plain lists, and lines as long as they come.
+"**/migrations/*.py" = ["RUF012", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["clearance", "tests"]

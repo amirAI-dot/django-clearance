@@ -126,6 +126,7 @@ src/clearance/
     __init__.py            empty
     apps.py                ClearanceConfig - registers the system checks
     conf.py                reading and validating the CLEARANCE setting
+    protocols.py           User - the three things the library asks of a person
     permissions.py         build_permissions, DEFAULT_ACTIONS, RECORD_ACTIONS
     registry.py            PermissionRegistry, ResourcePermission, registry
     policies.py            BasePolicy, SignedInReadPolicy
@@ -444,6 +445,12 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 شود ممکن است یک ردیف را تکراری برگرداند؛ مستندات این را می‌گوید و `pk__in` را
 به‌عنوان راه‌حل نشان می‌دهد.
 
+اینکه نقشی که hook ندارد چه چیزی می‌بیند، با یک متد تعیین می‌شود:
+`default_scope(role, user)`؛ پس یک queryset می‌تواند آن را یک‌جا برای همه‌ی
+نقش‌ها عوض کند. `OwnedQuerySet` آن را «ردیف‌هایی که مال خودت هستند» می‌کند، از
+طریق `owner_path`؛ و `SignedInReadQuerySet` همه‌ی ردیف‌ها را به هر کسی که وارد
+شده می‌دهد، هر نقشی که داشته باشد.
+
 ### ۵.۴ در یک policy
 
 `has_role(user, *roles)` وقتی درست است که کاربر **هر کدام** از آن‌ها را داشته
@@ -493,12 +500,13 @@ queryset برگشتی به‌صورت `Q(pk__in=queryset.values('pk'))` وارد
 | `DeleteView` | `can_delete` |
 | هر ویوی دیگری، بدون `policy_action` | **`ImproperlyConfigured`** - هرگز به‌طور پیش‌فرض اجازه داده نمی‌شود |
 
-ویویی که شیء دارد (`DetailView`، `UpdateView`، `DeleteView`، یا هر چیزی که
-از `SingleObjectMixin` استفاده می‌کند)، وقتی `get_object()` شیء را پیدا کرد،
-hook را با همان شیء صدا می‌زند - پس با `ScopedQuerySetMixin` شیء از میان
-ردیف‌هایی پیدا می‌شود که کاربر اجازه‌ی دیدنشان را دارد، و فقط بعد از آن
-قضاوت می‌شود. ویویی که شیء ندارد، در `dispatch` و پیش از اجرای هر چیزی، با
-`obj=None` می‌پرسد.
+هر ویو اول در `dispatch` و پیش از اجرای هر چیزی، با `obj=None` می‌پرسد - مثل
+`has_permission` در DRF - پس کسی که مجوز ندارد پیش از زدن هر کوئری رد می‌شود.
+ویویی که شیء دارد (`DetailView`، `UpdateView`، `DeleteView`، یا هر چیزی که از
+`SingleObjectMixin` استفاده می‌کند) بعد، وقتی `get_object()` شیء را پیدا کرد،
+دوباره با همان شیء می‌پرسد - پس با `ScopedQuerySetMixin` شیء از میان
+ردیف‌هایی پیدا می‌شود که کاربر اجازه‌ی دیدنشان را دارد، و فقط بعد از آن قضاوت
+می‌شود.
 
 رد شدن همان رفتار خود جنگوست: `AccessMixin.handle_no_permission`. پس کسی که
 وارد نشده به صفحه‌ی ورود فرستاده می‌شود و کسی که وارد شده جواب 403 می‌گیرد.
@@ -515,7 +523,7 @@ hook را با همان شیء صدا می‌زند - پس با `ScopedQuerySetM
 
 | کلید | پیش‌فرض | معنی |
 |---|---|---|
-| `ROLES` | اجباری | مسیر نقطه‌دار به یک `TextChoices`، یا لیستی از کدها. هر کد باید یک شناسه‌ی معتبر پایتون باشد، چون اسم یک hook را می‌سازد. |
+| `ROLES` | اجباری، از وقتی که یک مدل با `ScopedQuerySet` مدیریت شود | مسیر نقطه‌دار به یک `TextChoices`، یا لیستی از کدها. هر کد باید یک شناسه‌ی معتبر پایتون باشد، چون اسم یک hook را می‌سازد. |
 | `ROLE_RESOLVER` | `'clearance.resolvers.AttributeResolver'` | مسیر نقطه‌دار به یک `RoleResolver` |
 | `ROLE_ATTRIBUTE` | `'role'` | چیزی که `AttributeResolver` می‌خواند |
 | `EVERY_ROW_ROLES` | `[]` | نقش‌هایی که همه‌ی ردیف‌های querysetی را که برایشان hook ندارد می‌بینند |
@@ -626,7 +634,9 @@ codenameی در جدول که وجود نداشته باشد، دستور را �
 | `clearance.E006` | `clearance.roles` نصب است ولی `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست - سلب مجوزها و گروه‌های نقش هیچ اثری نداشتند |
 | `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` در `AUTHENTICATION_BACKENDS` است - جنگو وقتی *هر کدام* از Backendها مجوزی بدهد آن را قبول می‌کند، پس همه‌ی مجوزهای سلب‌شده برمی‌گشتند |
 | `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده - این‌ها به صفحه‌های ادمین و زنجیره‌ی اسم هسته وصل می‌شوند، که باید اول بارگذاری شود |
-| `clearance.E009` | یک ویوی `PolicyRequiredMixin` هیچ `policy`ی ندارد، یا `policy_action` ندارد در جایی که نمی‌شود آن را از نوع ویو خواند |
+| `clearance.E009` | یک ویوی `PolicyRequiredMixin` هیچ `policy`ی ندارد، یا `policy_action` ندارد در جایی که نمی‌شود آن را از نوع ویو خواند، یا actionی دارد که policyاش برایش hook ندارد |
+| `clearance.E010` | `ROLE_RESOLVER` قابل import نیست یا `RoleResolver` نیست، یا `ROLE_ATTRIBUTE` اسم یک attribute نیست |
+| `clearance.E011` | `CLEARANCE` دیکشنری نیست، یا کلیدی دارد که کتابخانه نمی‌شناسد - کلید غلط‌تایپی رد می‌شود، نادیده گرفته نمی‌شود |
 
 E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا می‌آید، برای ویوستی
 که پیکربندی URL به آن نمی‌رسد و check در نتیجه نمی‌تواند ببیندش.
