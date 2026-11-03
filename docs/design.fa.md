@@ -534,8 +534,8 @@ E004 در زمان درخواست هم (با `ImproperlyConfigured`) بالا م
 
 * **کد فقط به انگلیسی** - سورس، کامنت‌ها، docstringها، تست‌ها. هر پیامی که
   آدم‌ها می‌خوانند با `gettext` علامت‌گذاری می‌شود؛ فارسی در
-  `src/clearance/locale/fa/LC_MESSAGES/` است، compile‌شده و commit‌شده. CI هر
-  کاراکتر غیر ASCII را در `src/` یا `tests/`، بیرون از `locale/`، رد می‌کند.
+  `src/clearance/locale/fa/LC_MESSAGES/` است، compile‌شده و commit‌شده. این
+  قاعده را code review نگه می‌دارد، نه یک ابزار.
 * **مستندات به انگلیسی و فارسی.** هر سند به انگلیسی نوشته و کنارش ترجمه
   می‌شود - `design.md` و `design.fa.md`، `README.md` و `README.fa.md` - و
   تغییر در یکی، در همان pull request روی دیگری هم اعمال می‌شود. کد در سند

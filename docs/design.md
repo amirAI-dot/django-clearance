@@ -524,8 +524,8 @@ A Django release is supported from its `.0` and dropped when Django drops it.
 
 * **English only in the code** - source, comments, docstrings, tests. Every
   message a person reads is marked with `gettext`; the Persian lives in
-  `src/clearance/locale/fa/LC_MESSAGES/`, compiled and committed. CI refuses
-  a non-ASCII character anywhere under `src/` or `tests/` outside `locale/`.
+  `src/clearance/locale/fa/LC_MESSAGES/`, compiled and committed. Code review
+  holds the rule; no tool checks it.
 * **Documentation in English and in Persian.** Each document is written in
   English and translated beside it - `design.md` and `design.fa.md`,
   `README.md` and `README.fa.md` - and a change to one is made to the other in

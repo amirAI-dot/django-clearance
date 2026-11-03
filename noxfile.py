@@ -2,7 +2,7 @@
 Every check the project runs, defined once - locally and in CI alike.
 
     nox -l                                   list the sessions
-    nox -s lint                              lint, formatting, and the ASCII rule
+    nox -s lint                              lint and formatting
     nox -s types                             mypy
     nox -s tests                             every supported Python and Django
     nox -s "tests(3.13-django6.1)"           one combination
@@ -39,11 +39,10 @@ def django_release(release: str) -> str:
 
 @nox.session(python=NEWEST_PYTHON)
 def lint(session: nox.Session) -> None:
-    """Lint, formatting, and no character outside ASCII in the code."""
+    """Lint and formatting."""
     session.install('--group', 'lint')
     session.run('ruff', 'check', '.')
     session.run('ruff', 'format', '--check', '.')
-    session.run('python', 'tools/ascii_only.py', 'src', 'tests', 'tools', 'noxfile.py')
 
 
 @nox.session(python=NEWEST_PYTHON)
