@@ -91,10 +91,19 @@ What the README will list.
 * **Works with and without DRF.** One mixin scopes Django's class-based views
   and DRF's generic views alike; the DRF permission class is generated from
   the policy.
+* **The same for templates and forms.** `PolicyRequiredMixin` asks the policy
+  from Django's own generic views - the action read off the view, the object
+  handed to the hook - and `@policy_required` does it for a function view.
 * **Usable outside views.** `policy.authorize(user, 'approve', loan)` raises
   Django's `PermissionDenied` from a service, a management command or a task.
 * **Signals for every change.** Assigning a role, revoking a permission,
   seeding - so a project writes its own audit trail.
+* **In the admin site.** Every permission listed with the groups and roles
+  that hold it; groups made and given to roles from the group page; a
+  person's roles and revocations on their own page.
+* **Every permission in every language.** An administrator names a permission
+  or a group in any language the project offers, from the admin site, with
+  no translation file and no deployment.
 * **Translated.** Every message is marked for translation; English and
   Persian ship with the package.
 * **Typed.** Type hints throughout, `py.typed` shipped.
@@ -113,7 +122,10 @@ src/clearance/
     policies.py            BasePolicy, SignedInReadPolicy
     resolvers.py           RoleResolver, AttributeResolver, roles_of(), reaches_every_row()
     querysets.py           ScopedQuerySet, SignedInReadQuerySet, OwnedQuerySet
-    views.py               ScopedQuerySetMixin - Django CBVs and DRF generic views
+    views.py               ScopedQuerySetMixin, PolicyRequiredMixin - Django CBVs (and DRF)
+    decorators.py          policy_required - function views
+    labels.py              label_of() - a permission's or group's name, in the reader's language
+    admin.py               the permission page, and the group page extended
     checks.py              the core system checks
     signals.py             every signal the library sends
     locale/fa/LC_MESSAGES/ the Persian catalogue
@@ -132,9 +144,17 @@ src/clearance/
         resolvers.py       AssignmentResolver
         services.py        assign_role, unassign_role, revoke_permission, restore_permission
         seeding.py         giving the starting permissions once
-        admin.py
+        admin.py           roles on the group and user pages
         migrations/
         management/commands/clearance_seed.py
+
+    translations/          a Django app with models: INSTALLED_APPS += ['clearance.translations']
+        __init__.py        empty
+        apps.py            label 'clearance_translations'
+        models.py          PermissionTranslation, GroupTranslation
+        sources.py         the label source that reads them
+        admin.py           translations on the permission and group pages
+        migrations/
 ```
 
 Rules for the layout:
@@ -142,11 +162,12 @@ Rules for the layout:
 * **`__init__.py` files stay empty.** Everything is imported from the module
   that defines it: `from clearance.policies import BasePolicy`. The version is
   read with `importlib.metadata.version('django-clearance')`.
-* **The core imports nothing from `drf` or `roles`.** `drf` imports the core;
-  `roles` imports the core. Tested by importing the core with neither DRF nor
-  the roles app installed.
-* **The roles app's label is `clearance_roles`**, so it cannot collide with a
-  project app called `roles`.
+* **The core imports nothing from `drf`, `roles` or `translations`.** Each of
+  them imports the core, and plugs into it - an admin page, a label source -
+  through a hook the core offers. Tested by importing the core with none of
+  them installed.
+* **The apps' labels are `clearance_roles` and `clearance_translations`**, so
+  neither can collide with a project app of the same short name.
 
 ---
 
@@ -261,13 +282,31 @@ class LoanViewSet(ScopedModelViewSet):
         ...
 ```
 
-A plain Django view uses the same mixin:
+A Django view with templates and forms uses the same mixin, and asks the
+policy with `PolicyRequiredMixin`:
 
 ```python
-from clearance.views import ScopedQuerySetMixin
+from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
 
-class LoanListView(ScopedQuerySetMixin, ListView):
+class LoanListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):
+    policy = loan_access.policy          # 'list', read off ListView
     queryset = Loan.objects.all()
+
+class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):
+    policy = loan_access.policy
+    policy_action = 'approve'            # can_approve(user, loan)
+    queryset = Loan.objects.all()
+    form_class = LoanApprovalForm
+```
+
+And a function view:
+
+```python
+from clearance.decorators import policy_required
+
+@policy_required(loan_access.policy, 'create')
+def apply(request):
+    ...
 ```
 
 ### 4.6 Outside a view
@@ -301,6 +340,28 @@ assign_role(person, 'officer', by=admin)
 revoke_permission(person, 'loans.loan_approve', by=admin, reason='Under review')
 person.has_perm('loans.loan_approve')   # False - the officer group still gives it to everybody else
 ```
+
+### 4.8 Names in every language
+
+```python
+from django.utils.translation import gettext_lazy as _
+
+permissions = build_permissions('loan', _('loans'), actions=(...))
+```
+
+```python
+from clearance.labels import label_of
+
+label_of(permission)                 # in the language of the request
+label_of(permission, language='fa')  # in a language named
+label_of(group)                      # a group's name, the same way
+```
+
+The resource name may be marked for translation: what `migrate` writes into
+`auth_permission.name` is still English - read with translation switched
+off - while `label_of` says it in the reader's language. An administrator's
+own name for a permission or a group, typed in the admin site, comes first
+(8.3).
 
 ---
 
@@ -383,7 +444,9 @@ be done*.
 
 ---
 
-## 6. The DRF bridge
+## 6. From a view to a policy
+
+### 6.1 DRF
 
 `PolicyPermission` maps a request to a hook:
 
@@ -405,6 +468,34 @@ hook, and a custom action that is not mapped is refused there too.
 mixins rather than trimmed from `ModelViewSet`, so DRF does not publish write
 routes it never serves.
 
+### 6.2 Django views
+
+`PolicyRequiredMixin` is the same bridge for Django's generic views. It names
+a `policy` and, optionally, a `policy_action`; without one, the action is read
+off the view, as DRF's is:
+
+| view | hook |
+|---|---|
+| `ListView` | `can_list` |
+| `DetailView` | `can_view` |
+| `CreateView` | `can_create` |
+| `UpdateView` | `can_edit` |
+| `DeleteView` | `can_delete` |
+| any other view, with no `policy_action` | **`ImproperlyConfigured`** - never allowed by default |
+
+A view with an object (`DetailView`, `UpdateView`, `DeleteView`, or anything
+using `SingleObjectMixin`) asks the hook with the object, when `get_object()`
+resolves it - so with `ScopedQuerySetMixin` the object is found among the rows
+the user may see, and only then judged. A view with no object asks with
+`obj=None`, in `dispatch`, before anything runs.
+
+A refusal is Django's own: `AccessMixin.handle_no_permission`, so somebody not
+signed in is sent to the login page and somebody signed in is answered 403.
+
+`@policy_required(policy, action)` does the action-level check for a function
+view. A function view judging one object calls `policy.authorize(user,
+action, obj)` once it has it.
+
 ---
 
 ## 7. Settings
@@ -422,7 +513,9 @@ All under one dictionary, `CLEARANCE`.
 
 ---
 
-## 8. Models (`clearance.roles`)
+## 8. Models and the admin site
+
+### 8.1 `clearance.roles`
 
 | model | fields | constraints |
 |---|---|---|
@@ -436,7 +529,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`. `role` is a plain
 database `choices` list - so adding a role is a settings change, not a
 migration.
 
-### 8.1 Starting permissions, once
+### 8.2 Starting permissions, once
 
 `clearance_seed`, run after every `migrate`:
 
@@ -453,6 +546,61 @@ A codename in the table that does not exist fails the command and names it:
 a silently skipped permission is a role that cannot do its job, found by a
 person being refused rather than by a deployment failing.
 
+### 8.3 `clearance.translations`
+
+An administrator names permissions and groups in any language, from the
+admin site. The names are rows, not translation files, because the person
+typing them is not a developer and adding a language is not a deployment.
+
+| model | fields | constraints |
+|---|---|---|
+| `PermissionTranslation` | `permission` (`auth.Permission`), `language`, `name`, `description` | unique `(permission, language)`; `language` among `LANGUAGES` |
+| `GroupTranslation` | `group` (`auth.Group`), `language`, `name`, `description` | unique `(group, language)`; `language` among `LANGUAGES` |
+
+The languages are the project's own `LANGUAGES` setting; offering a new one
+is a settings change, not a migration.
+
+`label_of` asks a chain of **label sources**, in order, and the first with an
+answer wins:
+
+1. the administrator's name in the reader's language - `clearance.translations`,
+   when installed;
+2. the developer's name, marked for translation in the code and translated in
+   the project's catalogue;
+3. the name stored in `auth_permission` or `auth_group`.
+
+A source is a class with one method; the translations app adds its own to the
+front of the chain when it loads, and a project can add one too. The
+language is matched exactly, then by its base (`fa-ir`, then `fa`). Labelling
+a page of permissions costs one query for all of them, never one per row.
+
+The stored `name` is left alone: `migrate` writes it, and a name an
+administrator typed there would be written over by the next `migrate`.
+
+### 8.4 The admin site
+
+Each app adds its part to the pages, through hooks in the core's admin; none
+needs another installed.
+
+| page | from | shows |
+|---|---|---|
+| **Permissions** (new) | `clearance` | every permission, read only - the app, the codename, its name in the reader's language, the groups holding it - searchable, and filtered by app and group. Permissions come from the code, so the page adds and deletes none. |
+| + roles | `clearance.roles` | which roles hold each permission, and a filter by role |
+| + translations | `clearance.translations` | its name and description in each language, editable |
+| **Groups** (Django's, extended) | `clearance` | a group made with the permissions it holds, chosen two columns side by side |
+| + roles | `clearance.roles` | the roles the group is given to (`RoleGroup`) |
+| + translations | `clearance.translations` | its name and description in each language |
+| **The user page** (the project's own) | `clearance.roles` | the person's roles, and the permissions taken away from them with why |
+| **Role assignments**, **Revocations** | `clearance.roles` | each as a list of its own, for finding who holds a role or lost a permission |
+
+The user page is the project's: the roles app adds its two sections to
+whichever admin the project registered for its user model, rather than
+replacing it.
+
+Until 0.2 the pages write directly. When the safety rules come (section 15),
+every form goes through the same service as everything else, so the admin
+site never becomes the way round them.
+
 ---
 
 ## 9. System checks
@@ -466,6 +614,8 @@ person being refused rather than by a deployment failing.
 | `clearance.E005` | `EVERY_ROW_ROLES` or `STARTING_PERMISSIONS` names a role `ROLES` does not declare |
 | `clearance.E006` | `clearance.roles` is installed and `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` - revocations and role groups would do nothing |
 | `clearance.E007` | `ModelBackend` is in `AUTHENTICATION_BACKENDS` beside `ClearanceBackend` - Django grants a permission when *any* backend does, so it would hand back every revoked permission |
+| `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it - they plug into the core's admin pages and label chain, which must load first |
+| `clearance.E009` | a `PolicyRequiredMixin` view has no `policy`, or no `policy_action` where none can be read off the view |
 
 E004 is also raised at request time (`ImproperlyConfigured`), for a viewset
 the URL configuration does not reach and the check therefore cannot see.
@@ -499,6 +649,7 @@ the URL configuration does not reach and the check therefore cannot see.
 | `Role` | a `TextChoices` in `apps/core/enums.py` | the project's own, named in `ROLES` |
 | `User.role` | one column | any resolver; `RoleAssignment` for several roles |
 | `RoleAccessGroup` | `role` -> `AccessGroup` (with translated names) | `RoleGroup`: `role` -> `auth.Group` |
+| `AccessGroupTranslation` | a group's name per language | `GroupTranslation`, and `PermissionTranslation` beside it |
 | `RevocableModelBackend` | role groups + own groups - revocations | `ClearanceBackend`, the same rule over several roles |
 | `seed_roles`, `ROLE_PERMISSIONS` | "once" recorded as an audit row | `clearance_seed`, "once" recorded as a `StartingPermissions` row |
 | viewset bases | with the response envelope and pagination | the scoping mixin only |
@@ -550,11 +701,12 @@ Each is one pull request.
 | 0 | this document |
 | 1 | the skeleton: `pyproject.toml` (hatchling, `src/` layout, the `drf` extra), the test project, pytest, ruff, mypy, nox, GitHub Actions running the matrix - and no features |
 | 2 | `permissions`, `registry`, `policies`, with their tests |
-| 3 | `resolvers`, `querysets`, `views`, the core system checks, with their tests and query counts |
+| 3 | `resolvers`, `querysets`, `views` (`ScopedQuerySetMixin`, `PolicyRequiredMixin`), `decorators`, the core system checks, with their tests and query counts |
 | 4 | `drf`: the bridge, the viewsets and their checks |
-| 5 | `roles`: models and migrations, the backend, the resolver, the services, `clearance_seed`, the signals, the admin |
-| 6 | documentation: the README with a five-minute start, the docs site, an example project; the Persian catalogue |
-| 7 | used in iranbobco; whatever that shows fixed; `0.1.0` tagged, the repository made public, published to PyPI |
+| 5 | `roles`: models and migrations, the backend, the resolver, the services, `clearance_seed`, the signals; the admin pages - permissions, groups, the user page |
+| 6 | `translations`: the models, `label_of` and its sources, the translations on the admin pages |
+| 7 | documentation: the README with a five-minute start, the docs site, an example project; the Persian catalogue |
+| 8 | used in iranbobco; whatever that shows fixed; `0.1.0` tagged, the repository made public, published to PyPI |
 
 ## 15. After 0.1
 
@@ -571,7 +723,6 @@ check them:
 * **Describing permissions to a frontend** - each as a section, an action and
   whether it reads or writes - and the REST endpoints for a permission screen
   and for "what may I do".
-* **Group names in several languages.**
 
 ---
 
@@ -587,3 +738,12 @@ Made by the owner on review of this document.
 4. **The default resolver is `AttributeResolver` reading `user.role`**, the
    shape most projects already have. A project wanting several roles without
    a column of its own switches to `AssignmentResolver`.
+5. **Django's own views get the same bridge as DRF** - `PolicyRequiredMixin`
+   and `@policy_required` - so a project built on templates and forms gives
+   up nothing. Built in stage 3.
+6. **The admin site shows permissions and makes groups** - a permission page,
+   the group page extended with roles, a person's roles and revocations on
+   their page. Built in stage 5.
+7. **Every permission and group can be named in any language** by an
+   administrator, from the admin site - `clearance.translations`, in 0.1 rather
+   than 0.2. Built in stage 6.
