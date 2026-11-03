@@ -1,0 +1,99 @@
+# Every check in noxfile.py, on every push to main and every pull request.
+#
+# The test matrix is not written here: it is read from the nox sessions, so
+# the table of supported versions in noxfile.py is the only place a version
+# is added or dropped. Every combination runs on PostgreSQL; the newest also
+# runs on SQLite.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: '1'
+
+jobs:
+  checks:
+    name: ${{ matrix.session }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        session: [lint, types]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uvx nox --download-python auto -s ${{ matrix.session }}
+
+  matrix:
+    name: List the test sessions
+    runs-on: ubuntu-latest
+    outputs:
+      sessions: ${{ steps.list.outputs.sessions }}
+      newest: ${{ steps.list.outputs.newest }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - id: list
+        run: |
+          sessions=$(uvx nox -l --json -s tests | jq -c '[.[] | {session, python}]')
+          echo "sessions=$sessions" >> "$GITHUB_OUTPUT"
+          echo "newest=$(jq -c '.[-1]' <<< "$sessions")" >> "$GITHUB_OUTPUT"
+
+  postgres:
+    name: ${{ matrix.session }} on PostgreSQL
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.sessions) }}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: clearance
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CLEARANCE_TEST_DATABASE: postgres
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: clearance
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@v7
+      - run: uvx nox -s "${{ matrix.session }}"
+
+  sqlite:
+    name: ${{ fromJSON(needs.matrix.outputs.newest).session }} on SQLite
+    needs: matrix
+    runs-on: ubuntu-latest
+    env:
+      CLEARANCE_TEST_DATABASE: sqlite
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ fromJSON(needs.matrix.outputs.newest).python }}
+      - uses: astral-sh/setup-uv@v7
+      - run: uvx nox -s "${{ fromJSON(needs.matrix.outputs.newest).session }}"

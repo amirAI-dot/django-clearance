@@ -1,0 +1,128 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-clearance"
+version = "0.1.0.dev0"
+description = "Role, policy and row-level access control for Django. Denied by default."
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [{ name = "amir mohammad kashanchian" }]
+requires-python = ">=3.11"
+dependencies = ["Django>=5.2"]
+keywords = ["django", "permissions", "authorization", "rbac", "abac", "row-level security"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+drf = ["djangorestframework>=3.16"]
+
+[project.urls]
+Repository = "https://github.com/amirAI-dot/django-clearance"
+Design = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md"
+
+[dependency-groups]
+test = [
+    "pytest>=9",
+    "pytest-django>=4.11",
+    "pytest-cov>=7",
+    "psycopg[binary]>=3.2",
+]
+lint = ["ruff>=0.15"]
+types = [
+    "mypy>=1.15",
+    "django-stubs>=5.2",
+    "djangorestframework-stubs>=3.16",
+]
+dev = [
+    "nox>=2025.2.9",
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "types" },
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clearance"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "docs", "LICENSE", "README.md", "README.fa.md"]
+
+# ---------------------------------------------------------------- tests
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.project.settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["clearance"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+# ---------------------------------------------------------------- lint
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+# The documents' examples are prose, laid out for reading rather than formatted.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "N",        # naming
+    "UP",       # newer syntax for the oldest supported Python
+    "B",        # likely bugs
+    "C4",       # comprehensions
+    "SIM",      # simplifications
+    "RET",      # return statements
+    "PIE",      # unnecessary statements
+    "PT",       # pytest style
+    "DJ",       # Django conventions
+    "RUF",      # ruff's own rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["clearance", "tests"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+# ---------------------------------------------------------------- types
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+strict = true
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "tests.project.settings"
