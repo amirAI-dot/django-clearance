@@ -25,9 +25,6 @@ def test_the_version_is_read_from_the_installed_package() -> None:
     assert version('django-clearance')
 
 
-# Django's own model checks may ask the database what it supports - on SQLite,
-# whether JSONField works - so the check needs the database.
-@pytest.mark.django_db
 def test_a_project_with_the_library_passes_djangos_checks() -> None:
     call_command('check', fail_level='WARNING')
 

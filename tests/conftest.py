@@ -36,7 +36,7 @@ def make_user(db: None) -> MakeUser:
         person = Person.objects.create_user(
             username=f'person{count}',
             role=role,
-            extra_roles=list(extra_roles),
+            extra_roles=','.join(extra_roles),
             is_superuser=superuser,
             is_active=active,
         )
