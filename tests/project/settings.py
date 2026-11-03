@@ -2,8 +2,9 @@
 The project the test suite runs against.
 
 The smallest project the library can be installed in: Django's ``auth`` and
-``contenttypes``, which the permission tables need, and the library itself.
-Each later stage adds what it tests and nothing more.
+``contenttypes``, which the permission tables need, the library itself, a
+user model with roles, and a lending app with pages to guard. Each stage adds
+what it tests and nothing more.
 
 The database is chosen by ``CLEARANCE_TEST_DATABASE`` - ``sqlite`` (the
 default) or ``postgres``, configured by the standard ``PG*`` variables - so
@@ -21,9 +22,32 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.sessions',
     'clearance',
+    'tests.project.accounts',
     'tests.project.lending',
 ]
+
+AUTH_USER_MODEL = 'accounts.Person'
+
+MIDDLEWARE = [
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+]
+
+ROOT_URLCONF = 'tests.project.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'APP_DIRS': True,
+    },
+]
+
+CLEARANCE = {
+    'ROLES': ['admin', 'officer', 'customer', 'auditor'],
+    'EVERY_ROW_ROLES': ['admin'],
+}
 
 _DATABASES = {
     'sqlite': {

@@ -10,13 +10,14 @@ from collections.abc import Mapping
 from typing import ClassVar
 
 import pytest
-from django.contrib.auth.models import AnonymousUser, User
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.test import override_settings
 
 from clearance.policies import BasePolicy, SignedInReadPolicy
 from clearance.protocols import User as AnyUser
 from tests.conftest import MakeUser
+from tests.project.accounts.models import Person
 from tests.project.lending.models import Loan
 
 
@@ -41,7 +42,7 @@ def policy() -> LoanPolicy:
     return LoanPolicy()
 
 
-def loan_for(person: User) -> Loan:
+def loan_for(person: Person) -> Loan:
     return Loan.objects.create(applicant=person, amount=1000)
 
 
@@ -162,6 +163,17 @@ def test_an_action_with_no_hook_is_an_error_not_an_answer(
 ) -> None:
     with pytest.raises(ImproperlyConfigured, match='can_aprove'):
         policy.allows(make_user(superuser=True), 'aprove')
+
+
+def test_a_policy_asks_about_roles_and_reach_through_the_resolvers(
+    policy: LoanPolicy, make_user: MakeUser
+) -> None:
+    admin = make_user(role='admin')
+
+    assert policy.has_role(admin, 'officer', 'admin')
+    assert not policy.has_role(admin, 'officer')
+    assert policy.reaches_every_row(admin)
+    assert not policy.reaches_every_row(make_user(role='officer'))
 
 
 # ---------------------------------------------------------------- reference data

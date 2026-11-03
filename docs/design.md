@@ -117,6 +117,7 @@ src/clearance/
     __init__.py            empty
     apps.py                ClearanceConfig - registers the system checks
     conf.py                reading and validating the CLEARANCE setting
+    protocols.py           User - the three things the library asks of a person
     permissions.py         build_permissions, DEFAULT_ACTIONS, RECORD_ACTIONS
     registry.py            PermissionRegistry, ResourcePermission, registry
     policies.py            BasePolicy, SignedInReadPolicy
@@ -434,6 +435,11 @@ every row makes the answer every row. A hook returning anything else raises
 A `Q` that crosses a to-many relation can repeat a row when joined with
 another; the documentation says so and shows `pk__in` as the remedy.
 
+What a role with no hook gets is `default_scope(role, user)`, one method, so
+a queryset changes it for every role at once. `OwnedQuerySet` makes it "the
+rows that are yours", through `owner_path`; `SignedInReadQuerySet` gives
+every row to anybody signed in, whatever their roles.
+
 ### 5.4 In a policy
 
 `has_role(user, *roles)` is true when the user has **any** of them.
@@ -483,11 +489,13 @@ off the view, as DRF's is:
 | `DeleteView` | `can_delete` |
 | any other view, with no `policy_action` | **`ImproperlyConfigured`** - never allowed by default |
 
-A view with an object (`DetailView`, `UpdateView`, `DeleteView`, or anything
-using `SingleObjectMixin`) asks the hook with the object, when `get_object()`
-resolves it - so with `ScopedQuerySetMixin` the object is found among the rows
-the user may see, and only then judged. A view with no object asks with
-`obj=None`, in `dispatch`, before anything runs.
+Every view first asks with `obj=None`, in `dispatch`, before anything runs -
+as DRF's `has_permission` does - so somebody without the permission is
+refused before a query is made. A view with an object (`DetailView`,
+`UpdateView`, `DeleteView`, or anything using `SingleObjectMixin`) then asks
+again with the object, when `get_object()` resolves it - so with
+`ScopedQuerySetMixin` the object is found among the rows the user may see,
+and only then judged.
 
 A refusal is Django's own: `AccessMixin.handle_no_permission`, so somebody not
 signed in is sent to the login page and somebody signed in is answered 403.
@@ -504,7 +512,7 @@ All under one dictionary, `CLEARANCE`.
 
 | key | default | meaning |
 |---|---|---|
-| `ROLES` | required | dotted path to a `TextChoices`, or a list of codes. Each code must be a valid Python identifier, because it names a hook. |
+| `ROLES` | required once a model is managed with a `ScopedQuerySet` | dotted path to a `TextChoices`, or a list of codes. Each code must be a valid Python identifier, because it names a hook. |
 | `ROLE_RESOLVER` | `'clearance.resolvers.AttributeResolver'` | dotted path to a `RoleResolver` |
 | `ROLE_ATTRIBUTE` | `'role'` | what `AttributeResolver` reads |
 | `EVERY_ROW_ROLES` | `[]` | roles that see every row of a queryset with no hook for them |
@@ -615,7 +623,9 @@ site never becomes the way round them.
 | `clearance.E006` | `clearance.roles` is installed and `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` - revocations and role groups would do nothing |
 | `clearance.E007` | `ModelBackend` is in `AUTHENTICATION_BACKENDS` beside `ClearanceBackend` - Django grants a permission when *any* backend does, so it would hand back every revoked permission |
 | `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it - they plug into the core's admin pages and label chain, which must load first |
-| `clearance.E009` | a `PolicyRequiredMixin` view has no `policy`, or no `policy_action` where none can be read off the view |
+| `clearance.E009` | a `PolicyRequiredMixin` view has no `policy`, no `policy_action` where none can be read off the view, or an action its policy has no hook for |
+| `clearance.E010` | `ROLE_RESOLVER` cannot be imported or is not a `RoleResolver`, or `ROLE_ATTRIBUTE` is not an attribute name |
+| `clearance.E011` | `CLEARANCE` is not a dictionary, or has a key the library does not know - a misspelled key is refused, not ignored |
 
 E004 is also raised at request time (`ImproperlyConfigured`), for a viewset
 the URL configuration does not reach and the check therefore cannot see.

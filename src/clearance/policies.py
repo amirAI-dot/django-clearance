@@ -30,6 +30,7 @@ from typing import Any, ClassVar, cast
 
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 
+from clearance import resolvers
 from clearance.protocols import User
 
 #: A hook: the person, and the object when there is one.
@@ -119,6 +120,24 @@ class BasePolicy:
         return bool(
             user.is_authenticated and user.is_active and user.has_perm(self.permission_for(action))
         )
+
+    @staticmethod
+    def has_role(user: User, *roles: str) -> bool:
+        """
+        Whether ``user`` has any of ``roles``.
+
+        For whose job an act is - only an officer approves - which no
+        permission can say: a permission is granted, a job is not.
+        """
+        return resolvers.has_role(user, *roles)
+
+    @staticmethod
+    def reaches_every_row(user: User) -> bool:
+        """
+        Whether the queryset hands ``user`` every row - so an object need not
+        be theirs. Which rows, never what may be done with them.
+        """
+        return resolvers.reaches_every_row(user)
 
     # ------------------------------------------------------------------
     # The standard hooks
