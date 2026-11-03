@@ -110,6 +110,10 @@ select = [
     "RUF",      # ruff's own rules
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Written by makemigrations, not by hand: Django declares these as plain lists.
+"**/migrations/*.py" = ["RUF012"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["clearance", "tests"]
 

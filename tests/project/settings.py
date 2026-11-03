@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'clearance',
+    'tests.project.lending',
 ]
 
 _DATABASES = {
