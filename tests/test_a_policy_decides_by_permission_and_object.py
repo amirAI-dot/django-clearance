@@ -12,6 +12,7 @@ from typing import ClassVar
 import pytest
 from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.test import override_settings
 
 from clearance.policies import BasePolicy, SignedInReadPolicy
 from clearance.protocols import User as AnyUser
@@ -76,6 +77,25 @@ def test_an_inactive_account_may_do_nothing_it_was_granted(
     gone = make_user('lending.loan_create', active=False)
 
     assert not policy.allows(gone, 'create')
+
+
+@override_settings(AUTHENTICATION_BACKENDS=['tests.project.backends.GrantsEverythingBackend'])
+def test_an_inactive_account_is_refused_even_by_a_backend_that_grants_it(
+    policy: LoanPolicy, make_user: MakeUser
+) -> None:
+    active = make_user()
+    gone = make_user(active=False)
+
+    assert active.has_perm('lending.loan_create'), 'the backend grants everything'
+    assert gone.has_perm('lending.loan_create'), 'even to a switched-off account'
+    assert policy.allows(active, 'create')
+    assert not policy.allows(gone, 'create')
+
+
+def test_an_inactive_superuser_may_do_nothing(policy: LoanPolicy, make_user: MakeUser) -> None:
+    root = make_user(superuser=True, active=False)
+
+    assert not policy.allows(root, 'create')
 
 
 def test_each_action_needs_its_own_permission(policy: LoanPolicy, make_user: MakeUser) -> None:

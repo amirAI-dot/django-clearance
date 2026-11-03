@@ -105,11 +105,20 @@ class BasePolicy:
         """
         Whether ``user`` holds the permission for ``action``.
 
-        The building block every hook starts from. Asked without the object,
-        because Django's own backend answers "no" to any permission asked
-        about an object - object rules are the hooks' to add.
+        The building block every hook starts from, so it refuses anybody not
+        signed in and any account switched off, itself. Django's own backend
+        refuses an inactive account too, but ``has_perm`` asks every backend
+        and grants when any one does - and a project's own backend need not
+        look at ``is_active``. A switched-off account must hold nothing,
+        whatever is installed.
+
+        Asked without the object, because Django's own backend answers "no"
+        to any permission asked about an object - object rules are the hooks'
+        to add.
         """
-        return bool(user.is_authenticated and user.has_perm(self.permission_for(action)))
+        return bool(
+            user.is_authenticated and user.is_active and user.has_perm(self.permission_for(action))
+        )
 
     # ------------------------------------------------------------------
     # The standard hooks
