@@ -1,10 +1,15 @@
 # django-clearance - طراحی
 
-> **وضعیت: ویرایش دوم، تأییدشده.** ویرایش اول نقش‌ها را در مرکز گذاشته
-> بود. صاحب پروژه در بررسی، ترتیب را برعکس کرد: **اول بسته‌های دسترسی، بعد
-> scope ردیف‌ها و فیلدهای محافظت‌شده، و در آخر نقش‌ها، به‌عنوان یک محدودکننده‌ی
-> اختیاری.** مرحله‌های ۰ تا ۳ روی ویرایش اول ساخته شده‌اند؛ چیزی که این ویرایش
-> در آن‌ها عوض می‌کند در بخش ۱۹ آمده است.
+> **وضعیت: ویرایش سوم، برای بررسی.** ویرایش دوم ترتیب را تعیین کرد - اول
+> بسته‌های دسترسی، در آخر نقش‌ها - و صاحب پروژه آن را تأیید کرد. این ویرایش
+> چیزهایی را اضافه می‌کند که باعث می‌شوند کتابخانه از همان لحظه‌ی نصب کار کند،
+> و پنل ادمین را جایی می‌کند که مدیر سایت هر کاری را که کتابخانه می‌تواند، آنجا
+> انجام دهد: یک حالت **پیش‌فرض** که برای هیچ مدلی کد نمی‌خواهد، یک راه
+> **سفارشی** برای مدل‌هایی که بیشتر لازم دارند، اکشن‌هایی که مدیر سایت بدون کد
+> می‌سازد، scope ردیف و فیلدهای محافظت‌شده‌ای که در پنل ادمین ساخته می‌شوند،
+> نقش‌هایی که در دیتابیس نگه داشته می‌شوند، و قواعد ایمنی که نمی‌گذارند پنل
+> ادمین همه چیز را به کسی بدهد. مرحله‌های ۰ تا ۳ روی ویرایش اول ساخته شده‌اند؛
+> بخش ۲۲ می‌گوید چه چیزی در آن‌ها عوض می‌شود.
 >
 > انگلیسی: [`design.md`](design.md). این سند ترجمه‌ی آن است و هر دو با هم
 > به‌روز می‌شوند.
@@ -12,29 +17,41 @@
 **django-clearance** - کنترل دسترسی مبتنی بر نقش، سیاست (policy) و سطح ردیف
 برای جنگو. پیش‌فرض: رد.
 
+## در یک پاراگراف
+
+نصبش کنید، `migrate` را بزنید، پنل ادمین را باز کنید. هر مدل از قبل چهار مجوزش
+را دارد - جنگو آن‌ها را می‌سازد - و هر اکشنی که کد ارائه می‌دهد مجوز خودش را
+دارد که خودکار پیدا شده. مدیر سایت از مجوزها **بسته** می‌سازد و به آدم‌ها
+می‌دهد؛ کنار هر مجوز **ردیف‌هایی** را که به آن‌ها می‌رسد انتخاب می‌کند؛
+**فیلدهایی** را که مجوز جدا لازم دارند علامت می‌زند؛ **اکشن‌هایی** می‌سازد که
+یک وضعیت را عوض می‌کنند، بدون کد؛ و وقتی پروژه انواع مختلف آدم دارد، **نقش‌هایی**
+می‌سازد با یک **سقف** که هیچ بسته‌ای از آن رد نمی‌شود. برنامه‌نویس فقط برای
+چیزی کد می‌نویسد که هیچ مدیری نمی‌تواند: scopeی که برای سازنده‌ی قانون خیلی
+پیچیده است، قانونی در policy که هیچ مجوزی نمی‌تواند بگوید، رفتاری که یک ویو
+لازم دارد.
+
 ## چهار لایه
 
-| | لایه | سؤال | جواب‌دهنده |
-|---|---|---|---|
-| ۱ | **بسته‌های دسترسی** | این شخص چه کاری می‌تواند بکند؟ | مجوزها، از طریق **بسته‌های** اسم‌دار که به آدم‌ها داده می‌شوند - هر کس چندتا |
-| ۲ | **scope ردیف** | روی کدام ردیف‌ها؟ | یک **scope** که برای هر مجوز داخل بسته انتخاب می‌شود: همه‌ی ردیف‌ها، مال خودش، مال شعبه‌اش |
-| ۳ | **فیلدهای محافظت‌شده** | کدام فیلدهای یک ردیف؟ | یک مجوز مخصوص برای **دیدن** و یکی برای **ویرایش** هر فیلد حساس |
-| ۴ | **نقش‌ها** (اختیاری) | این نوع آدم چه کاری را هرگز نباید بکند؟ | یک **سقف** که هیچ بسته‌ای از آن رد نمی‌شود، و بسته‌هایی که نقش **از اول** می‌دهد |
+| | لایه | سؤال | پیش‌فرض (بدون کد) | سفارشی (با کد) |
+|---|---|---|---|---|
+| ۱ | **بسته‌های دسترسی** | این شخص چه کاری می‌تواند بکند؟ | چهار مجوز خود جنگو برای هر مدل؛ اکشن‌هایی که در کد پیدا می‌شوند؛ اکشن‌های وضعیت که در پنل ادمین ساخته می‌شوند | `build_permissions` برای اسم‌های دیگر؛ یک policy برای قانون‌ها |
+| ۲ | **scope ردیف** | روی کدام ردیف‌ها؟ | scopeهایی که در پنل ادمین از قانون‌ها ساخته می‌شوند | متدهای `scope_<name>` در یک `ScopedQuerySet` |
+| ۳ | **فیلدهای محافظت‌شده** | کدام فیلدهای یک ردیف؟ | فیلدهایی که در پنل ادمین علامت می‌خورند | `protected_fields=(...)` در `build_permissions` |
+| ۴ | **نقش‌ها** (اختیاری) | این نوع آدم چه کاری را هرگز نباید بکند؟ | نقش‌ها، سقفشان و بسته‌های اولیه‌شان، ساخته‌شده در پنل ادمین | نقش‌ها و سقف‌هایی که از کد مقداردهی اولیه می‌شوند |
 
-یک پروژه سه لایه‌ی اول را بدون تعریف حتی یک نقش استفاده می‌کند. نقش‌ها برای
-پروژه‌ای است که انواع مختلف آدم دارد - مشتری، کارشناس - و تضمین می‌خواهد که
-یک مشتری هرگز قدرت یک کارشناس را پیدا نکند، هر اشتباهی که مدیر سایت بکند.
+پیش‌فرض و سفارشی دو حالت کتابخانه نیستند: برای **هر مدل** انتخاب می‌شوند و
+آزادانه با هم ترکیب می‌شوند. یک پروژه می‌تواند نود مدل را به پیش‌فرض بسپارد و
+برای سه مدلی که لازم دارند کد بنویسد.
 
 بالای این لایه‌ها، برای هر منبع یک **policy** هست؛ تنها جایی که هر ویو، سرویس
-و دستور می‌پرسد «آیا این شخص می‌تواند این کار را روی این شیء بکند؟». policy از
-روی لایه‌ها جواب می‌دهد و قانون‌هایی را اضافه می‌کند که هیچ مجوزی نمی‌تواند
-بگوید - «هیچ‌کس وام خودش را تأیید نمی‌کند».
+و دستور می‌پرسد «آیا این شخص می‌تواند این کار را روی این شیء بکند؟». مدلی که
+policy مخصوص خودش را ندارد، از طریق یک policy پیش‌فرض که از روی مجوزهایش ساخته
+می‌شود پرسیده می‌شود.
 
-نگه داشتن scope ردیف‌ها در queryset، و نه در بررسی مجوز، سلیقه نیست: DRF متد
-`has_object_permission` را فقط وقتی صدا می‌زند که ویو یک شیء را پیدا کرده
-باشد، و ویوهای generic جنگو اصلاً چنین hookی ندارند. لیستی که فقط با بررسی
-مجوز محافظت شده، همه‌ی ردیف‌های جدول را برمی‌گرداند - و هیچ خطایی هم نمی‌دهد،
-و همین است که آن را خطرناک می‌کند.
+scope ردیف‌ها در queryset است، نه در بررسی مجوز: DRF متد `has_object_permission`
+را فقط وقتی صدا می‌زند که ویو یک شیء را پیدا کرده باشد، و ویوهای generic جنگو
+اصلاً چنین hookی ندارند. لیستی که فقط با بررسی مجوز محافظت شده، همه‌ی ردیف‌ها
+را برمی‌گرداند - و هیچ خطایی هم نمی‌دهد، و همین است که آن را خطرناک می‌کند.
 
 ---
 
@@ -48,33 +65,31 @@
      مدل برایش یک scope پیش‌فرض انتخاب کرده باشد؛
    * فیلد محافظت‌شده برای کسی که مجوزش را ندارد حذف می‌شود، و مقداری که کسی
      بدون اجازه‌ی ویرایش برایش بفرستد رد می‌شود؛
-   * actionی از ویو که هیچ policyای آن را map نکرده رد می‌شود؛
+   * یک اکشن - چه در کد پیدا شده باشد و چه در پنل ادمین ساخته شده باشد - تا
+     وقتی به کسی داده نشده، هیچ‌کس آن را ندارد؛
    * سقف یک نقش جلوی چیزی را که یک بسته می‌داد می‌گیرد.
-2. **تنظیمات اشتباه سروصدا می‌کند.** هر چیزی که موقع بالا آمدن برنامه قابل
-   بررسی است، یک system check جنگو است (`manage.py check` و هر بار
-   `runserver`). پس در زمان توسعه و در CI شکست می‌خورد، نه به‌صورت یک 403 که
-   کسی گزارشش کند - یا یک 200 که هیچ‌کس گزارشش نکند. چیزی که فقط با دیتابیس
-   قابل بررسی است، دستور مدیریتی‌ای را که به آن برمی‌خورد شکست می‌دهد. بخش ۱۴
-   را ببینید.
-3. **جدول‌های خود جنگو محل ذخیره‌اند.** مجوزها ردیف‌های `auth_permission`
-   هستند که `migrate` می‌سازد؛ یک بسته یک `auth.Group` است؛ بسته‌های هر شخص
-   همان `user.groups` است. پس `user.has_perm()`، `PermissionRequiredMixin`،
-   `{{ perms }}` و پنل ادمین همچنان کار می‌کنند و هیچ چیزی همگام‌سازی نمی‌شود.
-4. **پرسیدن ارزان است.** فهمیدن اینکه یک شخص چه مجوزهایی دارد، همان کوئری‌هایی
-   را می‌زند که Backend خود جنگو می‌زند؛ scopeهای او یک کوئری در هر درخواست
-   می‌زنند که یک بار خوانده می‌شود؛ و لیستی که با آن‌ها محدود شده همچنان یک
-   کوئری است. تست‌ها این‌ها را می‌شمارند.
-5. **همه‌ی لایه‌ها اختیاری‌اند.** `'clearance'` در `INSTALLED_APPS` لایه‌های ۱
-   تا ۳ را دارد، و هر کدام فقط جایی استفاده می‌شود که پروژه بخواهد: بسته‌ها
-   وقتی پروژه یکی بسازد - مجوزها را می‌شود مستقیم به آدم‌ها داد؛ scope ردیف
-   فقط روی مدلی که manager آن `ScopedQuerySet` باشد - بقیه‌ی مدل‌ها همان‌طور
-   کار می‌کنند که جنگو همیشه کار کرده؛ فیلدهای محافظت‌شده فقط روی مدلی که
-   فهرستشان را بدهد. DRF، نقش‌ها و ترجمه‌ها را فقط پروژه‌ای اضافه می‌کند که
-   آن‌ها را می‌خواهد. تنها چیز اجباری `ClearanceBackend` است، که بدون آن سلب‌ها
-   و scopeها بی‌صدا هیچ اثری نداشتند (E006).
-6. **درباره‌ی بقیه‌ی چیزها نظری ندارد.** قالب پاسخ، قالب خطاها، محل ذخیره‌ی
-   audit و مدل کاربر مال پروژه هستند. کتابخانه signal می‌فرستد و خطاهای خود
-   جنگو و DRF را بالا می‌اندازد.
+2. **از لحظه‌ی نصب کار می‌کند.** `migrate` مجوزهای هر مدل و هر اکشن را می‌سازد؛
+   پنل ادمین آن‌ها را مدیریت می‌کند. کد برای چیزی است که مدیر سایت نمی‌تواند
+   بیان کند، هرگز برای سیم‌کشی.
+3. **هیچ مجوزی بی‌اثر نیست.** هر مجوزی که در پنل ادمین هست، جایی بررسی می‌شود:
+   چهار مجوز جنگو توسط ویوها و پنل ادمین، اکشنی که در کد پیدا شده توسط همان
+   کدی که در آن پیدا شده، و اکشن وضعیت توسط درهایی که مقدار از آن‌ها نوشته
+   می‌شود. مدیر سایت نمی‌تواند مجوزی تایپ کند که هیچ چیزی بررسی‌اش نمی‌کند -
+   چنین مجوزی شبیه کنترل به نظر می‌رسید و هیچ کنترلی نبود.
+4. **تنظیمات اشتباه سروصدا می‌کند.** هر چیزی که موقع بالا آمدن برنامه قابل
+   بررسی است یک system check جنگو است؛ چیزی که فقط دیتابیس می‌تواند بگوید،
+   `clearance_check` را شکست می‌دهد.
+5. **جدول‌های خود جنگو محل ذخیره‌اند.** مجوزها ردیف‌های `auth_permission`
+   هستند؛ یک بسته یک `auth.Group` است؛ بسته‌های هر شخص همان `user.groups`
+   است. `user.has_perm()`، `{{ perms }}` و پنل ادمین جنگو همچنان کار می‌کنند.
+6. **پرسیدن ارزان است.** فهمیدن اینکه یک شخص چه مجوزهایی دارد، همان کوئری‌هایی
+   را می‌زند که Backend خود جنگو می‌زند؛ scopeهایش یک کوئری در هر درخواست که یک
+   بار خوانده می‌شود؛ و یک لیست scoped یک کوئری. تست‌ها این‌ها را می‌شمارند.
+7. **همه‌ی لایه‌ها اختیاری‌اند** و فقط روی مدل‌ها و در پروژه‌هایی استفاده
+   می‌شوند که آن‌ها را بخواهند. تنها چیز اجباری `ClearanceBackend` است، که بدون
+   آن سلب‌ها و scopeها بی‌صدا هیچ اثری نداشتند.
+8. **پنل ادمین هرگز راه دور زدن قانون‌ها نیست.** هر صفحه از طریق همان سرویسی
+   می‌نویسد که کد استفاده می‌کند، با همان قواعد ایمنی.
 
 ---
 
@@ -82,35 +97,36 @@
 
 چیزهایی که README فهرست خواهد کرد.
 
-* **بسته‌های دسترسی.** برای مجموعه‌ای از مجوزها اسم بگذارید و آن را به هر
-  کسی بدهید؛ هر شخص می‌تواند چندتا داشته باشد. نقش لازم نیست.
-* **مجوزها در خود مدل تعریف می‌شوند.** `build_permissions('order',
-  'orders')` در `Meta.permissions`؛ `migrate` آن‌ها را می‌سازد.
-* **scope ردیف، برای هر مجوز.** یک بسته می‌تواند `order_view` را روی همه‌ی
-  سفارش‌ها بدهد و `order_edit` را فقط روی سفارش‌های شعبه‌ی خود شخص. برنامه‌نویس
-  یک بار scopeها را در queryset نام‌گذاری می‌کند؛ مدیر سایت برای هر مجوز، در
-  پنل ادمین یکی را انتخاب می‌کند.
-* **فیلدهای محافظت‌شده.** `protected_fields=('price',)` مجوزهای
-  `order_view_price` و `order_edit_price` را می‌سازد. بدون اولی قیمت نشان داده
-  نمی‌شود - در API، در فرم‌ها، در پنل ادمین؛ بدون دومی نمی‌شود تغییرش داد.
+* **از لحظه‌ی نصب کار می‌کند.** مجوزهای دیدن، ساختن، ویرایش و حذف هر مدل را
+  `migrate` می‌سازد - و مجوزهای هر مدلی که بعداً اضافه شود.
+* **بسته‌های دسترسی.** برای مجموعه‌ای از مجوزها اسم بگذارید و آن را به هر کسی
+  بدهید؛ هر شخص می‌تواند چندتا داشته باشد. نقش لازم نیست.
+* **scope ردیف برای هر مجوز**، که در پنل ادمین از قانون‌های ساده ساخته می‌شود -
+  «شعبه، شعبه‌ی خود شخص است» - یا وقتی قانونی نمی‌تواند آن را بگوید، در کد
+  نوشته می‌شود.
+* **فیلدهای محافظت‌شده** که در پنل ادمین یا در کد علامت می‌خورند: قیمت یک
+  سفارش بدون مجوز مخصوص خودش نشان داده نمی‌شود، یا تغییر نمی‌کند - در API، در
+  فرم‌ها و در پنل ادمین.
+* **اکشن بدون کد.** «تأیید سفارش» در پنل ادمین به‌صورت «می‌تواند وضعیت را
+  تأییدشده یا ردشده کند» ساخته می‌شود، و هر جا که وضعیت نوشته شود اعمال می‌شود.
+* **اکشن‌هایی که در کد پیدا می‌شوند.** هر `@action` در DRF، هر اکشن ادمین و هر
+  ویویی که اسم یک اکشن را می‌آورد، با `migrate` مجوزش را می‌گیرد، بدون نوشتن
+  هیچ کد مجوزی.
+* **نقش‌ها، وقتی پروژه آن‌ها را دارد**، ساخته‌شده در پنل ادمین: یک سقف برای هر
+  نقش که هیچ بسته‌ای از آن رد نمی‌شود، و بسته‌هایی که نقش از اول می‌دهد.
+* **قواعد ایمنی.** هیچ‌کس دسترسی خودش را تغییر نمی‌دهد؛ هیچ‌کس چیزی را که خودش
+  ندارد به کسی نمی‌دهد؛ هیچ‌کس سامانه را بدون کسی که بتواند دسترسی‌ها را
+  مدیریت کند رها نمی‌کند.
+* **یک پنل ادمین کامل**، راست‌به‌چپ در فارسی و سازگار با حالت تاریک: بسته‌ها به
+  شکل یک جدول از مدل‌ها و اکشن‌ها با یک scope کنار هر کدام، یک سازنده‌ی قانون،
+  فیلدهای محافظت‌شده، اکشن‌ها، نقش‌ها و سقف‌ها، و وضعیت کامل هر شخص.
+* **هر نوع ویو.** `APIView`، ویوهای generic، mixinها، ویوست‌ها، `ModelViewSet` و
+  `@api_view` در DRF؛ ویوهای generic و ویوهای تابعی در جنگو.
 * **گرفتن یک مجوز از یک نفر**، از هر بسته‌ای که آن را داده باشد.
-* **policy با hookهای سطح شیء** که scope ردیف‌ها را رعایت می‌کنند:
-  `allows(user, 'edit', order)` برای سفارشی که بیرون از scope ویرایش شخص است
-  `False` است.
-* **هم با DRF و هم بدون آن.** mixinهایی برای ویوها و فرم‌های generic جنگو،
-  یک decorator برای ویوهای تابعی، و کلاس مجوز، ویوست‌ها و serializer مربوط
-  به DRF که از همان policy ساخته می‌شوند.
-* **در پنل ادمین.** هر مجوز همراه با کسانی که آن را دارند؛ ساختن بسته با
-  انتخاب یک scope برای هر مجوز؛ بسته‌ها، مجوزهای مستقیم و سلب‌های هر شخص در
-  صفحه‌ی خودش.
-* **نقش‌ها، وقتی پروژه آن‌ها را دارد.** یک سقف برای هر نقش، نوشته‌شده در کد،
-  که هیچ بسته یا مجوز مستقیمی از آن رد نمی‌شود؛ بسته‌هایی که نقش از اول
-  می‌دهد؛ چند نقش برای هر شخص، هر جا که پروژه نگهشان دارد.
-* **اسم هر مجوز و هر بسته به هر زبانی** که مدیر سایت بخواهد، از داخل پنل
-  ادمین.
+* **policy** با hookهای سطح شیء که scope ردیف را رعایت می‌کنند.
+* **اسم هر مجوز، هر بسته و هر نقش به هر زبانی.**
 * **signal برای هر تغییر**، برای audit مخصوص خود پروژه.
-* **ترجمه‌شده و دارای type.** انگلیسی و فارسی همراه بسته می‌آیند؛ `py.typed`
-  هم همین‌طور.
+* **ترجمه‌شده و دارای type.**
 
 ---
 
@@ -123,19 +139,22 @@ allowed  = held, within the ceilings of their roles            (only when roles 
 
 rows     = the union of the scopes of every grant of that permission that reaches them
 fields   = a protected field needs <codename>_view_<field> to be read, _edit_ to be written
+values   = a status action's values need that action's permission to be written
 ```
 
 یعنی:
 
-* **مجوزهای شخص** = مجوزهای مستقیم + مجوزهای بسته‌هایش + مجوزهای بسته‌های اولیه‌ی
-  نقش‌هایش - چیزهایی که از او گرفته شده.
+* **مجوزهای شخص** = مجوزهای مستقیم + مجوزهای بسته‌هایش + مجوزهای بسته‌های
+  اولیه‌ی نقش‌هایش - چیزهایی که از او گرفته شده.
 * **مجوزهای مجاز** = همان، محدود به سقف نقش‌هایش (فقط وقتی نقش استفاده شود).
-* **ردیف‌ها** = اجتماع scopeهای هر بسته یا مجوزی که آن مجوز را به او می‌دهد.
+* **ردیف‌ها** = اجتماع scopeهای هر مجوزی از آن نوع که به او می‌رسد.
 * **فیلدها** = فیلد محافظت‌شده برای دیدن `<codename>_view_<field>` و برای
-  ویرایش `_edit_` می‌خواهد.
+  نوشتن `_edit_` را می‌خواهد.
+* **مقدارها** = مقدارهای یک اکشن وضعیت برای نوشته شدن مجوز همان اکشن را
+  می‌خواهند.
 
-superuser همه‌ی مجوزها را دارد، به همه‌ی ردیف‌ها می‌رسد و همه‌ی فیلدها را
-می‌بیند، مثل خود جنگو.
+superuser همه‌ی مجوزها را دارد، به همه‌ی ردیف‌ها می‌رسد، و همه‌ی فیلدها و
+مقدارها را می‌خواند و می‌نویسد.
 
 ---
 
@@ -144,52 +163,53 @@ superuser همه‌ی مجوزها را دارد، به همه‌ی ردیف‌�
 ```
 src/clearance/
     __init__.py            empty
-    apps.py                ClearanceConfig - registers the system checks
+    apps.py                ClearanceConfig - registers the checks, finds the actions on migrate
     conf.py                reading and validating the CLEARANCE setting
     protocols.py           User - the three things the library asks of a person
-    permissions.py         build_permissions: actions and protected fields
-    registry.py            one policy per resource
-    policies.py            BasePolicy, SignedInReadPolicy
-    models.py              ScopeGrant, PermissionRevocation
+    permissions.py         build_permissions; which permission an action of a model needs
+    registry.py            one policy per resource, and the default policy for every other model
+    policies.py            BasePolicy, ModelPolicy, SignedInReadPolicy
+    models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
-    services.py            AccessService: bundles, grants, scopes, revocations - every change, with signals
+    rules.py               a ScopeRule's conditions, checked and turned into a Q
+    actions.py             status actions, and the actions found in the code
+    services.py            AccessService: every change, under the safety rules, with signals
+    safety.py              the safety rules
     querysets.py           ScopedQuerySet: named scopes, visible_to(user, action)
-    fields.py              readable_fields(), writable_fields()
+    fields.py              readable_fields(), writable_fields(), writable_values()
     forms.py               ProtectedFieldsFormMixin
     views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
     decorators.py          policy_required
-    labels.py              label_of() - a permission's or bundle's name, in the reader's language
-    admin.py               the permission page; the bundle page, a scope per permission; the user page
+    labels.py              label_of()
+    admin/                 the admin site's pages, templates, styles and scripts
     checks.py              the system checks
     signals.py             every signal the library sends
+    management/commands/   clearance_sync, clearance_check
     migrations/
     locale/fa/LC_MESSAGES/
 
     drf/                   pip install django-clearance[drf]
-        permissions.py     PolicyPermission
+        permissions.py     PolicyPermission, ModelPolicyPermission
         viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet
         serializers.py     ProtectedFieldsSerializerMixin
         checks.py
 
     roles/                 INSTALLED_APPS += ['clearance.roles']
-        apps.py            label 'clearance_roles'
-        models.py          RoleAssignment, RoleBundle, StartingBundles
-        resolvers.py       RoleResolver, AttributeResolver, AssignmentResolver, roles_of()
-        ceilings.py        a role's ceiling, from the code
-        seeding.py         the starting bundles, once
-        admin.py
+        models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
+        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of()
+        seeding.py         roles, ceilings and starting bundles from code, once
+        admin/
         management/commands/clearance_seed.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
-        models.py          PermissionTranslation, BundleTranslation
-        sources.py         the label source that reads them
-        admin.py
+        models.py          PermissionTranslation, BundleTranslation, RoleTranslation
+        sources.py
+        admin/
 ```
 
-همه‌ی فایل‌های `__init__.py` خالی‌اند و هر چیزی از همان ماژولی import می‌شود
-که تعریفش کرده. هسته هیچ چیزی از `drf`، `roles` یا `translations` import
-نمی‌کند؛ هر کدام از طریق hookی که هسته ارائه می‌دهد به آن وصل می‌شود.
+همه‌ی فایل‌های `__init__.py` خالی‌اند؛ هر چیزی از همان ماژولی import می‌شود که
+تعریفش کرده. هسته هیچ چیزی از `drf`، `roles` یا `translations` import نمی‌کند.
 
 ---
 
@@ -198,28 +218,65 @@ src/clearance/
 یک فروشگاه: سفارش‌هایی که مشتری‌ها در یکی از چند شعبه ثبت می‌کنند، و کارمندهایی
 که آن‌ها را مدیریت می‌کنند و فقط بعضی‌شان اجازه‌ی دیدن قیمت را دارند.
 
-### ۵.۱ تنظیمات
+### ۵.۱ پیش‌فرض: بدون کد
 
 ```python
 INSTALLED_APPS += ['clearance']
 
 # Replaces django.contrib.auth.backends.ModelBackend - see E006 and E007.
 AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
+
+# Every DRF view asks the model's policy, unless it names another.
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ['clearance.drf.permissions.ModelPolicyPermission'],
+}
 ```
 
-برای لایه‌های ۱ تا ۳ چیز دیگری لازم نیست: نه تنظیم `CLEARANCE`، نه نقش.
+```python
+class Order(models.Model):          # nothing about access in the model
+    customer = models.ForeignKey(Customer, ...)
+    branch = models.ForeignKey(Branch, ...)
+    status = models.CharField(choices=Status.choices, ...)
+    price = models.DecimalField(...)
+```
 
-### ۵.۲ مدل مجوزها و فیلدهای محافظت‌شده‌اش را تعریف می‌کند
+`migrate` مجوزهای `shop.view_order`، `add_order`، `change_order` و
+`delete_order` را ساخته، همان‌طور که جنگو همیشه ساخته. مدیر سایت در پنل ادمین:
+
+1. برای سفارش‌ها یک **scope ردیف** به اسم «شعبه‌ی خودش» می‌سازد: *شعبه* -
+   *برابر با* - *شعبه‌ی خود شخص*؛
+2. **قیمت** را محافظت‌شده علامت می‌زند؛
+3. یک **اکشن وضعیت** به اسم «تأیید» می‌سازد: *وضعیت* به *تأییدشده* یا
+   *ردشده*، از *در انتظار*؛
+4. یک **بسته** به اسم «مدیران شعبه» می‌سازد: دیدن و ویرایش سفارش‌ها در «شعبه‌ی
+   خودش»، و «تأیید» در «شعبه‌ی خودش» - ولی نه قیمت؛
+5. بسته را به آدم‌ها می‌دهد.
+
+حالا هر لیستی از سفارش‌ها به مدیر شعبه، سفارش‌های شعبه‌ی خودش را بدون قیمت
+نشان می‌دهد و اجازه می‌دهد یکی را تأیید کند - در API، در ویوهای جنگو، و در پنل
+ادمین.
+
+### ۵.۲ سفارشی: کد برای چیزی که پنل ادمین نمی‌تواند بگوید
 
 ```python
 from clearance.permissions import build_permissions
+from clearance.querysets import ScopedQuerySet
+
+class OrderQuerySet(ScopedQuerySet):
+    default_scope = 'all'      # optional: what a grant with no scope reaches
+    scopes = {
+        'own': _('Their own orders'),
+        'paid_this_month': _("This month's paid orders"),
+    }
+
+    def scope_own(self, user):
+        return Q(customer__user=user)
+
+    def scope_paid_this_month(self, user):
+        return Q(payments__status='paid', payments__paid_at__gte=month_start())
 
 class Order(models.Model):
-    customer = models.ForeignKey(Customer, ...)
-    branch = models.ForeignKey(Branch, ...)
-    status = models.CharField(...)
-    price = models.DecimalField(...)
-
+    ...
     objects = OrderQuerySet.as_manager()
 
     class Meta:
@@ -227,59 +284,11 @@ class Order(models.Model):
         permissions = build_permissions('order', _('orders'), protected_fields=('price',))
 ```
 
-`migrate` این مجوزها را می‌سازد: `order_view`، `order_create`، `order_edit`،
-`order_delete`، `order_view_price` و `order_edit_price`.
+scopeهای کد و scopeهای ساخته‌شده در پنل کنار هم ارائه می‌شوند؛ فیلدهای
+محافظت‌شده‌ای که در کد تعریف شده‌اند و آن‌هایی که در پنل علامت خورده‌اند به یک
+شکل اعمال می‌شوند.
 
-### ۵.۳ queryset اسم scopeهایش را می‌گوید
-
-```python
-from clearance.querysets import ScopedQuerySet
-
-class OrderQuerySet(ScopedQuerySet):
-    default_scope = 'all'      # optional: what a grant with no scope reaches
-    scopes = {
-        'own': _('Their own orders'),
-        'branch': _("Their branch's orders"),
-    }
-
-    def scope_own(self, user):
-        return Q(customer__user=user)
-
-    def scope_branch(self, user):
-        return Q(branch__staff=user)
-```
-
-`all` - «همه‌ی ردیف‌ها» - همیشه هست و متد لازم ندارد.
-
-### ۵.۴ بسته‌ها، در پنل ادمین یا در کد
-
-مدیر سایت آن‌ها را در صفحه‌ی بسته‌ها می‌سازد و کنار هر مجوز یک scope انتخاب
-می‌کند. همین کار در کد:
-
-```python
-from clearance.services import AccessService
-
-access = AccessService(actor=request.user)
-
-branch_managers = access.create_bundle(
-    'Branch managers',
-    grants={'shop.order_view': 'branch', 'shop.order_edit': 'branch'},
-)
-accountants = access.create_bundle(
-    'Accountants',
-    grants={'shop.order_view': 'all', 'shop.order_view_price': None},
-)
-
-access.give_bundle(person, branch_managers)
-access.give_bundle(person, accountants)
-access.revoke(person, 'shop.order_edit', reason='Under review')
-```
-
-حالا `person` همه‌ی سفارش‌ها و قیمتشان را می‌بیند و هیچ چیزی را ویرایش
-نمی‌کند - چون از او گرفته شد - و هیچ کس دیگری که «Branch managers» را دارد
-چیزی از دست نداد.
-
-### ۵.۵ policy
+### ۵.۳ یک policy، برای قانونی که هیچ مجوزی نمی‌تواند بگوید
 
 ```python
 from clearance.policies import BasePolicy
@@ -289,352 +298,433 @@ class OrderPolicy(BasePolicy):
     app_label = 'shop'
     codename = 'order'
 
+    def can_edit(self, user, obj=None):
+        if not super().can_edit(user, obj):
+            return False
+        return obj is None or obj.status != 'delivered'   # nobody edits a delivered order
+
 order_access = registry.register(OrderPolicy)
-
-order_access.policy.allows(user, 'edit', order)    # order_edit, and the order within their edit scope
-order_access.policy.authorize(user, 'edit', order)  # or Django's PermissionDenied
 ```
 
-### ۵.۶ ویوها، فرم‌ها و API
+مدلی که policy مخصوص خودش را ندارد، از طریق `ModelPolicy` پرسیده می‌شود، که همان
+کاری را می‌کند که `BasePolicy` با مجوزهای خود آن مدل می‌کند.
+
+### ۵.۴ هر نوع ویو
+
+| ویو | مجوز | ردیف‌ها |
+|---|---|---|
+| `APIView` | `ModelPolicyPermission`، بر اساس متد HTTP | `Order.objects.visible_to(request.user, 'view')` |
+| `GenericAPIView`، `generics.*` | همان | `ScopedQuerySetMixin` مقدار `queryset` را محدود می‌کند |
+| `ViewSet` | بر اساس action | `visible_to` |
+| `GenericViewSet` با mixinها | بر اساس action | `ScopedQuerySetMixin` |
+| `ModelViewSet` | بر اساس action | `ScopedQuerySetMixin`، یا `ScopedModelViewSet` |
+| تابع `@api_view` | `@permission_classes([...])` | `visible_to` |
+| `ListView`، `DetailView`، `UpdateView` و بقیه در جنگو | `PolicyRequiredMixin` | `ScopedQuerySetMixin` |
+| ویوی تابعی جنگو | `@policy_required(policy, action)` | `visible_to` |
 
 ```python
-from clearance.views import PolicyRequiredMixin, ProtectedFieldsViewMixin, ScopedQuerySetMixin
+class OrderListCreate(ScopedQuerySetMixin, generics.ListCreateAPIView):
+    queryset = Order.objects.all()          # narrowed to visible_to(user, 'view')
+    serializer_class = OrderSerializer      # price left out without its permission
 
-class OrderListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):
-    policy = order_access.policy          # the rows: visible_to(user, 'view')
-    queryset = Order.objects.all()
-
-class OrderUpdateView(
-    PolicyRequiredMixin, ScopedQuerySetMixin, ProtectedFieldsViewMixin, UpdateView
-):
-    policy = order_access.policy          # the rows: visible_to(user, 'edit')
-    queryset = Order.objects.all()
-    fields = ('status', 'price')          # price leaves the form without order_edit_price
+class OrderReport(APIView):
+    def get(self, request):
+        orders = Order.objects.visible_to(request.user, 'view')
+        ...
 ```
 
+`ScopedModelViewSet` فقط همان `ScopedQuerySetMixin` روی یک `ModelViewSet` است،
+که چون رایج‌ترین ترکیب است نگه داشته شده.
+
+### ۵.۵ اکشن‌هایی که در کد پیدا می‌شوند
+
 ```python
-@policy_required(order_access.policy, 'create')
-def place_order(request):
+class OrderViewSet(ScopedQuerySetMixin, viewsets.ModelViewSet):
+    @action(detail=True, methods=['post'])
+    def print_invoice(self, request, pk=None):    # shop.order_print_invoice, made on migrate
+        ...
+
+class OrderPrintView(APIView):
+    policy_action = 'print_invoice'                # the same permission
+
+class OrderAdmin(admin.ModelAdmin):
+    actions = ['export_excel']                     # shop.order_export_excel
+
+@policy_required(order_access.policy, 'refund')    # shop.order_refund
+def refund(request, pk):
     ...
 ```
 
-```python
-from clearance.drf.serializers import ProtectedFieldsSerializerMixin
-
-class OrderSerializer(ProtectedFieldsSerializerMixin, serializers.ModelSerializer):
-    class Meta:
-        model = Order
-        fields = ('id', 'status', 'price')   # price is left out without order_view_price
-```
-
-### ۵.۷ بیرون از ویو
+### ۵.۶ بیرون از ویو
 
 ```python
 Order.objects.visible_to(user, 'edit')       # the orders they may edit
 readable_fields(user, Order)                 # {'id', 'customer', 'branch', 'status'}
-writable_fields(user, Order)
+writable_values(user, Order, 'status')       # {'pending', 'cancelled'} - not approved
+order_access.policy.authorize(user, 'edit', order)
 ```
 
-### ۵.۸ نقش‌ها، برای پروژه‌ای که آن‌ها را دارد
+### ۵.۷ در کد، همان چیزی که در پنل ادمین
 
 ```python
-INSTALLED_APPS += ['clearance', 'clearance.roles']
+from clearance.services import AccessService
 
-CLEARANCE = {
-    'ROLES': 'accounts.roles.Role',
-    'ROLE_CEILINGS': 'config.access.CEILINGS',
-    'STARTING_BUNDLES': 'config.access.STARTING_BUNDLES',
-}
-```
+access = AccessService(actor=request.user)
 
-```python
-# config/access.py
-CEILINGS = {
-    'customer': ['shop.order_view', 'shop.order_create'],   # a customer can never hold more
-}
-
-STARTING_BUNDLES = {
-    'customer': {'Customers': {'shop.order_view': 'own', 'shop.order_create': None}},
-}
-```
-
-### ۵.۹ اسم‌ها به هر زبانی
-
-```python
-from clearance.labels import label_of
-
-label_of(permission)                 # in the language of the request
-label_of(bundle, language='fa')
+managers = access.create_bundle(
+    'Branch managers',
+    grants={'shop.view_order': 'branch', 'shop.change_order': 'branch'},
+)
+access.give_bundle(person, managers)
+access.revoke(person, 'shop.change_order', reason='Under review')
 ```
 
 ---
 
-## ۶. لایه‌ی ۱: بسته‌های دسترسی
+## ۶. مجوزهای پیش‌فرض و سفارشی
 
-یک **بسته** یک `Group` جنگو است: یک اسم و مجوزهایی که دارد. بسته‌های هر شخص
-همان `user.groups` است؛ پس هر شخص می‌تواند چندتا داشته باشد، و دادن بسته همان
-کاری است که جنگو همیشه انجام می‌داده. چیزهایی که کتابخانه اضافه می‌کند:
+مجوزهای یک مدل همان مجوزهای **پیش‌فرض** آن هستند، مگر اینکه مجوزهای خودش را
+تعریف کند:
 
-* **یک scope کنار هر مجوز در یک بسته** (لایه‌ی ۲)؛
-* **سلب مجوز**: گرفتن یک مجوز از یک نفر، از هر بسته‌ای که آن را داده باشد،
-  بدون اینکه برایش بسته‌ی جداگانه ساخته شود. سلب از چیزی که بسته‌ها می‌دهند کم
-  می‌کند؛ مجوزی که مستقیم به شخص داده شده، سلب نمی‌شود بلکه حذف می‌شود؛
-* **اسم به هر زبانی** (`clearance.translations`)؛
-* **یک سرویس** برای هر تغییر - `AccessService` - تا پنل ادمین، یک API و یک
-  دستور مدیریتی همه به یک شکل دسترسی را تغییر دهند و همان signalها را
-  بفرستند.
+| | پیش‌فرض | سفارشی |
+|---|---|---|
+| تعریف‌کننده | جنگو، برای هر مدل | `build_permissions` در `Meta.permissions`، همراه `default_permissions = ()` |
+| دیدن / ساختن / ویرایش / حذف | `view_order`، `add_order`، `change_order`، `delete_order` | `order_view`، `order_create`، `order_edit`، `order_delete` |
+| یک فیلد | `view_order_price`، `change_order_price` | `order_view_price`، `order_edit_price` |
+| یک اکشن | `order_<action>` | `order_<action>` |
+
+`permission_for(model, action)` جواب می‌دهد که یک action از یک مدل کدام مجوز را
+لازم دارد، هر کدام که باشد، و همه‌ی بخش‌های کتابخانه از آن می‌پرسند - پس هیچ
+جایی اسم یک مجوز با دست نوشته نمی‌شود. مدلی که بعداً اضافه و migrate شود، فوراً
+مجوزهایش را دارد، چون جنگو آن‌ها را می‌سازد.
+
+دسترسی خود کتابخانه به خودش هم مجوزهای خودش را دارد:
+`clearance.permission_view`، `permission_create`، `permission_edit`،
+`permission_delete` و `clearance.role_ceiling_edit`. superuser آن‌ها را دارد؛
+هیچ‌کس دیگری تا وقتی به او داده نشده ندارد.
+
+---
+
+## ۷. لایه‌ی ۱: بسته‌های دسترسی
+
+یک **بسته** یک `Group` جنگو است. بسته‌های هر شخص همان `user.groups` است، پس هر
+شخص می‌تواند چندتا داشته باشد. کتابخانه این‌ها را اضافه می‌کند: یک scope کنار
+هر مجوز در یک بسته؛ سلب مجوز - گرفتن یک مجوز از یک نفر، از هر بسته‌ای که آن را
+داده باشد؛ اسم به هر زبانی؛ و یک سرویس، `AccessService`، که هر صفحه و هر خط کد
+از طریق آن دسترسی را تغییر می‌دهد.
 
 `ClearanceBackend` جای `ModelBackend` را می‌گیرد. مجوزهای هر شخص را با همان
-کوئری‌هایی که `ModelBackend` می‌زند حساب می‌کند - سلب‌ها داخل همان کوئری کم
-می‌شوند - و cache جنگو را نگه می‌دارد.
+کوئری‌هایی که `ModelBackend` می‌زند حساب می‌کند - سلب‌ها و سقف‌ها داخل همان
+کوئری کم می‌شوند - و cache جنگو را نگه می‌دارد.
 
 ---
 
-## ۷. لایه‌ی ۲: scope ردیف
+## ۸. اکشن‌ها
 
-### ۷.۱ scopeهایی که یک مدل ارائه می‌دهد
+یک مدل، علاوه بر دیدن، ساختن، ویرایش و حذف، اکشن‌هایی دارد که پروژه‌اش به آن
+می‌دهد. این اکشن‌ها دو نوع‌اند، و مدیر سایت نمی‌تواند نوع سومی بسازد - مجوزی که
+هیچ چیزی پشتش نیست (اصل ۳).
 
-مدلی که با یک `ScopedQuerySet` مدیریت می‌شود، scopeهایی را ارائه می‌دهد که
-queryset آن در `scopes` تعریف کرده - یک کد و یک برچسب برای نشان دادن به مدیر
-سایت - و هر کدام یک متد `scope_<code>(user)` دارد. `all` همیشه هست و یعنی همه‌ی
-ردیف‌ها. یک hook یکی از این‌ها را برمی‌گرداند:
+### ۸.۱ اکشن‌های وضعیت، ساخته‌شده در پنل ادمین
 
-| جواب | یعنی |
+بیشتر اکشن‌ها یک مقدار را عوض می‌کنند: تأیید کردن یک سفارش وضعیتش را
+*تأییدشده* می‌کند، ارسال کردنش *ارسال‌شده*، و منتشر کردن یک پست *منتشرشده*. یک
+**اکشن وضعیت** دقیقاً همین را می‌گوید و هیچ کدی لازم ندارد:
+
+| | |
 |---|---|
-| `Q(...)` | این ردیف‌ها - ارزان‌ترین برای ترکیب |
-| `Q()` | همه‌ی ردیف‌ها |
-| یک queryset از همان مدل | این ردیف‌ها |
-| `None` یا `self.none()` | هیچ |
+| مدل | سفارش |
+| اسم | تأیید |
+| فیلد | `status` - فیلدی با choices، یا یک boolean |
+| به | *تأییدشده*، *ردشده* |
+| از | *در انتظار* - اختیاری |
 
-مدلی که با یک `QuerySet` معمولی مدیریت می‌شود ردیفی برای محدود کردن ندارد:
-مجوزهایش همان‌طور کار می‌کنند که جنگو همیشه کار کرده.
+ذخیره کردنش مجوز `shop.order_approve` را می‌سازد. کسی که آن را ندارد نمی‌تواند
+آن مقدارها را بنویسد: فرم گزینه‌ها را بدون آن‌ها نشان می‌دهد، پنل ادمین هم
+همین‌طور، و یک API آن‌ها را رد می‌کند و اسم فیلد و مقدار را می‌گوید. اکشن وضعیت
+هم مثل هر مجوز دیگری scope می‌گیرد - «تأیید، در شعبه‌ی خودش». چند اکشن می‌توانند
+یک فیلد مشترک داشته باشند، و مقداری که هیچ اکشنی ادعایش نکرده، با همان `edit`
+خود ردیف نوشته می‌شود.
 
-### ۷.۲ یک scope برای هر مجوز
+### ۸.۲ اکشن‌هایی که در کد پیدا می‌شوند
 
-`ScopeGrant` ثبت می‌کند که یک مجوز با کدام scope داده شده: در یک بسته، یا
-مستقیم به یک نفر. یک بسته می‌تواند `order_view` را با `all` و `order_edit` را
-با `branch` بدهد.
+اکشنی که کار تازه‌ای انجام می‌دهد - فاکتور چاپ می‌کند، خروجی اکسل می‌دهد، پولی
+را برمی‌گرداند - کد لازم دارد، ولی کد مجوز لازم ندارد. `migrate` (و
+`clearance_sync`) همه‌شان را پیدا می‌کند و مجوزشان را می‌سازد:
 
-مجوزی که **بدون** scope داده شده، به همان چیزی می‌رسد که `default_scope`
-queryset نام برده. querysetی که هیچ‌کدام را نام نبرد - حالت پیش‌فرض - به چنین
-مجوزی **هیچ ردیفی** نمی‌دهد: جواب امن برای مجوزی که کسی کاملش نکرده، و
-`clearance_check` همه‌شان را فهرست می‌کند. انتخاب بین راحتی و سخت‌گیرانه‌ترین
-جواب با برنامه‌نویس است، یک بار برای هر مدل:
-
-| `default_scope` | مجوز بدون scope به کجا می‌رسد | مدیر سایت |
-|---|---|---|
-| نوشته نشده | هیچ ردیفی | برای همه‌ی مجوزهای مدل یک scope انتخاب می‌کند |
-| `'all'` | همه‌ی ردیف‌ها | فقط برای محدود کردن یک مجوز scope انتخاب می‌کند |
-| هر scopeی که تعریف کرده | ردیف‌های همان scope | فقط برای عوض کردنش scope انتخاب می‌کند |
-
-`default_scope`ی که queryset تعریفش نکرده، خطای E002 است.
-
-### ۷.۳ یک شخص به کدام ردیف‌ها می‌رسد
-
-`Model.objects.visible_to(user, action='view')`:
-
-1. وارد نشده، یا غیرفعال -> هیچ ردیفی؛ superuser -> همه‌ی ردیف‌ها؛
-2. شخص مجوز آن action را ندارد - هرگز نداشته، از او گرفته شده، یا سقف یک نقش
-   جلویش را گرفته -> هیچ ردیفی؛
-3. وگرنه، scopeهای هر مجوزی از آن نوع که به او می‌رسد - مستقیم، از طریق
-   بسته‌هایش، از طریق بسته‌های اولیه‌ی نقش‌هایش - با OR در **یک** filter ترکیب
-   می‌شوند؛ `all` آن را همه‌ی ردیف‌ها می‌کند.
-
-مجوزهای شخص یک بار در هر درخواست، با یک کوئری، خوانده می‌شوند و روی شیء کاربر
-نگه داشته می‌شوند، همان‌طور که جنگو مجوزهایش را نگه می‌دارد. بعد خود لیست یک
-کوئری است، هر قدر هم scope باشد.
-
-### ۷.۴ یک شیء
-
-hookهای policy به scopeها احترام می‌گذارند: وقتی شیئی از یک مدل scoped به
-آن‌ها داده شود، `can_edit(user, obj)` هم `order_edit` را می‌خواهد **و** هم اینکه
-شیء داخل scope `edit` شخص باشد. یک ویو شیئش را از قبل از میان
-`visible_to(user, action)` پیدا می‌کند، پس آنجا hook هیچ کوئری اضافه‌ای
-نمی‌زند؛ وقتی از یک سرویس پرسیده شود، یک `exists()` هزینه دارد.
-
----
-
-## ۸. لایه‌ی ۳: فیلدهای محافظت‌شده
-
-### ۸.۱ تعریفشان
-
-`build_permissions(..., protected_fields=('price',))` برای هر فیلد
-`<codename>_view_<field>` و `<codename>_edit_<field>` را می‌سازد. فیلدهایی که
-در فهرست نیستند با همان `view` و `edit` خود ردیف خوانده و نوشته می‌شوند. فیلد
-محافظت‌شده باید یکی از فیلدهای مدل باشد (E012).
-
-### ۸.۲ دو قانون
-
-* **خواندن:** بدون `view_<field>`، فیلد **حذف می‌شود** - کلیدش در جواب نیست،
-  نه اینکه `null` باشد - تا هیچ چیزی وجودش را نگوید.
-* **نوشتن:** بدون `edit_<field>`، فیلد در فرم نشان داده نمی‌شود، و مقداری که
-  برایش به یک API فرستاده شود **رد می‌شود** و اسم فیلد گفته می‌شود. نادیده
-  گرفتنش باعث می‌شد فرستنده فکر کند تغییر کرده.
-
-### ۸.۳ همه‌ی درها
-
-| کجا | چطور |
+| در کد | تبدیل می‌شود به |
 |---|---|
-| یک فرم جنگو | `ProtectedFieldsFormMixin` چیزی را که نمی‌شود خواند حذف می‌کند، و چیزی را که خوانده می‌شود ولی نوشته نمی‌شود فقط‌خواندنی نشان می‌دهد |
-| یک ویوی جنگو | `ProtectedFieldsViewMixin` فرم را همین‌طور می‌سازد |
-| پنل ادمین | `ProtectedFieldsAdminMixin` به همین شکل پنهان یا قفل می‌کند |
-| یک serializer در DRF | `ProtectedFieldsSerializerMixin` به همین شکل حذف و رد می‌کند |
-| یک تمپلیت | `{% if perms.shop.order_view_price %}` |
-| کد | `readable_fields(user, Order)`، `writable_fields(user, Order)` |
+| یک `@action` در DRF روی ویوستِ یک مدل | `<codename>_<action>` |
+| `policy_action = '...'` روی یک `APIView` یا یک ویوی جنگو | همان |
+| `@policy_required(policy, '...')` روی یک ویوی تابعی | همان |
+| یک مورد در `actions` یک `ModelAdmin` | همان، و آن اکشن ادمین فقط به کسی که آن را دارد نشان داده می‌شود |
 
-کتابخانه درهایی را نگهبانی می‌کند که خودش ارائه می‌دهد. کدی که خودش
-`Order.objects.values('price')` را می‌خواند، نگهبانی‌اش با خود پروژه است؛
-مستندات این را می‌گوید.
-
-در 0.1 مجوزهای یک فیلد مال شخص است، نه مال ردیف: scope نمی‌گیرند (بخش ۲۰).
-
----
-
-## ۹. لایه‌ی ۴: نقش‌ها (اختیاری)
-
-`clearance.roles` برای پروژه‌ای است که انواع مختلف آدم دارد.
-
-* **نقش‌های هر شخص** را یک resolver از هر جایی که پروژه نگهشان داشته می‌خواند:
-  `AttributeResolver` ستون `user.role` را می‌خواند (یک کد، یا یک لیست)؛
-  `AssignmentResolver` ردیف‌های `RoleAssignment` خود اپ را می‌خواند؛ و پروژه
-  برای هر چیز دیگری - `is_staff`، گروه‌های جنگو - resolver خودش را می‌نویسد. هر
-  شخص می‌تواند چند نقش داشته باشد. نقشی که پروژه تعریف نکرده هیچ اثری ندارد.
-* **یک سقف**، در کد: `ROLE_CEILINGS` هر نقش را به مجوزهایی وصل می‌کند که هرگز
-  می‌تواند داشته باشد (`'shop.*'` یعنی همه‌ی مجوزهای یک اپ). چیزی که به شخص
-  اجازه داده می‌شود، همان چیزی است که دارد، محدود به اجتماع سقف‌های نقش‌هایش.
-  نقشی که سقف ندارد با سقف محدود نمی‌شود. سقف در Backend و بعد از همه چیز
-  اعمال می‌شود، پس نه بسته، نه مجوز مستقیم و نه بسته‌ی اولیه از آن رد نمی‌شود.
-  عمداً در کد است، نه یک تنظیم در پنل ادمین: سقف تضمینی در برابر اشتباه مدیر
-  سایت است، پس مدیر سایت نباید بتواند آن را بازتر کند.
-* **بسته‌های اولیه**: `RoleBundle` یک نقش را به بسته‌هایی وصل می‌کند که هر کسی
-  با آن نقش دارد؛ `clearance_seed` آن‌ها را یک بار، از روی `STARTING_BUNDLES`
-  و روی یک دیتابیس تازه می‌سازد، و دیگر هرگز.
-* **در یک policy**، `has_role(user, *roles)` جواب می‌دهد یک کار کار چه کسی
-  است - «فقط کارشناس تأیید می‌کند» - چیزی که یک مجوز نمی‌تواند بگوید.
-
----
-
-## ۱۰. از ویو تا policy
-
-### ۱۰.۱ DRF
-
-`PolicyPermission` این‌ها را به hookها می‌رساند: `list`/`retrieve` به
-`can_list`/`can_view`، `create` به `can_create`، `update`/`partial_update` به
-`can_edit`، `destroy` به `can_delete`، یک `@action` سفارشی به
-`custom_actions[name]` - وگرنه **ردش می‌کند** - و یک `APIView` بر اساس متد
-HTTP. سطح شیء هم همین جدول است، با خود شیء. ویوست‌های scoped، queryset خود را
-با scope همان action محدود می‌کنند.
-
-### ۱۰.۲ ویوهای جنگو
-
-`PolicyRequiredMixin` نوع کار را از نوع ویو می‌خواند - `ListView` یعنی `list`،
-`DetailView` یعنی `view`، `CreateView` یعنی `create`، `UpdateView` یعنی
-`edit`، `DeleteView` یعنی `delete` - یا از `policy_action` می‌گیرد؛ ویویی که
-نشود نوع کار را از آن خواند `ImproperlyConfigured` است و هرگز اجازه نمی‌دهد.
-هر ویو اول در `dispatch` بدون شیء می‌پرسد؛ ویویی که شیء دارد، بعد از اینکه
-`get_object()` آن را از میان `visible_to(user, action)` پیدا کرد، دوباره با
-شیء می‌پرسد. رد شدن همان رفتار خود جنگو است: صفحه‌ی ورود برای کسی که وارد
-نشده، و 403 برای بقیه. `@policy_required(policy, action)` بررسی اول را برای
-یک ویوی تابعی انجام می‌دهد.
-
----
-
-## ۱۱. تنظیمات
-
-همه زیر `CLEARANCE`؛ لایه‌های ۱ تا ۳ به هیچ‌کدام نیاز ندارند. کلیدی که
-کتابخانه نمی‌شناسد رد می‌شود (E011).
-
-| کلید | پیش‌فرض | معنی |
-|---|---|---|
-| `ROLES` | برای `clearance.roles` اجباری | یک `TextChoices`، یا لیستی از کدها |
-| `ROLE_RESOLVER` | `'clearance.roles.resolvers.AttributeResolver'` | نقش‌های هر شخص از کجا خوانده شود |
-| `ROLE_ATTRIBUTE` | `'role'` | چیزی که `AttributeResolver` می‌خواند |
-| `ROLE_CEILINGS` | `None` | `{role: [permission or 'app_label.*', ...]}` |
-| `STARTING_BUNDLES` | `None` | `{role: {bundle name: {permission: scope}}}`، که `clearance_seed` می‌خواند |
-
----
-
-## ۱۲. مدل‌ها
-
-| اپ | مدل | چه چیزی نگه می‌دارد |
-|---|---|---|
-| `clearance` | `ScopeGrant` | `group` یا `user` (دقیقاً یکی)، `permission`، `scope`؛ یکتا برای هر صاحب و مجوز |
-| `clearance` | `PermissionRevocation` | `user`، `permission`، `revoked_by`، `reason`، `revoked_at`؛ یکتا برای هر شخص و مجوز |
-| `clearance.roles` | `RoleAssignment` | `user`، `role`، `assigned_by`، `assigned_at` |
-| `clearance.roles` | `RoleBundle` | `role`، `group` |
-| `clearance.roles` | `StartingBundles` | حداکثر یک ردیف: بسته‌های اولیه داده شده‌اند |
-| `clearance.translations` | `PermissionTranslation`، `BundleTranslation` | یک اسم و یک توضیح برای هر زبان در `LANGUAGES` |
-
-هر کلید خارجی به یک شخص `settings.AUTH_USER_MODEL` است. نقش‌ها و زبان‌ها با
-تنظیمات اعتبارسنجی می‌شوند، نه به‌صورت `choices` در دیتابیس، تا اضافه کردن
-یکی‌شان migration نباشد.
-
----
-
-## ۱۳. پنل ادمین
-
-| صفحه | چه چیزی نشان می‌دهد |
-|---|---|
-| **مجوزها** (جدید، فقط‌خواندنی) | هر مجوز، اسمش به زبان خواننده، بسته‌هایی که آن را دارند و با کدام scope؛ با فیلتر بر اساس اپ و بسته - و با `clearance.roles` بر اساس نقش |
-| **بسته‌ها** (صفحه‌ی گروه جنگو، گسترش‌یافته) | ساختن بسته با مجوزهایش، **با انتخاب یک scope کنار هر کدام** از میان scopeهایی که مدلش ارائه می‌دهد؛ با `clearance.roles`، نقش‌هایی که از اول آن را می‌دهند؛ با `clearance.translations`، اسمش به هر زبان |
-| **صفحه‌ی کاربر** (مال خود پروژه) | بسته‌های شخص، مجوزهای مستقیمش همراه scopeهایشان، و چیزهایی که از او گرفته شده و دلیلش؛ با `clearance.roles`، نقش‌هایش |
-| **صفحه‌ی مدل‌ها** | `ProtectedFieldsAdminMixin` روی هر `ModelAdmin` فیلدهای محافظت‌شده را پنهان یا قفل می‌کند |
-
-هر صفحه از طریق `AccessService` می‌نویسد، پس پنل ادمین هرگز راه دور زدن
-قانون‌ها نیست.
-
----
-
-## ۱۴. بررسی‌های سیستمی (system checks)
-
-| شناسه | چه زمانی |
-|---|---|
-| `clearance.E001` | `clearance.roles` نصب است و `ROLES` وجود ندارد یا معتبر نیست |
-| `clearance.E002` | `scopes` یک `ScopedQuerySet` اسم scopeی را آورده که متد ندارد، یک متد `scope_<x>` در `scopes` نیست، یا `default_scope` آن نه `all` است و نه یک scope تعریف‌شده |
-| `clearance.E003` | یک ویوست DRF که با policy محافظت شده، `@action`ای دارد که policy آن را map نکرده |
-| `clearance.E004` | queryset یک ویوی scoped یک `ScopedQuerySet` نیست |
-| `clearance.E005` | `ROLE_CEILINGS` یا `STARTING_BUNDLES` نقشی را نام برده که تعریف نشده |
-| `clearance.E006` | `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست - scopeها، سلب‌ها و سقف‌ها هیچ اثری نداشتند |
-| `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` است - جنگو وقتی *هر کدام* از Backendها مجوزی بدهد آن را قبول می‌کند، پس همه‌ی سلب‌ها برمی‌گشتند |
-| `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده |
-| `clearance.E009` | یک ویوی `PolicyRequiredMixin` نمی‌تواند از policyاش بپرسد |
-| `clearance.E010` | `ROLE_RESOLVER` یا `ROLE_ATTRIBUTE` قابل استفاده نیست |
-| `clearance.E011` | `CLEARANCE` دیکشنری نیست، یا کلیدی دارد که کتابخانه نمی‌شناسد |
-| `clearance.E012` | یک فیلد محافظت‌شده فیلدی از مدلش نیست |
-
-`clearance_check` (یک دستور، چون دیتابیس را می‌خواند) مجوزهای بدون scope،
-scopeهایی که مدلی دیگر ارائه نمی‌دهد، و مجوزهایی که هیچ‌کس ندارد را فهرست
+اکشنی که پیدا شده تا وقتی به کسی داده نشده، هیچ‌کس آن را ندارد. اکشنی که دیگر در
+کد نیست، در پنل ادمین «حذف‌شده» علامت می‌خورد و `clearance_check` فهرستش
 می‌کند.
 
 ---
 
-## ۱۵. Signalها
+## ۹. لایه‌ی ۲: scope ردیف
 
-هر کدام بعد از commit شدن تراکنش فرستاده می‌شود: `bundle_created`،
-`bundle_changed`، `bundle_deleted`، `bundle_given`، `bundle_taken`،
-`permission_granted`، `permission_revoked`، `permission_restored`،
-`scope_changed`، و با `clearance.roles`، `role_assigned`، `role_unassigned` و
-`starting_bundles_given`. هر کدام شخص یا بسته، چیزی که تغییر کرده و `actor` را
-همراه دارد.
+### ۹.۱ scopeهایی که یک مدل ارائه می‌دهد
 
----
+* **`all`** - همه‌ی ردیف‌ها - همیشه.
+* **scopeهای قانونی**، ساخته‌شده در پنل ادمین (۹.۲)، برای هر مدلی.
+* **scopeهای کد**، برای مدلی که با یک `ScopedQuerySet` مدیریت می‌شود: متدهای
+  `scope_<code>` که در `scopes` فهرست شده‌اند، برای قانونی که هیچ سازنده‌ای
+  نمی‌تواند بگوید.
 
-## ۱۶. چه چیزی از DayarDarman می‌آید
+مجوزی که بدون scope داده شده، به `default_scope` queryset می‌رسد؛ و اگر هیچ‌کدام
+نام برده نشده باشد - حالت پیش‌فرض - به هیچ ردیفی. این انتخاب با برنامه‌نویس است،
+یک بار برای هر مدل.
 
-| DayarDarman | django-clearance |
+### ۹.۲ سازنده‌ی قانون
+
+یک **scope قانونی** یک اسم و چند شرط است که با *همه‌ی* یا *هر کدام از* به هم وصل
+می‌شوند. هر شرط سه بخش دارد:
+
+| بخش | می‌تواند باشد |
 |---|---|
-| `build_permissions`، `RECORD_ACTIONS` | همان، به‌اضافه‌ی فیلدهای محافظت‌شده |
-| `PermissionRegistry`، `BasePolicy`، `PolicyPermission` | همان؛ hookها scope ردیف را رعایت می‌کنند |
-| `ScopedQuerySet` با یک hook برای هر نقش | یک hook برای هر **scope**، که برای هر مجوز در یک بسته انتخاب می‌شود |
-| `RoleAccessGroup` | `RoleBundle`: بسته‌های اولیه‌ی یک نقش |
-| `ONLY_FOR` | `ROLE_CEILINGS`، که در Backend اعمال می‌شود |
-| `PermissionRevocation`، `RevocableModelBackend` | همان، در هسته |
-| `AccessGroupTranslation` | `BundleTranslation` |
-| ردیف‌های `AuditService` | signalها |
+| یک فیلد | فیلدی از مدل، یا فیلدی که از طریق رابطه‌هایش به آن می‌رسیم، حداکثر سه قدم دورتر |
+| یک عملگر | برابر است، برابر نیست، یکی از این‌هاست، شامل است، خالی است، قبل از، بعد از، حداقل، حداکثر |
+| یک مقدار | یک مقدار ثابت - «تهران» - یا چیزی از خود شخص: *خود شخص*، *شعبه‌ی شخص*، هر فیلدی از کاربر که به همین شکل به آن برسیم |
+
+پس «شعبه‌ی خودش» یعنی *شعبه - برابر است - شعبه‌ی شخص*؛ «مال خودش» یعنی *مشتری،
+کاربر - برابر است - خود شخص*؛ «سفارش‌های بزرگ» یعنی *قیمت - حداقل -
+۱۰٬۰۰۰٬۰۰۰*.
+
+یک قانون موقع ذخیره شدن، با مدل همان‌طور که هست بررسی می‌شود: هر فیلد باید وجود
+داشته باشد، هر عملگر باید به فیلدش بخورد، و **هیچ شرطی نمی‌تواند یک فیلد
+محافظت‌شده یا رمز عبور کاربر را بخواند** - فیلتری روی قیمت، به کسی که
+`view_price` ندارد می‌گفت قیمت چقدر است. قانون وقتی یک لیست خواسته شود به یک `Q`
+جنگو تبدیل می‌شود - هرگز SQL؛ قانونی که فیلدش دیگر وجود ندارد رد می‌شود، نه اینکه
+نادیده گرفته شود، و `clearance_check` آن را فهرست می‌کند.
+
+یک قانون و یک scope کد کنار هم ارائه می‌شوند، و ردیف‌های یک شخص اجتماع همه‌ی
+scopeهایی است که به او می‌رسند.
+
+### ۹.۳ یک شخص به کدام ردیف‌ها می‌رسد
+
+`Model.objects.visible_to(user, action='view')`:
+
+1. وارد نشده، یا غیرفعال -> هیچ ردیفی؛ superuser -> همه‌ی ردیف‌ها؛
+2. شخص مجوز آن action را ندارد -> هیچ ردیفی؛
+3. وگرنه scopeهای هر مجوزی از آن نوع که به او می‌رسد با OR در **یک** filter
+   ترکیب می‌شوند؛ `all` آن را همه‌ی ردیف‌ها می‌کند.
+
+مجوزهای شخص یک بار در هر درخواست، با یک کوئری، خوانده می‌شوند. مدلی که manager
+معمولی دارد هم با قانون scope می‌گیرد: `visible_to` از طریق queryset خود
+کتابخانه روی manager پیش‌فرض آن ارائه می‌شود.
+
+### ۹.۴ یک شیء
+
+وقتی شیئی به hook یک policy داده شود، hook هم مجوز را می‌خواهد **و** هم اینکه شیء
+داخل scope شخص برای آن action باشد. یک ویو شیئش را از قبل از میان
+`visible_to(user, action)` پیدا می‌کند؛ وقتی از یک سرویس پرسیده شود، یک
+`exists()` هزینه دارد.
 
 ---
 
-## ۱۷. سازگاری
+## ۱۰. لایه‌ی ۳: فیلدهای محافظت‌شده
+
+### ۱۰.۱ تعریفشان
+
+* در پنل ادمین: یک مدل و یک فیلد را انتخاب کنید و محافظت‌شده علامتش بزنید؛
+* در کد: `build_permissions(..., protected_fields=('price',))`.
+
+هر کدام، مجوزهای دیدن و ویرایش آن فیلد را می‌سازد. فیلد رمز عبور و کلید اصلی
+نمی‌توانند محافظت شوند - اولی هیچ‌وقت نشان داده نمی‌شود، و دومی همان چیزی است که
+یک ردیف با آن پیدا می‌شود.
+
+### ۱۰.۲ دو قانون
+
+* **خواندن:** بدون مجوز دیدن، فیلد **حذف می‌شود** - کلیدش در جواب نیست.
+* **نوشتن:** بدون مجوز ویرایش، فیلد در فرم نشان داده نمی‌شود، و مقداری که برایش
+  به یک API فرستاده شود **رد می‌شود** و اسم فیلد گفته می‌شود.
+
+### ۱۰.۳ همه‌ی درها
+
+| کجا | چطور |
+|---|---|
+| یک فرم جنگو | `ProtectedFieldsFormMixin` چیزی را که نمی‌شود خواند حذف می‌کند، و چیزی را که نمی‌شود نوشت فقط‌خواندنی نشان می‌دهد |
+| یک ویوی جنگو | `ProtectedFieldsViewMixin` فرم را همین‌طور می‌سازد |
+| پنل ادمین | هر `ModelAdmin`، بدون mixin: hookهای ادمین کتابخانه پنهان و قفل می‌کنند |
+| یک serializer در DRF | `ProtectedFieldsSerializerMixin`، و روی هر serializerی `ModelPolicyPermission` نگهبانی می‌کند |
+| یک تمپلیت | `{% if perms.shop.view_order_price %}` |
+| کد | `readable_fields(user, Order)`، `writable_fields(user, Order)` |
+
+کتابخانه درهایی را نگهبانی می‌کند که خودش ارائه می‌دهد؛
+`Order.objects.values('price')` در کد خود پروژه، نگهبانی‌اش با خود پروژه است، و
+مستندات این را می‌گوید. در 0.1 مجوزهای یک فیلد مال شخص است، نه مال ردیف.
+
+---
+
+## ۱۱. لایه‌ی ۴: نقش‌ها (اختیاری)
+
+`clearance.roles` نقش‌ها را در دیتابیس نگه می‌دارد، ساخته‌شده در پنل ادمین:
+
+* **یک نقش** یک کد و یک اسم به هر زبان است. نقش‌ها در پنل ادمین به آدم‌ها داده
+  می‌شوند (`RoleAssignment`)، و هر شخص می‌تواند چند نقش داشته باشد.
+* **یک سقف** مجوزهایی است که یک نقش هرگز می‌تواند داشته باشد - یا هیچ، برای نقشی
+  که محدود نیست. چیزی که به شخص اجازه داده می‌شود، همان چیزی است که دارد، محدود
+  به اجتماع سقف‌های نقش‌هایش، و در Backend و بعد از همه چیز اعمال می‌شود، پس هیچ
+  بسته، مجوز مستقیم یا بسته‌ی اولیه‌ای از آن رد نمی‌شود. **تغییر یک سقف مجوز
+  `clearance.role_ceiling_edit` را می‌خواهد**، که تا وقتی به کسی داده نشده فقط
+  superuser آن را دارد - پس مدیرهایی که بسته‌ها را مدیریت می‌کنند نمی‌توانند
+  چیزی را که یک نقش می‌تواند داشته باشد بازتر کنند.
+* **بسته‌های اولیه**: `RoleBundle` به هر کسی که یک نقش دارد یک بسته می‌دهد.
+* **از کد**، پروژه می‌تواند نقش‌ها، سقف‌ها و بسته‌های اولیه را یک بار، روی یک
+  دیتابیس تازه، مقداردهی کند (`STARTING_ACCESS`، `clearance_seed`)؛ از آن به بعد
+  پنل ادمین آن‌ها را دارد.
+* **جای دیگر**: پروژه‌ای که نقش‌ها را روی مدل کاربرش نگه می‌دارد - یک ستون
+  `role`، `is_staff`، گروه‌های جنگو - به‌جای آن با `AttributeResolver` یا یک
+  resolver مخصوص خودش آن‌ها را می‌خواند.
+* **در یک policy**، `has_role(user, *roles)` جواب می‌دهد یک کار کار چه کسی است.
+
+---
+
+## ۱۲. قواعد ایمنی
+
+پنل ادمین همه چیز را مدیریت می‌کند، پس کسی که می‌تواند دسترسی‌ها را مدیریت کند،
+نباید بتواند همه چیز را به خودش بدهد. هر تغییری - در یک صفحه یا در کد - از طریق
+`AccessService` انجام می‌شود، که این‌ها را رد می‌کند:
+
+* **تغییر دادن دسترسی خودتان** - بسته‌ها، مجوزهای مستقیم، سلب‌ها، نقش‌هایتان، یا
+  بسته‌ای که خودتان دارید. کس دیگری که دسترسی‌ها را مدیریت می‌کند این کار را
+  می‌کند، یا superuser؛
+* **دادن چیزی که خودتان ندارید** - گذاشتن یک مجوز در یک بسته، دادن بسته‌ای که آن
+  را دارد، یا دادن مستقیم آن، وقتی خودتان آن را ندارید؛ و **با scopeی که خودتان
+  آن مجوز را با آن ندارید**، مگر اینکه آن را با `all` داشته باشید - وگرنه یک
+  همکار می‌توانست آن را به شما برگرداند؛
+* **تغییری که بعد از آن جز superuser هیچ‌کس نتواند دسترسی‌ها را مدیریت کند** -
+  آخرین کسی که `permission_edit` را دارد، آن را از دست بدهد؛
+* **بازتر کردن یک سقف**، بدون `role_ceiling_edit`.
+
+هر رد شدنی می‌گوید کدام قاعده بوده، و هر تغییری یک signal است.
+
+---
+
+## ۱۳. از ویو تا policy
+
+### ۱۳.۱ DRF
+
+`ModelPolicyPermission` مدل ویو را پیدا می‌کند - از `queryset`، یا
+`get_queryset()` - و از policy همان مدل می‌پرسد. `PolicyPermission` از یک policy
+مشخص می‌پرسد، برای ویویی که مدل ندارد. هر دو این‌ها را به hookها می‌رسانند:
+`list`/`retrieve` به `can_list`/`can_view`، `create` به `can_create`،
+`update`/`partial_update` به `can_edit`، `destroy` به `can_delete`، یک
+`@action` به مجوزی که برایش پیدا شده یا به `custom_actions` در policy، و یک
+`APIView` بر اساس متد HTTP - که `policy_action` می‌تواند اکشن دیگری را نام ببرد.
+سطح شیء هم همین جدول است، با خود شیء.
+
+### ۱۳.۲ ویوهای جنگو
+
+`PolicyRequiredMixin` نوع کار را از نوع ویو می‌خواند - `ListView` یعنی `list`،
+`DetailView` یعنی `view`، `CreateView` یعنی `create`، `UpdateView` یعنی
+`edit`، `DeleteView` یعنی `delete` - یا از `policy_action` می‌گیرد؛ ویویی که نشود
+نوع کار را از آن خواند `ImproperlyConfigured` است. هر ویو اول در `dispatch` بدون
+شیء می‌پرسد؛ ویویی که شیء دارد دوباره با آن می‌پرسد. می‌شود `policy` را ننوشت، و
+آن وقت از policy خود مدل پرسیده می‌شود.
+
+---
+
+## ۱۴. پنل ادمین
+
+روی پنل ادمین خود جنگو ساخته می‌شود: با ظاهر خودش، حالت تاریکش، و چیدمان
+راست‌به‌چپش وقتی زبان فارسی است. بدون ابزار build - تمپلیت، یک فایل استایل و
+اسکریپت‌های ساده.
+
+| صفحه | مدیر سایت آنجا چه کار می‌کند |
+|---|---|
+| **نمای کلی** | بسته‌ها، نقش‌ها، آدم‌هایی که دسترسی دارند، و چیزهایی که `clearance_check` پیدا کرده را می‌بیند |
+| **بسته‌ها** | یک بسته را به شکل یک **جدول** می‌سازد و تغییر می‌دهد: هر مدل در یک سطر، هر اکشن در یک ستون، یک تیک، و یک scope کنار هر مجوز تیک‌خورده؛ و بسته را به آدم‌ها می‌دهد |
+| **scope ردیف** | برای یک مدل scope قانونی می‌سازد، scopeهای کد را کنارش می‌بیند، و اینکه کدام مجوزها از هر کدام استفاده می‌کنند |
+| **فیلدهای محافظت‌شده** | فیلدها را، مدل به مدل، علامت می‌زند یا علامتشان را برمی‌دارد |
+| **اکشن‌ها** | اکشن وضعیت می‌سازد؛ اکشن‌هایی را که در کد پیدا شده‌اند، و آن‌هایی را که از کد حذف شده‌اند، می‌بیند |
+| **نقش‌ها** | نقش می‌سازد، بسته‌های اولیه‌شان را تعیین می‌کند، و - با `role_ceiling_edit` - سقفشان را |
+| **آدم‌ها** | وضعیت کامل یک شخص: نقش‌ها، بسته‌ها، مجوزهای مستقیم همراه scopeها، سلب‌ها همراه دلیل - و چیزی که در نهایت به او اجازه داده می‌شود، با اینکه هر مجوز از کجا آمده |
+| **مجوزها** | هر مجوز، فقط‌خواندنی، با اینکه چه کسی و چطور آن را دارد |
+
+هر صفحه از طریق `AccessService` و زیر قواعد ایمنی می‌نویسد، و مجوزهای خود
+کتابخانه را لازم دارد: `permission_view` برای دیدن، و `permission_create`،
+`_edit` و `_delete` برای تغییر.
+
+---
+
+## ۱۵. تنظیمات
+
+همه زیر `CLEARANCE`؛ حالت پیش‌فرض به هیچ‌کدام نیاز ندارد. کلیدی که کتابخانه
+نمی‌شناسد رد می‌شود (E011).
+
+| کلید | پیش‌فرض | معنی |
+|---|---|---|
+| `ROLE_RESOLVER` | `'clearance.roles.resolvers.AssignmentResolver'` | نقش‌های هر شخص از کجا خوانده شود |
+| `ROLE_ATTRIBUTE` | `'role'` | چیزی که `AttributeResolver` می‌خواند |
+| `STARTING_ACCESS` | `None` | نقش‌ها، سقف‌ها و بسته‌های اولیه برای یک بار مقداردهی، که `clearance_seed` می‌خواند |
+| `RULE_DEPTH` | `3` | فیلد یک قانون از چند رابطه می‌تواند عبور کند |
+
+---
+
+## ۱۶. مدل‌ها
+
+| اپ | مدل | چه چیزی نگه می‌دارد |
+|---|---|---|
+| `clearance` | `ScopeGrant` | `group` یا `user` (دقیقاً یکی)، `permission`، `scope` |
+| `clearance` | `PermissionRevocation` | `user`، `permission`، `revoked_by`، `reason`، `revoked_at` |
+| `clearance` | `ScopeRule` | `content_type`، `code`، `name`، `match` (همه یا هر کدام)، `conditions` |
+| `clearance` | `ProtectedField` | `content_type`، `field` - همراه دو مجوزی که ساخته |
+| `clearance` | `StatusAction` | `content_type`، `code`، `name`، `field`، `to_values`، `from_values` - همراه مجوزش |
+| `clearance.roles` | `Role` | `code`، `name`، `limited` |
+| `clearance.roles` | `RoleAssignment` | `user`، `role`، `assigned_by`، `assigned_at` |
+| `clearance.roles` | `RoleCeiling` | `role`، `permission` |
+| `clearance.roles` | `RoleBundle` | `role`، `group` |
+| `clearance.translations` | `PermissionTranslation`، `BundleTranslation`، `RoleTranslation` | یک اسم و یک توضیح برای هر زبان |
+
+هر کلید خارجی به یک شخص `settings.AUTH_USER_MODEL` است.
+
+---
+
+## ۱۷. بررسی‌های سیستمی (system checks)
+
+| شناسه | چه زمانی |
+|---|---|
+| `clearance.E001` | `STARTING_ACCESS` قابل خواندن نیست، یا چیزی را نام برده که وجود ندارد |
+| `clearance.E002` | `scopes` یک `ScopedQuerySet` با متدهای `scope_<x>` آن نمی‌خواند، یا `default_scope` آن ارائه نشده |
+| `clearance.E003` | یک ویوست DRF که با policy محافظت شده، `@action`ای دارد که مجوزی ندارد |
+| `clearance.E004` | queryset یک ویوی scoped یک `ScopedQuerySet` نیست |
+| `clearance.E006` | `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست |
+| `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` است - همه‌ی سلب‌ها را برمی‌گرداند |
+| `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده |
+| `clearance.E009` | یک ویوی `PolicyRequiredMixin` نمی‌تواند از هیچ policyای بپرسد |
+| `clearance.E010` | `ROLE_RESOLVER` یا `ROLE_ATTRIBUTE` قابل استفاده نیست |
+| `clearance.E011` | `CLEARANCE` دیکشنری نیست، یا کلیدی دارد که کتابخانه نمی‌شناسد |
+| `clearance.E012` | فیلدی که در کد محافظت‌شده تعریف شده، فیلدی از مدلش نیست |
+| `clearance.E013` | اسم اکشنی که در کد پیدا شده نمی‌تواند یک مجوز بسازد |
+
+E005 کنار گذاشته شده: سقف‌هایی را که در کد نوشته می‌شدند بررسی می‌کرد، و سقف‌ها
+حالا در دیتابیس‌اند.
+
+`clearance_check`، که دیتابیس را می‌خواند، مجوزهای بدون scope، scopeهای قانونی و
+اکشن‌های وضعیتی که فیلدشان دیگر وجود ندارد، اکشن‌هایی که از کد حذف شده‌اند، و
+مجوزهایی که هیچ‌کس ندارد را فهرست می‌کند.
+
+---
+
+## ۱۸. Signalها
+
+هر کدام بعد از commit شدن تراکنش فرستاده می‌شود، همراه شخص یا بسته، چیزی که
+تغییر کرده و `actor`: `bundle_created`، `bundle_changed`، `bundle_deleted`،
+`bundle_given`، `bundle_taken`، `permission_granted`، `permission_revoked`،
+`permission_restored`، `scope_changed`، `scope_rule_saved`،
+`scope_rule_deleted`، `field_protected`، `field_unprotected`،
+`status_action_saved`، `status_action_deleted`، `actions_found`، و با
+`clearance.roles`، `role_saved`، `role_deleted`، `role_assigned`،
+`role_unassigned` و `ceiling_changed`.
+
+---
+
+## ۱۹. سازگاری
 
 | | پشتیبانی | تست در CI |
 |---|---|---|
@@ -642,28 +732,25 @@ scopeهایی که مدلی دیگر ارائه نمی‌دهد، و مجوزه�
 | Django | 5.2 LTS، 6.0، 6.1 | هر کدام با همه‌ی نسخه‌های پایتونی که پشتیبانی می‌کند |
 | Django REST framework | 3.16 و بالاتر، اختیاری | آخرین نسخه |
 | دیتابیس | هر چیزی که جنگو پشتیبانی می‌کند | PostgreSQL و SQLite |
+| مرورگر، برای پنل ادمین | هر چیزی که پنل ادمین جنگو پشتیبانی می‌کند | آخرین نسخه‌ی Chromium، با Playwright |
 
 ---
 
-## ۱۸. قراردادهای این ریپو
+## ۲۰. قراردادهای این ریپو
 
 * **کد فقط به انگلیسی**؛ هر پیام برای ترجمه علامت‌گذاری می‌شود و فارسی در
-  `src/clearance/locale/fa/` است. این قاعده را code review نگه می‌دارد.
-* **مستندات به انگلیسی و فارسی** که با هم تغییر می‌کنند؛ کد در سند فارسی دقیقاً
-  مثل سند انگلیسی می‌ماند.
-* **docstring هر ماژول می‌گوید چرا وجود دارد**؛ و هر قاعده، بدون آن چه چیزی
-  خراب می‌شد.
-* **اسم تست‌ها از رفتاری است که نگه می‌دارند**، و هر ادعایی درباره‌ی هزینه با
-  `django_assert_num_queries` شمرده می‌شود.
-* **ruff** و **mypy** (strict) روی هر تغییر؛ هر مرحله یک pull request.
+  `src/clearance/locale/fa/` است.
+* **مستندات به انگلیسی و فارسی** که با هم تغییر می‌کنند.
+* **docstring هر ماژول می‌گوید چرا وجود دارد**؛ و هر قاعده، بدون آن چه چیزی خراب
+  می‌شد.
+* **اسم تست‌ها از رفتاری است که نگه می‌دارند**؛ هزینه با
+  `django_assert_num_queries` شمرده می‌شود؛ صفحه‌های پنل ادمین در مرورگر تست
+  می‌شوند.
+* **ruff** و **mypy** (strict)؛ هر مرحله یک pull request.
 
 ---
 
-## ۱۹. مرحله‌ها
-
-مرحله‌های ۰ تا ۳ ساخته شده‌اند. این ویرایش مرحله‌ی ۳ را عوض می‌کند: محدودسازی
-ردیف که بر اساس نقش بود، به scope برای هر مجوز تبدیل می‌شود، و نقش‌ها به مرحله‌ی
-خودشان می‌روند.
+## ۲۱. مرحله‌ها
 
 | مرحله | تحویل | |
 |---|---|---|
@@ -671,50 +758,87 @@ scopeهایی که مدلی دیگر ارائه نمی‌دهد، و مجوزه�
 | 1 | اسکلت و CI | انجام شده |
 | 2 | مجوزها، policyها، registry | انجام شده |
 | 3 | تنظیمات، ویوهای جنگو، decorator، checkها - ساخته‌شده حول نقش‌ها | انجام شده؛ در 3b بازسازی می‌شود |
-| **3b** | لایه‌های ۱ و ۲: `ScopeGrant`، `PermissionRevocation`، `ClearanceBackend`، `grants`، `AccessService`، scopeهای اسم‌دار و `visible_to(user, action)`، hookهایی که scope را رعایت می‌کنند؛ کد نقش‌های مرحله‌ی ۳ به مرحله‌ی ۷ منتقل می‌شود | |
-| 4 | لایه‌ی ۳: فیلدهای محافظت‌شده - مجوزها، `fields`، mixinهای فرم، ویو و ادمین | |
-| 5 | DRF: پل، ویوست‌ها، mixin مربوط به serializer، و checkهایشان | |
-| 6 | پنل ادمین: صفحه‌های مجوز، بسته و کاربر | |
-| 7 | لایه‌ی ۴: `clearance.roles` - resolverها، سقف‌ها، بسته‌های اولیه، `clearance_seed` | |
-| 8 | `clearance.translations` | |
-| 9 | مستندات، یک پروژه‌ی نمونه، کاتالوگ فارسی | |
-| 10 | استفاده در iranbobco؛ تگ `0.1.0`، public کردن، انتشار | |
-
-## ۲۰. بعد از 0.1
-
-* **مجوز روی یک ردیف** - «علی می‌تواند سفارش ۴۲ را ویرایش کند» - کنار scopeها.
-* **فیلدهای محافظت‌شده با scope ردیف** - قیمت سفارش‌های شعبه‌ی خودش.
-* **قواعد ایمنی تغییر دسترسی**: هیچ‌کس دسترسی خودش را تغییر نمی‌دهد؛ هیچ‌کس چیزی
-  را که خودش ندارد به کسی نمی‌دهد؛ تغییری که بعد از آن هیچ‌کس نتواند دسترسی‌ها
-  را مدیریت کند رد می‌شود.
-* **endpointهای REST** برای صفحه‌ی مجوزها و برای «من چه کارهایی می‌توانم بکنم».
+| **3b** | هسته‌ی لایه‌های ۱ و ۲: مجوزهای پیش‌فرض و سفارشی، `ModelPolicy`، `ScopeGrant`، `PermissionRevocation`، `ClearanceBackend`، `grants`، `AccessService` همراه **قواعد ایمنی**، مجوزهای خود کتابخانه، scopeهای کد و `visible_to(user, action)`، hookهایی که scope را رعایت می‌کنند؛ کد نقش‌های مرحله‌ی ۳ به مرحله‌ی ۹ منتقل می‌شود | |
+| 4 | سازنده‌ی قانون: `ScopeRule`، با بررسی شرط‌هایش و تبدیلشان به `Q` | |
+| 5 | فیلدهای محافظت‌شده: در کد و در دیتابیس، و همه‌ی درهای جنگو | |
+| 6 | اکشن‌ها: اکشن‌های وضعیت و اعمالشان؛ اکشن‌هایی که در همه‌ی انواع ویو پیدا می‌شوند | |
+| 7 | DRF: `ModelPolicyPermission`، `PolicyPermission`، ویوست‌ها، mixin مربوط به serializer، و checkهایشان | |
+| 8 | پنل ادمین، بخش اول: نمای کلی، بسته‌ها به شکل جدول، آدم‌ها، مجوزها | |
+| 9 | `clearance.roles`: نقش‌ها، سقف‌ها، بسته‌های اولیه، resolverها، مقداردهی اولیه - و صفحه‌هایشان | |
+| 10 | پنل ادمین، بخش دوم: صفحه‌های سازنده‌ی قانون، فیلدهای محافظت‌شده و اکشن‌ها؛ راست‌به‌چپ؛ تست در مرورگر | |
+| 11 | `clearance.translations` | |
+| 12 | مستندات، یک پروژه‌ی نمونه، کاتالوگ فارسی | |
+| 13 | استفاده در iranbobco؛ تگ `0.1.0`، public کردن، انتشار | |
 
 ---
 
-## ۲۱. تصمیم‌ها
+## ۲۲. چیزی که این ویرایش در کد ساخته‌شده عوض می‌کند
+
+* **مجوزهای مرحله‌ی ۲** مجوزهای پیش‌فرض را هم می‌گیرند: `permission_for(model,
+  action)` به هر دو جواب می‌دهد، و policy از آن می‌پرسد.
+* **مرحله‌ی ۳** خواننده‌ی تنظیمات، `PolicyRequiredMixin`، decorator و checkهایش
+  را نگه می‌دارد. محدودسازی ردیف بر اساس نقش، به محدودسازی بر اساس مجوز تبدیل
+  می‌شود، و resolverهایش به `clearance.roles` منتقل می‌شوند.
+
+## ۲۳. بعد از 0.1
+
+* **مجوز روی یک ردیف** - «علی می‌تواند سفارش ۴۲ را ویرایش کند».
+* **فیلدهای محافظت‌شده با scope ردیف** - قیمت سفارش‌های شعبه‌ی خودش.
+* **قانون‌هایی که در چند سطح ترکیب می‌شوند** - (الف و ب) یا ج.
+* **endpointهای REST** برای صفحه‌ی دسترسی و برای «من چه کارهایی می‌توانم بکنم».
+
+---
+
+## ۲۴. تصمیم‌ها
 
 تصمیم‌های صاحب پروژه:
 
 1. هر import اسم ماژولش را می‌آورد.
 2. صاحب حق کپی amir mohammad kashanchian است.
 3. قدیمی‌ترین نسخه‌ی پایتون 3.11 است.
-4. resolver پیش‌فرض نقش `user.role` را می‌خواند.
+4. *(در این ویرایش اصلاح شده، پایین را ببینید)* resolver پیش‌فرض نقش
+   `user.role` را می‌خواند.
 5. ویوهای خود جنگو همان پلی را می‌گیرند که DRF دارد.
 6. پنل ادمین مجوزها را نشان می‌دهد و بسته می‌سازد.
 7. مجوزها و بسته‌ها در 0.1 به هر زبانی نام‌گذاری می‌شوند.
-8. **بسته‌های دسترسی هسته‌اند**؛ پروژه به نقش نیازی ندارد.
-9. **scope ردیف برای هر مجوز** داخل بسته انتخاب می‌شود.
-10. **نقش‌ها محدود می‌کنند و می‌توانند بسته‌ی اولیه بدهند** - که سقف آن را هم
-    محدود می‌کند.
-11. **فیلدها می‌توانند محافظت شوند**، هر کدام با مجوز دیدن و ویرایش خودش.
+8. بسته‌های دسترسی هسته‌اند؛ پروژه به نقش نیازی ندارد.
+9. scope ردیف برای هر مجوز داخل بسته انتخاب می‌شود.
+10. نقش‌ها محدود می‌کنند و می‌توانند بسته‌ی اولیه بدهند - که سقف آن را هم محدود
+    می‌کند.
+11. فیلدها می‌توانند محافظت شوند، هر کدام با مجوز دیدن و ویرایش خودش.
+12. مجوزی که بدون scope داده شده، به `default_scope` مدل می‌رسد - و وقتی
+    برنامه‌نویس هیچ‌کدام را نام نبرده، به هیچ ردیفی.
+13. در 0.1، مجوزهای یک فیلد مال شخص است، نه با scope ردیف.
+14. *(جایش را ۲۳ گرفته)* سقف‌ها در کد نوشته می‌شوند.
+15. فیلد محافظت‌شده حذف می‌شود وقتی خواندنش مجاز نیست، و مقداری که برایش فرستاده
+    شود رد می‌شود وقتی نوشتنش مجاز نیست.
+16. `'clearance'` یک اپ با مدل است که لایه‌های ۱ تا ۳ را نگه می‌دارد.
+17. همه‌ی لایه‌ها اختیاری‌اند؛ تنها چیز اجباری `ClearanceBackend` است.
+18. **پیش‌فرض و سفارشی برای هر مدل انتخاب می‌شوند**: مجوزهای خود جنگو به‌طور
+    پیش‌فرض، و `build_permissions` برای مدلی که مجوزهای خودش را تعریف می‌کند.
+19. **پنل ادمین هر کاری را که کتابخانه می‌تواند انجام می‌دهد.**
+20. **اکشن‌های وضعیت** در پنل ادمین و بدون کد ساخته می‌شوند.
+21. **اکشن‌ها در کد پیدا می‌شوند** - `@action` در DRF، `policy_action`،
+    `@policy_required`، اکشن‌های ادمین - و با `migrate` مجوزشان را می‌گیرند.
+22. **scope ردیف در پنل ادمین** از قانون‌های ساده ساخته می‌شود، در 0.1، کنار
+    scopeهای کد.
+23. **نقش‌ها و سقف‌ها در دیتابیس نگه داشته می‌شوند** و در پنل ادمین ساخته
+    می‌شوند؛ **تغییر یک سقف مجوز `role_ceiling_edit` را می‌خواهد**، که به‌طور
+    پیش‌فرض فقط superuser آن را دارد.
+24. **مجوزهای خود کتابخانه** - `permission_view`، `_create`، `_edit`، `_delete` -
+    به‌طور پیش‌فرض مال superuser هستند.
+25. **قواعد ایمنی در 0.1 هستند**، چون پنل ادمین دسترسی‌ها را مدیریت می‌کند.
+26. **همه‌ی انواع ویوی DRF و جنگو کار می‌کنند**، که `ModelViewSet` یکی از
+    آن‌هاست.
 
-12. مجوزی که **بدون scope** داده شده، به **`default_scope`** مدل می‌رسد - و
-    وقتی برنامه‌نویس هیچ‌کدام را نام نبرده، به **هیچ ردیفی**.
-13. در 0.1، **مجوزهای یک فیلد مال شخص است**، نه با scope ردیف.
-14. **سقف‌ها در کد نوشته می‌شوند**، نه در پنل ادمین، تا هر کاری که مدیر سایت
-    بکند پابرجا بمانند.
-15. **فیلد محافظت‌شده حذف می‌شود** وقتی خواندنش مجاز نیست، و **مقداری که برایش
-    فرستاده شود رد می‌شود** وقتی نوشتنش مجاز نیست.
-16. **`'clearance'` یک اپ با مدل است** که لایه‌های ۱ تا ۳ را نگه می‌دارد.
-17. **همه‌ی لایه‌ها اختیاری‌اند** و فقط روی مدل‌ها و در پروژه‌هایی استفاده
-    می‌شوند که آن‌ها را بخواهند؛ تنها چیز اجباری `ClearanceBackend` است.
+پیشنهادهای این ویرایش، برای اینکه صاحب پروژه قبول یا عوضشان کند:
+
+27. **اصلاح تصمیم ۴:** حالا که نقش‌ها در پنل ادمین ساخته و داده می‌شوند، resolver
+    پیش‌فرض ردیف‌های `RoleAssignment` را می‌خواند که پنل ادمین می‌نویسد؛
+    `AttributeResolver`، که `user.role` را می‌خواند، برای پروژه‌ای است که نقش‌ها
+    را روی مدل کاربرش نگه می‌دارد.
+28. **یک قانون نمی‌تواند فیلد محافظت‌شده** یا رمز عبور کاربر را بخواند، و حداکثر
+    سه رابطه دورتر می‌رود.
+29. **فیلد رمز عبور و کلید اصلی نمی‌توانند محافظت شوند.**
+30. **هیچ مجوزی را مدیر سایت تایپ نمی‌کند**: اکشن‌ها یا اکشن وضعیت هستند یا در
+    کد پیدا می‌شوند، پس هر مجوزی که در پنل ادمین هست جایی بررسی می‌شود.
