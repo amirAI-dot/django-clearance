@@ -1,6 +1,6 @@
 # django-clearance - design
 
-> **Status: second edition, for review.** The first edition put roles at the
+> **Status: second edition, accepted.** The first edition put roles at the
 > centre. On review the owner set the order the other way round: **access
 > bundles first, then row scopes and protected fields, and roles last, as an
 > optional limit.** Stages 0 to 3 were built on the first edition; what this
@@ -44,7 +44,8 @@ which is what makes it dangerous.
    never a leak:
    * somebody signed out, or a switched-off account, holds nothing and reaches
      no rows - whatever authentication backend is installed;
-   * a permission given with no scope reaches no rows;
+   * a permission given with no scope reaches no rows, unless the model's
+     developer chose a default scope for it;
    * a protected field is left out for whoever lacks its permission, and a
      value sent for it by whoever may not edit it is refused;
    * a view action no policy maps is refused;
@@ -61,9 +62,14 @@ which is what makes it dangerous.
 4. **Asking is cheap.** What a person holds costs the queries Django's own
    backend makes; their scopes cost one query per request, read once; a list
    scoped by them is still one query. Tests count them.
-5. **One app, and optional extras.** `'clearance'` in `INSTALLED_APPS` is
-   the whole of layers 1 to 3. DRF, roles and translations are each added
-   only by the project that wants them.
+5. **Every layer is optional.** `'clearance'` in `INSTALLED_APPS` holds
+   layers 1 to 3, and each is used only where a project asks for it: bundles
+   when it makes one - permissions can be given to people directly; row
+   scopes only on a model whose manager is a `ScopedQuerySet` - every other
+   model works as Django's always have; protected fields only on a model that
+   lists them. DRF, roles and translations are each added only by the project
+   that wants them. The one requirement is `ClearanceBackend`, without which
+   revocations and scopes would silently do nothing (E006).
 6. **No opinion about the rest.** Response envelopes, exception formats, audit
    storage and the user model are the project's. The library sends signals
    and raises Django's and DRF's own exceptions.
@@ -220,6 +226,7 @@ class Order(models.Model):
 from clearance.querysets import ScopedQuerySet
 
 class OrderQuerySet(ScopedQuerySet):
+    default_scope = 'all'      # optional: what a grant with no scope reaches
     scopes = {
         'own': _('Their own orders'),
         'branch': _("Their branch's orders"),
@@ -396,9 +403,21 @@ work as Django's always have.
 
 `ScopeGrant` records which scope a permission is given with: in a bundle, or
 to one person directly. A bundle may give `order_view` with `all` and
-`order_edit` with `branch`. A permission given with **no** scope reaches **no
-rows** of a scoped model - the safe answer to a grant nobody finished; the
-admin site never makes one, and `clearance_check` lists any that exist.
+`order_edit` with `branch`.
+
+A permission given with **no** scope reaches what the queryset's
+`default_scope` names. A queryset that names none - the default - gives such
+a grant **no rows**: the safe answer to a grant nobody finished, and
+`clearance_check` lists every one. The choice between convenience and the
+strictest answer is the developer's, made once for each model:
+
+| `default_scope` | a grant with no scope reaches | the administrator |
+|---|---|---|
+| left out | no rows | chooses a scope for every permission of the model |
+| `'all'` | every row | chooses a scope only to narrow one |
+| any scope it declares | that scope's rows | chooses a scope only to change it |
+
+A `default_scope` the queryset does not declare is E002.
 
 ### 7.3 Which rows a person reaches
 
@@ -563,7 +582,7 @@ round the rules.
 | id | when |
 |---|---|
 | `clearance.E001` | `clearance.roles` is installed and `ROLES` is missing or not valid |
-| `clearance.E002` | a `ScopedQuerySet`'s `scopes` names a scope with no method, or a `scope_<x>` method is not in `scopes` |
+| `clearance.E002` | a `ScopedQuerySet`'s `scopes` names a scope with no method, a `scope_<x>` method is not in `scopes`, or its `default_scope` is neither `all` nor a declared scope |
 | `clearance.E003` | a DRF viewset guarded by a policy has an `@action` the policy does not map |
 | `clearance.E004` | a scoped view's queryset is not a `ScopedQuerySet` |
 | `clearance.E005` | `ROLE_CEILINGS` or `STARTING_BUNDLES` names a role nobody declared |
@@ -679,12 +698,13 @@ Made by the owner.
     limits too.
 11. **Fields can be protected**, each with its own view and edit permission.
 
-Proposed in this edition, for the owner to accept or change:
-
-12. A permission given with **no scope reaches no rows** of a scoped model.
+12. A permission given with **no scope** reaches the model's
+    **`default_scope`** - and **no rows** when the developer named none.
 13. In 0.1, **a field's permissions are the person's**, not scoped by row.
 14. **Ceilings are written in code**, not in the admin site, so they hold
     whatever an administrator does.
 15. **A protected field is left out** when it may not be read, and **a value
     sent for it is refused** when it may not be written.
 16. **`'clearance'` is one app with models**, holding layers 1 to 3.
+17. **Every layer is optional**, used only on the models and in the projects
+    that ask for it; the one requirement is `ClearanceBackend`.
