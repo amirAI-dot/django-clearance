@@ -1,6 +1,6 @@
 # django-clearance - design
 
-> **Status: third edition, for review.** The second edition set the order -
+> **Status: third edition, accepted.** The second edition set the order -
 > access bundles first, roles last - and the owner accepted it. This edition
 > adds what makes the library work the moment it is installed, and makes the
 > admin site the place an administrator does everything the library can do:
@@ -89,6 +89,10 @@ it dangerous.
    revocations and scopes would silently do nothing.
 8. **The admin site is never the way round the rules.** Every page writes
    through the one service the code uses, under the same safety rules.
+9. **Code, the admin site, or both.** Everything an administrator does in the
+   admin site, a developer can write in code; and the admin site is optional -
+   without `django.contrib.admin` the library works whole. What code
+   declares, the admin site shows read only.
 
 ---
 
@@ -122,6 +126,11 @@ What the README will list.
   standing.
 * **Every kind of view.** DRF's `APIView`, generic views, mixins, viewsets,
   `ModelViewSet` and `@api_view`; Django's generic views and function views.
+* **Access as code.** Bundles, roles and ceilings written in a file kept in
+  git and applied by `clearance_sync`, which shows every change first with
+  `--dry-run` and fails CI with `--check` when the database differs. What the
+  file declares is read only in the admin site.
+* **The admin site is optional.** Everything works without it.
 * **Taking one permission from one person**, whatever bundle gives it.
 * **Policies** with object-level hooks that respect the row scopes.
 * **Every permission, bundle and role named in every language.**
@@ -165,6 +174,7 @@ src/clearance/
     actions.py             status actions, and the actions found in the code
     services.py            AccessService: every change, under the safety rules, with signals
     safety.py              the safety rules
+    declared.py            the ACCESS file: read, compared with the database, applied
     querysets.py           ScopedQuerySet: named scopes, visible_to(user, action)
     fields.py              readable_fields(), writable_fields(), writable_values()
     forms.py               ProtectedFieldsFormMixin
@@ -187,9 +197,7 @@ src/clearance/
     roles/                 INSTALLED_APPS += ['clearance.roles']
         models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
         resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of()
-        seeding.py         roles, ceilings and starting bundles from code, once
         admin/
-        management/commands/clearance_seed.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
         models.py          PermissionTranslation, BundleTranslation, RoleTranslation
@@ -367,6 +375,31 @@ access.give_bundle(person, managers)
 access.revoke(person, 'shop.change_order', reason='Under review')
 ```
 
+### 5.8 Access as code
+
+```python
+# config/access.py - CLEARANCE = {'ACCESS': 'config.access.ACCESS'}
+ACCESS = {
+    'bundles': {
+        'Branch managers': {'shop.view_order': 'branch', 'shop.order_approve': 'branch'},
+        'Accountants': {'shop.view_order': 'all', 'shop.view_order_price': None},
+        'Customers': {'shop.view_order': 'own', 'shop.add_order': None},
+    },
+    'roles': {
+        'customer': {
+            'ceiling': ['shop.view_order', 'shop.add_order'],
+            'bundles': ['Customers'],
+        },
+    },
+}
+```
+
+```bash
+python manage.py clearance_sync --dry-run    # what would change, writing nothing
+python manage.py clearance_sync --check      # in CI: fail when the database differs from the file
+python manage.py clearance_sync              # apply, and say what changed
+```
+
 ---
 
 ## 6. Default and custom permissions
@@ -384,6 +417,22 @@ A model's permissions are its **default** ones unless it declares its own:
 needs, whichever it is, and every part of the library asks it - so nothing
 anywhere spells a permission's name by hand. A model added later and
 migrated has its permissions at once, because Django makes them.
+
+A model that declares its own permissions turns Django's off with
+`default_permissions = ()`; one that kept both would offer a permission
+nothing checks, and is refused (E014). Django's own admin pages ask
+`permission_for` too, so a model with custom permissions is edited in the
+admin site by whoever holds them, not only by the superuser.
+
+**`migrate` makes the locks; `clearance_sync` hands out the keys.** `migrate`
+makes every permission - a model's, a field's, an action's, found in the code
+or declared there - the way Django makes its own: added, never taken away,
+and harmless, because nobody holds a new permission until given it. Giving
+access - the bundles, roles and ceilings an `ACCESS` file declares - is
+`clearance_sync`'s, an explicit step that shows what it will change before it
+changes it. A project that wants one command sets `SYNC_ON_MIGRATE`: the sync
+then runs once, at the end of a forward `migrate` of the default database -
+never while a test database is made, never on a migration backwards.
 
 The library's own access to itself has its permissions too:
 `clearance.permission_view`, `permission_create`, `permission_edit`,
@@ -432,6 +481,20 @@ an API refuses them, naming the field and the value. A status action is
 scoped like any permission - "approve, in their branch". Several actions may
 share a field, and a value no action claims is written with the row's own
 `edit`.
+
+The same, in code - in `build_permissions`, or in the `ACCESS` file for a
+model that keeps Django's permissions - and shown read only in the admin
+site:
+
+```python
+permissions = build_permissions(
+    'order', _('orders'),
+    status_actions={
+        'approve': {'field': 'status', 'to': ['approved', 'rejected'], 'from': ['pending']},
+        'ship': {'field': 'status', 'to': ['shipped']},
+    },
+)
+```
 
 ### 8.2 Actions found in the code
 
@@ -560,9 +623,8 @@ so. In 0.1 a field's permissions are the person's, not the row's.
   given it - so administrators who manage bundles cannot widen what a role
   may hold.
 * **Starting bundles**: `RoleBundle` gives everybody with a role a bundle.
-* **From code**, a project can seed roles, ceilings and starting bundles
-  once, on a new database (`STARTING_ACCESS`, `clearance_seed`); the admin
-  site has them from then on.
+* **From code**, roles, ceilings and starting bundles can be written in the
+  `ACCESS` file instead (5.8), and the admin site shows them read only.
 * **Elsewhere**: a project that keeps roles on its user model - a `role`
   column, `is_staff`, Django groups - reads them with `AttributeResolver` or a
   resolver of its own instead.
@@ -636,6 +698,11 @@ Every page writes through `AccessService` under the safety rules, and needs
 the library's own permissions: `permission_view` to look, `permission_create`,
 `_edit` and `_delete` to change.
 
+What the `ACCESS` file or the code declares is shown as *declared in code*,
+read only: changed in the admin site, it would come back on the next sync.
+Without `django.contrib.admin`, none of these pages exist and nothing else
+changes.
+
 ---
 
 ## 15. Settings
@@ -647,7 +714,8 @@ not know is refused (E011).
 |---|---|---|
 | `ROLE_RESOLVER` | `'clearance.roles.resolvers.AssignmentResolver'` | where a person's roles are read from |
 | `ROLE_ATTRIBUTE` | `'role'` | what `AttributeResolver` reads |
-| `STARTING_ACCESS` | `None` | roles, ceilings and starting bundles to seed once, read by `clearance_seed` |
+| `ACCESS` | `None` | the access declared in code - bundles, roles, ceilings, status actions - applied by `clearance_sync` |
+| `SYNC_ON_MIGRATE` | `False` | run `clearance_sync` once at the end of a forward `migrate` |
 | `RULE_DEPTH` | `3` | how many relations a rule's field may cross |
 
 ---
@@ -661,6 +729,7 @@ not know is refused (E011).
 | `clearance` | `ScopeRule` | `content_type`, `code`, `name`, `match` (all or any), `conditions` |
 | `clearance` | `ProtectedField` | `content_type`, `field` - with the two permissions it made |
 | `clearance` | `StatusAction` | `content_type`, `code`, `name`, `field`, `to_values`, `from_values` - with its permission |
+| `clearance` | `Declared` | what the `ACCESS` file or the code owns - a bundle, a role, a ceiling, a status action - so the admin site shows it read only |
 | `clearance.roles` | `Role` | `code`, `name`, `limited` |
 | `clearance.roles` | `RoleAssignment` | `user`, `role`, `assigned_by`, `assigned_at` |
 | `clearance.roles` | `RoleCeiling` | `role`, `permission` |
@@ -675,7 +744,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 
 | id | when |
 |---|---|
-| `clearance.E001` | `STARTING_ACCESS` cannot be read, or names something that does not exist |
+| `clearance.E001` | `ACCESS` cannot be read, or names a permission, scope or field that does not exist |
 | `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
 | `clearance.E003` | a DRF viewset guarded by a policy has an `@action` with no permission |
 | `clearance.E004` | a scoped view's queryset is not a `ScopedQuerySet` |
@@ -687,6 +756,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E011` | `CLEARANCE` is not a dictionary, or has a key the library does not know |
 | `clearance.E012` | a field protected in code is not a field of its model |
 | `clearance.E013` | an action name found in the code cannot make a permission |
+| `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 
 E005 is retired: it checked ceilings written in code, and ceilings are in
 the database now.
@@ -749,11 +819,12 @@ changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
 | 6 | actions: status actions and their enforcement; actions found in every kind of view | |
 | 7 | DRF: `ModelPolicyPermission`, `PolicyPermission`, the viewsets, the serializer mixin, their checks | |
 | 8 | the admin site, part one: overview, bundles as a grid, people, permissions | |
-| 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers, seeding - and their pages | |
-| 10 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
-| 11 | `clearance.translations` | |
-| 12 | documentation, an example project, the Persian catalogue | |
-| 13 | used in iranbobco; `0.1.0` tagged, made public, published | |
+| 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers - and their pages | |
+| 10 | access as code: the `ACCESS` file, `clearance_sync` with `--dry-run` and `--check`, `SYNC_ON_MIGRATE`, read only in the admin site | |
+| 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
+| 12 | `clearance.translations` | |
+| 13 | documentation, an example project, the Persian catalogue | |
+| 14 | used in iranbobco; `0.1.0` tagged, made public, published | |
 
 ---
 
@@ -781,8 +852,7 @@ Made by the owner.
 1. Every import names its module.
 2. The licence holder is amir mohammad kashanchian.
 3. The oldest Python is 3.11.
-4. *(amended in this edition, see below)* The default role resolver reads
-   `user.role`.
+4. *(amended by 27)* The default role resolver reads `user.role`.
 5. Django's own views get the same bridge as DRF.
 6. The admin site shows permissions and makes bundles.
 7. Permissions and bundles can be named in any language, in 0.1.
@@ -815,9 +885,6 @@ Made by the owner.
     `_delete` - are held by the superuser by default.
 25. **The safety rules are in 0.1**, because the admin site manages access.
 26. **Every kind of DRF and Django view works**, `ModelViewSet` among them.
-
-Proposed in this edition, for the owner to accept or change:
-
 27. **Decision 4 amended:** with roles made and given in the admin site, the
     default resolver reads the `RoleAssignment` rows the admin site writes;
     `AttributeResolver`, reading `user.role`, is for a project that keeps
@@ -828,3 +895,14 @@ Proposed in this edition, for the owner to accept or change:
 30. **No permission is typed by an administrator**: actions are status actions
     or found in the code, so every permission in the admin site is checked
     somewhere.
+31. **A model keeping Django's permissions beside its own is refused** (E014),
+    and Django's own admin pages ask `permission_for`.
+32. **Status actions can be declared in code** as well as made in the admin
+    site.
+33. **Access can be written as code** - the `ACCESS` file - and applied by
+    `clearance_sync`, with `--dry-run` and `--check`.
+34. **What code declares is read only in the admin site**; what the admin
+    site makes, code does not touch.
+35. **The admin site is optional**: without it the library works whole.
+36. **`migrate` makes the permissions; `clearance_sync` gives access.**
+    `SYNC_ON_MIGRATE` joins them for a project that wants one command.
