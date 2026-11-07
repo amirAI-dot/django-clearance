@@ -5,7 +5,7 @@ from django.views.generic import DetailView, ListView, UpdateView
 
 from clearance.decorators import policy_required
 from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
-from tests.project.lending.models import Loan
+from tests.project.lending.models import Loan, Payment
 from tests.project.lending.policies import loan_access
 
 
@@ -25,6 +25,12 @@ class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):  # 
     queryset = Loan.objects.all()
     fields = ('approved',)
     success_url = '/loans/'
+
+
+class PaymentListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):  # type: ignore[type-arg]
+    """No policy named: the model's own is asked, with Django's own permissions."""
+
+    queryset = Payment.objects.all()
 
 
 @policy_required(loan_access.policy, 'create')

@@ -18,6 +18,13 @@ every loan; a hook can add "and it is yours" by overriding, calling
                 return False
             return obj is None or obj.applicant_id == user.pk
 
+**A hook respects the row scopes.** Handed an object of a scoped model,
+``can_edit`` requires the permission *and* the object within the person's
+``edit`` scope - so a hook never allows what ``visible_to`` would hide.
+
+**A model with no policy of its own** is asked through a ``ModelPolicy``,
+made by the registry from the model's permissions alone.
+
 **An action nobody wrote a hook for is refused.** Asking a policy about an
 action it has no hook for raises, rather than answering yes or no: either
 answer would be a guess, and the caller is a developer who misspelled
@@ -29,8 +36,9 @@ from types import MappingProxyType
 from typing import Any, ClassVar, cast
 
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.db.models import Model
 
-from clearance import resolvers
+from clearance import permissions
 from clearance.protocols import User
 
 #: A hook: the person, and the object when there is one.
@@ -41,12 +49,16 @@ class BasePolicy:
     """
     Maps an action to a decision.
 
-    A subclass declares ``app_label`` and ``codename``; each hook then asks for
-    ``{app_label}.{codename}_{action}``. ``custom_actions`` maps a view's
+    A subclass names its ``model``, or declares ``app_label`` and ``codename``
+    for a resource that is not one model. Each hook then asks for the
+    permission ``permissions.permission_for`` names - in Django's style or the
+    library's, whichever the model keeps. ``custom_actions`` maps a view's
     action to the hook that authorises it - read by the bridges from a view to
     a policy, which refuse an action missing from it.
     """
 
+    #: The model this policy decides about. Its app label and name are the defaults.
+    model: ClassVar[type[Model] | None] = None
     app_label: ClassVar[str] = ''
     codename: ClassVar[str] = ''
     custom_actions: ClassVar[Mapping[str, str]] = MappingProxyType({})
@@ -63,8 +75,17 @@ class BasePolicy:
         names no codename, or maps an action to a hook it does not have, fails
         the moment the project starts rather than the first time it is asked.
         """
+        if cls.model is None and cls.app_label and cls.codename:
+            cls.model = _model_named(cls.app_label, cls.codename)
+
+        if cls.model is not None:
+            cls.app_label = cls.app_label or cls.model._meta.app_label
+            cls.codename = cls.codename or cls.model._meta.model_name or ''
+
         if not cls.app_label or not cls.codename:
-            raise ImproperlyConfigured(f'{cls.__name__} must declare both app_label and codename.')
+            raise ImproperlyConfigured(
+                f'{cls.__name__} must name its model, or declare both app_label and codename.'
+            )
 
         for action, hook in cls.custom_actions.items():
             if not callable(getattr(cls, hook, None)):
@@ -99,8 +120,10 @@ class BasePolicy:
         return cast(Hook, method)
 
     def permission_for(self, action: str) -> str:
-        """The permission ``action`` requires: ``loans.loan_approve``."""
-        return f'{self.app_label}.{self.codename}_{action}'
+        """The permission ``action`` requires: ``shop.change_order``, ``loans.loan_approve``."""
+        if self.model is not None:
+            return permissions.permission_for(self.model, action, codename=self.codename)
+        return f'{self.app_label}.{self.codename}_{"view" if action == "list" else action}'
 
     def has(self, user: User, action: str) -> bool:
         """
@@ -121,23 +144,29 @@ class BasePolicy:
             user.is_authenticated and user.is_active and user.has_perm(self.permission_for(action))
         )
 
-    @staticmethod
-    def has_role(user: User, *roles: str) -> bool:
+    def within_scope(self, user: User, action: str, obj: object | None) -> bool:
         """
-        Whether ``user`` has any of ``roles``.
+        Whether ``obj`` is among the rows ``user`` reaches for ``action``.
 
-        For whose job an act is - only an officer approves - which no
-        permission can say: a permission is granted, a job is not.
+        True when there is no object, or the object's model scopes no rows.
+        Otherwise one ``exists()``: the same question ``visible_to`` answers
+        for a list, asked about one row.
         """
-        return resolvers.has_role(user, *roles)
+        from clearance.querysets import ScopedQuerySet
 
-    @staticmethod
-    def reaches_every_row(user: User) -> bool:
-        """
-        Whether the queryset hands ``user`` every row - so an object need not
-        be theirs. Which rows, never what may be done with them.
-        """
-        return resolvers.reaches_every_row(user)
+        if not isinstance(obj, Model):
+            return True
+
+        rows = type(obj)._default_manager.all()
+
+        if not isinstance(rows, ScopedQuerySet):
+            return True
+
+        return bool(rows.visible_to(user, action).filter(pk=obj.pk).exists())
+
+    def has_within_scope(self, user: User, action: str, obj: object | None) -> bool:
+        """The permission for ``action``, and ``obj`` within its scope: every standard hook."""
+        return self.has(user, action) and self.within_scope(user, action, obj)
 
     # ------------------------------------------------------------------
     # The standard hooks
@@ -147,16 +176,16 @@ class BasePolicy:
         return self.has(user, 'view')
 
     def can_view(self, user: User, obj: object | None = None) -> bool:
-        return self.has(user, 'view')
+        return self.has_within_scope(user, 'view', obj)
 
     def can_create(self, user: User, obj: object | None = None) -> bool:
         return self.has(user, 'create')
 
     def can_edit(self, user: User, obj: object | None = None) -> bool:
-        return self.has(user, 'edit')
+        return self.has_within_scope(user, 'edit', obj)
 
     def can_delete(self, user: User, obj: object | None = None) -> bool:
-        return self.has(user, 'delete')
+        return self.has_within_scope(user, 'delete', obj)
 
 
 class SignedInReadPolicy(BasePolicy):
@@ -173,3 +202,36 @@ class SignedInReadPolicy(BasePolicy):
 
     def can_view(self, user: User, obj: object | None = None) -> bool:
         return bool(user.is_authenticated and user.is_active)
+
+
+def _model_named(app_label: str, codename: str) -> type[Model] | None:
+    """
+    The model a policy's ``app_label`` and ``codename`` name, if they name one.
+
+    So a policy that says ``shop`` and ``order`` asks for the permissions
+    ``Order`` actually keeps - Django's ``change_order`` or the library's
+    ``order_edit`` - rather than guessing from the names.
+    """
+    from django.apps import apps
+
+    try:
+        return apps.get_model(app_label, codename)
+    except (LookupError, ValueError):
+        return None
+
+
+class ModelPolicy(BasePolicy):
+    """
+    The policy of a model nobody wrote one for: its permissions and its scopes.
+
+    Made by the registry, one per model, on first use - so every model is
+    asked the same way whether or not its project wrote a policy for it.
+    """
+
+    @classmethod
+    def for_model(cls, model: type[Model]) -> 'ModelPolicy':
+        policy_class = cast(
+            type[ModelPolicy], type(f'{model.__name__}Policy', (cls,), {'model': model})
+        )
+        policy_class.check_declaration()
+        return policy_class()

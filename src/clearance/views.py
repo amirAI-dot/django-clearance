@@ -4,26 +4,29 @@ Django's own views, scoped and asking the policy.
 Two mixins, for templates and forms as much as for an API:
 
 ``ScopedQuerySetMixin`` narrows the view's queryset to the rows the person
-may reach, in ``get_queryset`` - so a list shows only those, and a detail
-page for anybody else's row is a 404, exactly as if it did not exist. It
-works with Django's generic views and DRF's alike.
+reaches for the view's action, in ``get_queryset`` - so a list shows only
+those, and a page for anybody else's row is a 404, exactly as if it did not
+exist. It works with Django's generic views and DRF's alike.
 
 ``PolicyRequiredMixin`` asks the policy, the way DRF's bridge does: first
 with no object, in ``dispatch``, before anything runs; then, for a view with
 an object, with the object, once ``get_object`` has found it among the rows
-the person may reach::
+the person reaches::
 
-    class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):
-        policy = loan_access.policy
+    class OrderApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):
         policy_action = 'approve'
-        queryset = Loan.objects.all()
+        queryset = Order.objects.all()
 
-Without a ``policy_action``, the action is read off the view - ``list`` for a
-``ListView``, ``edit`` for an ``UpdateView`` - and a view it cannot be read
-off is refused as misconfigured, never let through.
+The action is ``policy_action`` when named, and otherwise read off the view -
+``list`` for a ``ListView``, ``edit`` for an ``UpdateView``, DRF's own
+action on a viewset. The policy is ``policy`` when named, and otherwise the
+model's own. A view neither can be read off is refused as misconfigured,
+never let through.
 """
 
-from typing import Any, ClassVar, cast
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any, Final, cast
 
 from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
@@ -36,12 +39,77 @@ from django.views.generic.list import BaseListView
 from clearance.policies import BasePolicy
 from clearance.protocols import user_of
 from clearance.querysets import ScopedQuerySet
+from clearance.registry import registry
+
+#: How an action is read off a Django generic view, most specific first:
+#: a ``DeleteView`` is a ``BaseDetailView`` too.
+GENERIC_VIEW_ACTIONS: Final[tuple[tuple[type, str], ...]] = (
+    (BaseCreateView, 'create'),
+    (BaseUpdateView, 'edit'),
+    (BaseDeleteView, 'delete'),
+    (BaseDetailView, 'view'),
+    (BaseListView, 'list'),
+)
+
+#: DRF's viewset actions, in the library's words. Any other is a custom action.
+DRF_ACTIONS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        'list': 'list',
+        'retrieve': 'view',
+        'create': 'create',
+        'update': 'edit',
+        'partial_update': 'edit',
+        'destroy': 'delete',
+        'metadata': 'list',
+    }
+)
+
+
+def action_of(view: object) -> str | None:
+    """
+    The action a view performs: ``policy_action`` when it names one, DRF's
+    action on a viewset, or the one a generic view's class implies.
+    """
+    named: str | None = getattr(view, 'policy_action', None)
+
+    if named is not None:
+        return named
+
+    drf_action = getattr(view, 'action', None)
+
+    if isinstance(drf_action, str):
+        return DRF_ACTIONS.get(drf_action, drf_action)
+
+    view_class = view if isinstance(view, type) else type(view)
+
+    for generic, action in GENERIC_VIEW_ACTIONS:
+        if issubclass(view_class, generic):
+            return action
+
+    return None
+
+
+def model_of(view: object) -> type[Model] | None:
+    """The model a view declares, through ``model`` or ``queryset``, without running it."""
+    model = getattr(view, 'model', None)
+
+    if model is None:
+        queryset = getattr(view, 'queryset', None)
+        model = getattr(queryset, 'model', None)
+
+    return model if isinstance(model, type) and issubclass(model, Model) else None
 
 
 class ScopedQuerySetMixin:
-    """Narrows the view's queryset to the rows the person may reach."""
+    """Narrows the view's queryset to the rows the person reaches for its action."""
 
     request: HttpRequest
+
+    #: The action whose scope narrows the rows. Read off the view when left out.
+    scope_action: str | None = None
+
+    def get_scope_action(self) -> str:
+        return self.scope_action or action_of(self) or 'view'
 
     def get_queryset(self) -> QuerySet[Any]:
         queryset = cast(Any, super()).get_queryset()
@@ -53,58 +121,55 @@ class ScopedQuerySetMixin:
                 f'shows every row to everybody.'
             )
 
-        return queryset.visible_to(user_of(self.request))
+        return queryset.visible_to(user_of(self.request), self.get_scope_action())
 
 
 class PolicyRequiredMixin(AccessMixin):
-    """Asks ``policy`` whether the person may do ``policy_action``."""
+    """Asks the policy whether the person may do the view's action."""
 
     request: HttpRequest
 
-    #: The policy to ask - usually ``loan_access.policy``.
+    #: The policy to ask. The model's own when left out.
     policy: BasePolicy | None = None
 
     #: The action to ask about. Read off the view when left out.
     policy_action: str | None = None
 
-    #: How an action is read off a generic view, most specific first:
-    #: a ``DeleteView`` is a ``BaseDetailView`` too.
-    policy_actions: ClassVar[tuple[tuple[type, str], ...]] = (
-        (BaseCreateView, 'create'),
-        (BaseUpdateView, 'edit'),
-        (BaseDeleteView, 'delete'),
-        (BaseDetailView, 'view'),
-        (BaseListView, 'list'),
-    )
-
     @classmethod
     def resolved_action(cls) -> str | None:
         """``policy_action``, or the one read off the view, or ``None``."""
-        if cls.policy_action is not None:
-            return cls.policy_action
+        return action_of(cls)
 
-        for view_class, action in cls.policy_actions:
-            if issubclass(cls, view_class):
-                return action
+    @classmethod
+    def resolved_policy(cls) -> BasePolicy | None:
+        """``policy``, or the policy of the view's model, or ``None``."""
+        if cls.policy is not None:
+            return cls.policy
 
-        return None
+        model = model_of(cls)
+        return registry.policy_for(model) if model is not None else None
 
     @classmethod
     def configuration_errors(cls) -> list[str]:
-        """What stops this view from asking its policy - for the system check too."""
+        """What stops this view from asking a policy - for the system check too."""
         errors = []
+        policy = cls.resolved_policy()
+        action = cls.resolved_action()
 
-        if cls.policy is None:
-            errors.append(f'{cls.__name__} uses PolicyRequiredMixin but names no policy.')
+        if policy is None:
+            errors.append(
+                f'{cls.__name__} uses PolicyRequiredMixin but names no policy, '
+                f'and has no model whose policy could be asked.'
+            )
 
-        if cls.resolved_action() is None:
+        if action is None:
             errors.append(
                 f'{cls.__name__} names no policy_action, and none can be read off it: it is '
                 f'not a ListView, DetailView, CreateView, UpdateView or DeleteView.'
             )
-        elif cls.policy is not None:
+        elif policy is not None:
             try:
-                cls.policy.hook(cast(str, cls.resolved_action()))
+                policy.hook(action)
             except ImproperlyConfigured as error:
                 errors.append(f'{cls.__name__}: {error}')
 
@@ -131,6 +196,6 @@ class PolicyRequiredMixin(AccessMixin):
         return obj
 
     def _allows(self, obj: object | None) -> bool:
-        policy = cast(BasePolicy, self.policy)
+        policy = cast(BasePolicy, self.resolved_policy())
         action = cast(str, self.resolved_action())
         return policy.allows(user_of(self.request), action, obj)

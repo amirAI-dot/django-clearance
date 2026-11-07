@@ -1,36 +1,39 @@
 """
 A project configured wrongly is told so by manage.py check, before anybody signs in.
 
-If these fail, a misspelled role silently denies everybody, a misspelled
-setting is ignored, or a view that shows every row starts without complaint.
+If these fail, a misspelled scope is offered to an administrator and reaches
+nothing, a revocation silently does nothing because the backend is missing
+or has company, a model offers permissions nothing checks, or a view that
+shows every row starts without complaint.
 """
 
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, ClassVar
 
 import pytest
 from django.core.checks import CheckMessage
-from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 from django.test import override_settings
 from django.urls import include, path
-from django.views.generic import DetailView, ListView, UpdateView
+from django.views.generic import DetailView, ListView, TemplateView, UpdateView
 
-from clearance import checks
 from clearance.checks import (
-    check_scope_hooks,
+    BACKEND,
+    MODEL_BACKEND,
+    backend_errors,
+    check_settings,
     check_views,
-    scope_hook_errors,
+    permission_errors,
+    scope_errors,
     scoped_querysets,
-    settings_errors,
-    view_errors,
 )
-from clearance.conf import clearance_settings
+from clearance.permissions import build_permissions
 from clearance.protocols import User
 from clearance.querysets import ScopedQuerySet
 from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
 from tests.project.accounts.models import Person
-from tests.project.lending.models import Loan
-from tests.project.lending.policies import loan_access
-from tests.project.lending.querysets import LoanQuerySet
+from tests.project.lending.models import Loan, Payment
+from tests.project.lending.querysets import LoanQuerySet, PaymentQuerySet
 
 
 def ids(messages: list[CheckMessage]) -> list[str | None]:
@@ -40,104 +43,113 @@ def ids(messages: list[CheckMessage]) -> list[str | None]:
 # ---------------------------------------------------------------- the setting
 
 
-@override_settings(CLEARANCE={'ROLES': ['admin'], 'EVERY_ROWS_ROLES': ['admin']})
-def test_a_misspelled_key_is_refused_not_ignored() -> None:
-    errors = settings_errors(rows_are_scoped=True)
-
-    assert ids(errors) == ['clearance.E011']
-    assert 'EVERY_ROWS_ROLES' in errors[0].msg
-
-
-@override_settings(CLEARANCE=['admin'])
-def test_a_setting_that_is_not_a_dictionary_is_refused() -> None:
-    assert ids(settings_errors(rows_are_scoped=False)) == ['clearance.E011']
-
-
-@override_settings(CLEARANCE={})
-def test_roles_are_required_once_something_scopes_rows() -> None:
-    assert ids(settings_errors(rows_are_scoped=True)) == ['clearance.E001']
-    assert ids(settings_errors(rows_are_scoped=False)) == []
-
-
-@pytest.mark.parametrize(
-    'roles',
-    [
-        ['admin', 'loan officer'],
-        ['admin', 'admin'],
-        [],
-        'not.a.module.Role',
-        'admin',
-        5,
-    ],
-)
-def test_roles_that_cannot_name_hooks_are_refused(roles: object) -> None:
-    with override_settings(CLEARANCE={'ROLES': roles}):
-        assert ids(settings_errors(rows_are_scoped=False)) == ['clearance.E001']
-
-
-@override_settings(CLEARANCE={'ROLES': 'tests.project.lending.roles.Role'})
-def test_roles_may_be_named_by_a_choices_class() -> None:
-    assert clearance_settings.roles == ('admin', 'officer')
-
-
-@pytest.mark.parametrize('every_row_roles', [['root'], 'admin'])
-def test_every_row_roles_must_be_a_list_of_declared_roles(every_row_roles: object) -> None:
-    with override_settings(CLEARANCE={'ROLES': ['admin'], 'EVERY_ROW_ROLES': every_row_roles}):
-        assert ids(settings_errors(rows_are_scoped=True)) == ['clearance.E005']
-
-
 @pytest.mark.parametrize(
     'setting',
-    [
-        {'ROLE_RESOLVER': 'not.a.module.Resolver'},
-        {'ROLE_RESOLVER': 'tests.project.lending.models.Loan'},
-        {'ROLE_ATTRIBUTE': 'two words'},
-    ],
+    [{'SYNC_ON_MIGRAT': True}, ['ACCESS']],
+    ids=['a misspelled key', 'not a dictionary'],
 )
-def test_a_resolver_that_cannot_be_used_is_refused(setting: dict[str, object]) -> None:
-    with override_settings(CLEARANCE={'ROLES': ['admin'], **setting}):
-        assert ids(settings_errors(rows_are_scoped=True)) == ['clearance.E010']
+def test_a_setting_that_cannot_be_read_is_refused_not_ignored(setting: object) -> None:
+    with override_settings(CLEARANCE=setting):
+        errors = check_settings()
+
+    assert ids(errors) == ['clearance.E011']
 
 
-@override_settings(CLEARANCE={'ROLES': ['admin'], 'EVERY_ROW_ROLES': ['root']})
-def test_using_a_bad_setting_raises_rather_than_guessing() -> None:
-    with pytest.raises(ImproperlyConfigured, match='root'):
-        _ = clearance_settings.every_row_roles
+def test_a_setting_of_known_keys_passes_and_the_rest_keep_their_defaults() -> None:
+    from clearance.conf import clearance_settings
+
+    with override_settings(CLEARANCE={'SYNC_ON_MIGRATE': True, 'RULE_DEPTH': 2}):
+        assert check_settings() == []
+        assert clearance_settings.value('RULE_DEPTH') == 2
+        assert clearance_settings.value('ACCESS') is None
 
 
-# ---------------------------------------------------------------- scope hooks
+# ---------------------------------------------------------------- the backend
 
 
-class MisspelledHook(ScopedQuerySet[Loan]):
-    def scope_for_offcier(self, user: User) -> None:
-        return None
+def test_without_the_backend_revocations_and_scopes_would_do_nothing() -> None:
+    assert ids(backend_errors([MODEL_BACKEND])) == ['clearance.E006']
 
 
-def test_a_hook_for_a_role_nobody_declared_is_reported() -> None:
-    errors = scope_hook_errors([MisspelledHook], ['officer', 'customer'])
-
-    assert ids(errors) == ['clearance.E002']
-    assert 'scope_for_offcier' in errors[0].msg
+def test_djangos_backend_beside_it_would_hand_back_every_revocation() -> None:
+    assert ids(backend_errors([BACKEND, MODEL_BACKEND])) == ['clearance.E007']
 
 
-def test_hooks_for_declared_roles_pass() -> None:
-    assert scope_hook_errors([LoanQuerySet], ['officer', 'customer']) == []
+def test_the_backend_alone_passes() -> None:
+    assert backend_errors([BACKEND, 'project.auth.OtherBackend']) == []
+
+
+# ---------------------------------------------------------------- permissions
+
+
+class HalfDeclared:
+    """
+    A model's options as a model forgetting ``default_permissions = ()`` has them.
+
+    A stand-in rather than a model: a model declared here would join the test
+    project's app, and every check of the whole project would report it.
+    """
+
+    _meta = SimpleNamespace(
+        label='lending.HalfDeclared',
+        permissions=build_permissions('half', 'halves'),
+        default_permissions=('add', 'change', 'delete', 'view'),
+    )
+
+
+def test_a_model_declaring_its_own_permissions_but_keeping_djangos_is_refused() -> None:
+    errors = permission_errors([HalfDeclared])  # type: ignore[list-item]
+
+    assert ids(errors) == ['clearance.E014']
+    assert 'default_permissions = ()' in (errors[0].hint or '')
+
+
+def test_a_model_keeping_only_djangos_or_only_its_own_passes() -> None:
+    assert permission_errors([Loan, Payment]) == []
+
+
+# ---------------------------------------------------------------- scopes
+
+
+class Disagreeing(ScopedQuerySet[Loan]):
+    scopes: ClassVar = {'own': 'Own', 'branch': 'Branch'}
+    default_scope = 'nowhere'
+
+    def scope_own(self, user: User) -> Q:
+        return Q(applicant=user)
+
+    def scope_reviewing(self, user: User) -> Q:
+        return Q(officer=user)
+
+
+class RedefiningAll(ScopedQuerySet[Loan]):
+    scopes: ClassVar = {'all': 'Mine, really'}
+
+    def scope_all(self, user: User) -> Q:
+        return Q(applicant=user)
+
+
+def test_scopes_and_their_methods_must_agree() -> None:
+    messages = [error.msg for error in scope_errors([Disagreeing])]
+
+    assert messages == [
+        "Disagreeing: scopes offers 'branch' with no scope_branch().",
+        'Disagreeing: scope_reviewing() is not in scopes, so nobody can choose it.',
+        "Disagreeing: default_scope 'nowhere' is not a scope it offers.",
+    ]
+
+
+def test_all_cannot_be_redefined() -> None:
+    assert ids(scope_errors([RedefiningAll])) == ['clearance.E002']
+
+
+def test_the_projects_own_querysets_pass() -> None:
+    assert scope_errors([LoanQuerySet, PaymentQuerySet]) == []
 
 
 def test_the_querysets_checked_are_the_ones_models_use() -> None:
-    assert LoanQuerySet in scoped_querysets()
-    assert MisspelledHook not in scoped_querysets()
-
-
-def test_a_project_scoping_no_rows_has_no_hooks_to_check(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(checks, 'scoped_querysets', list)
-
-    assert check_scope_hooks() == []
-
-
-@override_settings(CLEARANCE={})
-def test_hooks_are_not_checked_against_roles_that_are_missing() -> None:
-    assert check_scope_hooks() == [], 'E001 reports the missing roles, once'
+    assert {LoanQuerySet, PaymentQuerySet} <= set(scoped_querysets())
+    assert Disagreeing not in scoped_querysets()
 
 
 # ---------------------------------------------------------------- views
@@ -151,31 +163,41 @@ class ScopedOverLoans(ScopedQuerySetMixin, DetailView):  # type: ignore[type-arg
     model = Loan
 
 
-class NoPolicy(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
-    model = Loan
+class NoModel(PolicyRequiredMixin, TemplateView):
+    policy_action = 'view'
 
 
-class UnknownAction(PolicyRequiredMixin, ListView):  # type: ignore[type-arg]
-    policy = loan_access.policy
+class UnknownAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
     policy_action = 'aprove'
     model = Loan
 
 
-def test_a_scoped_view_over_an_unscoped_model_is_reported() -> None:
-    assert ids(view_errors([ScopedOverPeople])) == ['clearance.E004']
+@pytest.mark.parametrize(
+    ('view', 'expected'),
+    [
+        (ScopedOverPeople, 'clearance.E004'),
+        (NoModel, 'clearance.E009'),
+        (UnknownAction, 'clearance.E009'),
+    ],
+)
+def test_a_view_that_would_show_every_row_or_cannot_ask_is_reported(
+    view: Any, expected: str
+) -> None:
+    from clearance.checks import view_errors
+
+    assert ids(view_errors([view])) == [expected]
 
 
 def test_a_scoped_view_over_a_scoped_model_passes() -> None:
+    from clearance.checks import view_errors
+
     assert view_errors([ScopedOverLoans]) == []
 
 
 def test_the_views_checked_are_found_through_every_include() -> None:
-    from tests.project.lending import views
-
     with override_settings(ROOT_URLCONF='tests.test_misconfiguration_fails_at_start_up'):
         assert ids(check_views()) == ['clearance.E004', 'clearance.E009']
 
-    assert issubclass(views.LoanListView, PolicyRequiredMixin)
     assert check_views() == [], 'the project itself is configured right'
 
 
@@ -184,19 +206,8 @@ def test_a_urlconf_that_does_not_import_is_left_to_django() -> None:
     assert check_views() == []
 
 
-@pytest.mark.parametrize(
-    ('view', 'expected'),
-    [(NoPolicy, 'names no policy'), (UnknownAction, 'can_aprove')],
-)
-def test_a_view_that_cannot_ask_its_policy_is_reported(view: Any, expected: str) -> None:
-    errors = view_errors([view])
-
-    assert ids(errors) == ['clearance.E009']
-    assert expected in errors[0].msg
-
-
 #: A URLconf for the test above: two broken views, one behind an include.
 urlpatterns = [
     path('people/', ScopedOverPeople.as_view()),
-    path('more/', include([path('loans/', NoPolicy.as_view())])),
+    path('more/', include([path('nothing/', NoModel.as_view())])),
 ]
