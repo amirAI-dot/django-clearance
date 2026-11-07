@@ -11,10 +11,10 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest, HttpResponse
 from django.test import Client, RequestFactory
-from django.views.generic import ListView, TemplateView
+from django.views.generic import TemplateView
 
 from clearance.decorators import policy_required
-from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
+from clearance.views import PolicyRequiredMixin
 from tests.conftest import MakeUser
 from tests.project.accounts.models import Person
 from tests.project.lending.models import Loan, Payment
@@ -184,16 +184,11 @@ class Modelless(PolicyRequiredMixin, TemplateView):
     policy_action = 'view'
 
 
-class Unscoped(ScopedQuerySetMixin, ListView):  # type: ignore[type-arg]
-    queryset = Person.objects.all()
-
-
 @pytest.mark.parametrize(
     ('view', 'message'),
     [
         (Unnamed, 'names no policy_action'),
         (Modelless, 'no model whose policy could be asked'),
-        (Unscoped, 'shows every row to everybody'),
     ],
 )
 def test_a_view_that_cannot_be_judged_is_refused_not_let_through(

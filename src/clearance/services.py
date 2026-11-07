@@ -24,16 +24,17 @@ from collections.abc import Mapping
 from typing import Any
 
 from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Model
+from django.db.models import Model, Q
 
-from clearance import signals
+from clearance import querysets, signals
 from clearance.grants import Scope, forget_grants
-from clearance.models import PermissionRevocation, ScopeGrant
+from clearance.models import PermissionRevocation, ScopeGrant, ScopeRule
 from clearance.protocols import User, UserModel
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
-from clearance.safety import SafetyRules
+from clearance.safety import AccessRefused, SafetyRules
 
 Grants = Mapping[str, Scope]
 
@@ -230,6 +231,118 @@ class AccessService:
             self._announce(signals.permission_restored, person=person, permission=permission)
 
     # ------------------------------------------------------------------
+    # Rule scopes
+    # ------------------------------------------------------------------
+
+    def create_scope_rule(
+        self,
+        model: type[Model],
+        code: str,
+        name: str,
+        conditions: list[dict[str, Any]],
+        *,
+        match: str = 'all',
+    ) -> ScopeRule:
+        """
+        A new rule scope for ``model``, every condition checked. Nobody holds it
+        yet, so making one changes nobody's access.
+        """
+        self.rules.require_may('create')
+        content_type = ContentType.objects.get_for_model(model)
+        rule = ScopeRule(
+            content_type=content_type, code=code, name=name, match=match, conditions=conditions
+        )
+        self._check_rule(rule)
+        rule.save()
+        self._announce(signals.scope_rule_saved, rule=rule, created=True)
+        return rule
+
+    def change_scope_rule(
+        self,
+        rule: ScopeRule,
+        *,
+        name: str | None = None,
+        conditions: list[dict[str, Any]] | None = None,
+        match: str | None = None,
+    ) -> ScopeRule:
+        """
+        Rename ``rule``, or change the rows it reaches - for everybody holding a
+        grant in it. Changing the rows is refused to whoever holds one: it would
+        change their own access.
+        """
+        self.rules.require_may('edit')
+        reaching = (conditions is not None and conditions != rule.conditions) or (
+            match is not None and match != rule.match
+        )
+
+        if reaching:
+            self._require_not_holding_rule(rule)
+
+        rule.name = name if name is not None else rule.name
+        rule.conditions = conditions if conditions is not None else rule.conditions
+        rule.match = match if match is not None else rule.match
+        self._check_rule(rule)
+        rule.save()
+        self._announce(signals.scope_rule_saved, rule=rule, created=False)
+        return rule
+
+    def delete_scope_rule(self, rule: ScopeRule) -> None:
+        """Delete ``rule`` - refused while any grant is in it, which would then reach nothing."""
+        self.rules.require_may('delete')
+        in_use = self._grants_in(rule).count()
+
+        if in_use:
+            raise ValidationError(
+                f'{rule.name!r} is the scope of {in_use} grant(s). Choose another scope for '
+                f'them first.'
+            )
+
+        model, code, name = rule.content_type.model_class(), rule.code, rule.name
+        rule.delete()
+        self._announce(signals.scope_rule_deleted, model=model, code=code, name=name)
+
+    def _check_rule(self, rule: ScopeRule) -> None:
+        """The rule's conditions, and a code no other scope of its model already has."""
+        model = rule.content_type.model_class()
+        problems = []
+
+        if not rule.code.isidentifier():
+            problems.append(f'{rule.code!r} is not a code: use letters, digits and underscores.')
+
+        rows = model._default_manager.all() if model is not None else None
+        taken = {EVERY_ROW, *(rows.scopes if isinstance(rows, ScopedQuerySet) else ())}
+
+        if rule.code in taken:
+            problems.append(f'{rule.code!r} is already a scope of this model.')
+
+        try:
+            rule.compiled()
+        except ValidationError as error:
+            problems += error.messages
+
+        if problems:
+            raise ValidationError(problems)
+
+    def _grants_in(self, rule: ScopeRule) -> Any:
+        return ScopeGrant.objects.filter(
+            scope=rule.code, permission__content_type=rule.content_type
+        )
+
+    def _require_not_holding_rule(self, rule: ScopeRule) -> None:
+        if self.rules.unbound:
+            return
+
+        actor_pk: Any = getattr(self.actor, 'pk', None)
+        own = self._grants_in(rule).filter(
+            Q(user_id=actor_pk) | Q(group__in=Group.objects.filter(user__pk=actor_pk))
+        )
+
+        if own.exists():
+            raise AccessRefused(
+                'own_scope', 'Nobody changes the rows of a scope their own grants are in.'
+            )
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
@@ -300,12 +413,6 @@ class AccessService:
 
 
 def offered_scopes(permission: Permission) -> set[str]:
-    """The scopes ``permission``'s model offers; just ``all`` for a model with no scopes."""
+    """The scopes ``permission``'s model offers: ``all``, its code scopes, its rule scopes."""
     model = permission.content_type.model_class()
-    queryset = getattr(model, '_default_manager', None)
-    rows = queryset.all() if queryset is not None else None
-
-    if isinstance(rows, ScopedQuerySet):
-        return set(rows.offered_scopes())
-
-    return {EVERY_ROW}
+    return set(querysets.offered_scopes(model)) if model is not None else {EVERY_ROW}

@@ -6,7 +6,11 @@ as most are, so the suite proves the library works with it.
 """
 
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class Person(AbstractUser):
-    pass
+    #: Where the person works or lives - something of theirs a rule can compare with.
+    region = models.CharField(max_length=32, blank=True)
+    #: The largest loan the person may decide on - a number of theirs a rule can compare with.
+    approval_limit = models.PositiveIntegerField(default=0)

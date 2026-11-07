@@ -4,16 +4,23 @@ What the library adds to Django's own permission tables.
 A bundle is Django's ``Group``, a person's bundles are ``user.groups``, and a
 permission is an ``auth_permission`` row; none of that is copied here. These
 tables hold only what Django has no place for: the scope a permission is
-given with, and a permission taken away from one person.
+given with, a permission taken away from one person, and the scopes an
+administrator builds from rules.
 """
+
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from clearance.permissions import DEFAULT_ACTIONS, build_permissions
+
+if TYPE_CHECKING:
+    from clearance.rules import Rule
 
 
 class Access(models.Model):
@@ -127,3 +134,50 @@ class PermissionRevocation(models.Model):
 
     def __str__(self) -> str:
         return f'{self.user}: {self.permission.codename} taken away'
+
+
+class ScopeRule(models.Model):
+    """
+    A row scope an administrator built, from rules - offered beside the code's.
+
+    ``conditions`` is a list of ``{'field': ..., 'operator': ..., 'value': ...}``,
+    joined by ``match``: ``all`` of them, or ``any``. It is checked against the
+    model whenever it is saved (``clearance.rules``), and turned into a ``Q``
+    when a list is asked for.
+    """
+
+    MATCH_CHOICES = (('all', _('all of the conditions')), ('any', _('any of the conditions')))
+
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name='+', verbose_name=_('model')
+    )
+    code = models.CharField(_('code'), max_length=64)
+    name = models.CharField(_('name'), max_length=160)
+    match = models.CharField(_('match'), max_length=3, choices=MATCH_CHOICES, default='all')
+    conditions = models.JSONField(_('conditions'), default=list)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = _('scope rule')
+        verbose_name_plural = _('scope rules')
+        constraints = (
+            models.UniqueConstraint(
+                fields=['content_type', 'code'], name='clearance_scoperule_one_code_per_model'
+            ),
+        )
+
+    def __str__(self) -> str:
+        return f'{self.content_type.model}: {self.name}'
+
+    def compiled(self) -> 'Rule':
+        """The rule, checked against its model as the model is now."""
+        from clearance.rules import Rule
+
+        model = self.content_type.model_class()
+
+        if model is None:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError('The model of this rule no longer exists.')
+
+        return Rule.parse(model, self.match, self.conditions)

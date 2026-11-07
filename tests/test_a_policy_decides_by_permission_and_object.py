@@ -181,14 +181,21 @@ def test_a_hook_never_allows_an_object_outside_the_persons_scope(make_user: Make
     assert policy.allows(editor, 'edit'), 'with no object, the permission alone decides'
 
 
-def test_an_object_of_a_model_with_no_scopes_needs_the_permission_alone(
+def test_a_plain_models_object_is_within_reach_of_whoever_holds_the_action(
     make_user: MakeUser,
 ) -> None:
     policy = PlainLoanPolicy()
-    person = make_user()
+    holder, other = make_user('accounts.change_person'), make_user()
 
-    assert policy.within_scope(person, 'edit', person), 'a person is not a scoped model'
-    assert policy.within_scope(person, 'edit', 'not a model at all')
+    assert policy.within_scope(holder, 'edit', other), 'no scope chosen: every row, as Django'
+    assert not policy.within_scope(other, 'edit', holder), 'not held: no row'
+    assert policy.within_scope(other, 'edit', 'not a model at all')
+
+
+def test_the_superuser_reaches_every_object_whatever_their_grants(make_user: MakeUser) -> None:
+    policy = PlainLoanPolicy()
+
+    assert policy.within_scope(make_user(superuser=True), 'edit', loan_for(make_user()))
 
 
 # ---------------------------------------------------------------- reference data
