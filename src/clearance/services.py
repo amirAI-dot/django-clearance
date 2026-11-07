@@ -13,7 +13,8 @@ change it here, under the same safety rules, announced by the same signals.
 
 A grant maps a permission, as ``app_label.codename``, to its scope - or to
 ``None``, for the model's ``default_scope``. A scope the permission's model
-does not offer is refused, and so is a permission nobody created.
+does not offer is refused, and so is a permission nobody created. A protected
+field's permission takes no scope: it is the person's, not the row's.
 
 Every change is one transaction, and its signal is sent once it commits.
 Asking for what is already so is not a change: nothing is written and no
@@ -30,8 +31,10 @@ from django.db import transaction
 from django.db.models import Model, Q
 
 from clearance import querysets, signals
+from clearance.fields import Protection, field_permissions, protection_problem
 from clearance.grants import Scope, forget_grants
-from clearance.models import PermissionRevocation, ScopeGrant, ScopeRule
+from clearance.models import PermissionRevocation, ProtectedField, ScopeGrant, ScopeRule
+from clearance.permissions import declared_protected_fields, field_label
 from clearance.protocols import User, UserModel
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
 from clearance.safety import AccessRefused, SafetyRules
@@ -343,6 +346,110 @@ class AccessService:
             )
 
     # ------------------------------------------------------------------
+    # Protected fields
+    # ------------------------------------------------------------------
+
+    def protect_field(self, model: type[Model], field: str) -> ProtectedField:
+        """
+        Protect ``model.field``, making its view and edit permissions.
+
+        Nobody holds either yet, so from now on the field is left out for
+        everybody but the superuser until a bundle holding them is given out.
+        A field a scope rule reads is refused: the rule would tell whoever it
+        reaches what the field holds.
+        """
+        self.rules.require_may('create')
+        protection = Protection.load()
+        problem = protection_problem(model, field)
+
+        if problem is None and protection.protects(model, field):
+            problem = f'{model.__name__}.{field} is already protected.'
+
+        if problem is not None:
+            raise ValidationError(problem)
+
+        reading = self._rules_reading(model, field, protection)
+
+        if reading:
+            raise ValidationError(
+                f'{model.__name__}.{field} is read by the scope rules {", ".join(reading)}. '
+                f'Change them first.'
+            )
+
+        content_type = ContentType.objects.get_for_model(model)
+        permissions = field_permissions(model, field)
+        words = model._meta.get_field(field).verbose_name  # type: ignore[union-attr]
+
+        with transaction.atomic():
+            marked = ProtectedField.objects.create(content_type=content_type, field=field)
+
+            for action, name in permissions.items():
+                Permission.objects.get_or_create(
+                    content_type=content_type,
+                    codename=name.partition('.')[2],
+                    defaults={
+                        'name': field_label(action, words, str(model._meta.verbose_name_plural))
+                    },
+                )
+
+        self._forget_own()
+        self._announce(signals.field_protected, model=model, field=field, permissions=permissions)
+        return marked
+
+    def unprotect_field(self, model: type[Model], field: str) -> None:
+        """
+        Stop protecting ``model.field``: everybody who reads the row reads it
+        again. Its two permissions go, and every grant of them with them.
+
+        Only somebody holding both may do it - otherwise it would give them a
+        field they were never given - and a field protected in code is
+        unprotected in code.
+        """
+        self.rules.require_may('delete')
+
+        if field in declared_protected_fields(model):
+            raise ValidationError(
+                f'{model.__name__}.{field} is protected in code, by build_permissions; '
+                f'it is unprotected there.'
+            )
+
+        content_type = ContentType.objects.get_for_model(model)
+        marked = ProtectedField.objects.filter(content_type=content_type, field=field).first()
+
+        if marked is None:
+            return
+
+        permissions = field_permissions(model, field)
+        self.rules.require_holds(dict.fromkeys(permissions.values()))
+        codenames = [name.partition('.')[2] for name in permissions.values()]
+
+        with transaction.atomic():
+            Permission.objects.filter(content_type=content_type, codename__in=codenames).delete()
+            marked.delete()
+
+        self._forget_own()
+        self._announce(signals.field_unprotected, model=model, field=field, permissions=permissions)
+
+    @staticmethod
+    def _rules_reading(model: type[Model], field: str, protection: Protection) -> list[str]:
+        """The rules that work now and would not once ``model.field`` is protected."""
+        after = protection.adding(model, field)
+        reading = []
+
+        for rule in ScopeRule.objects.select_related('content_type').order_by('code'):
+            try:
+                rule.compiled(protection)
+            except ValidationError:
+                continue  # already broken - not this field's doing
+
+            try:
+                rule.compiled(after)
+            except ValidationError:
+                reading.append(repr(rule.code))
+
+        return reading
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
@@ -350,6 +457,7 @@ class AccessService:
         """The permission rows ``grants`` name, every scope checked against its model."""
         found: dict[str, Permission] = {}
         problems: list[str] = []
+        protection: Protection | None = None
 
         for name, scope in grants.items():
             app_label, _, codename = name.partition('.')
@@ -363,8 +471,17 @@ class AccessService:
                 problems.append(f'{name}: no such permission')
                 continue
 
-            if scopes and scope is not None and scope not in offered_scopes(row):
-                problems.append(f'{name}: its model offers no scope {scope!r}')
+            if scopes and scope is not None:
+                model = row.content_type.model_class()
+                protection = protection or Protection.load()
+
+                if model is not None and protection.owns(model, name):
+                    problems.append(
+                        f"{name}: a field's permission takes no scope - it is the person's, "
+                        f"not the row's"
+                    )
+                elif scope not in offered_scopes(row):
+                    problems.append(f'{name}: its model offers no scope {scope!r}')
 
             found[name] = row
 
@@ -402,6 +519,11 @@ class AccessService:
             .values_list('scope', flat=True)
             .first()
         )
+
+    def _forget_own(self) -> None:
+        """What is kept on the actor, after a change to what is protected - for everybody."""
+        if self.actor is not None:
+            forget_grants(self.actor)
 
     def _announce(self, signal: Any, **kwargs: Any) -> None:
         """Send ``signal`` once the change commits - never for a change rolled back."""

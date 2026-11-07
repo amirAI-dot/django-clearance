@@ -30,3 +30,7 @@ scope_changed = Signal()
 scope_rule_saved = Signal()
 #: ``model``, ``code``, ``name``.
 scope_rule_deleted = Signal()
+#: ``model``, ``field``, ``permissions`` - ``{'view': ..., 'edit': ...}``, just made.
+field_protected = Signal()
+#: ``model``, ``field``, ``permissions`` - the two deleted with it.
+field_unprotected = Signal()

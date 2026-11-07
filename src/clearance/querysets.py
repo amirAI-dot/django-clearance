@@ -47,7 +47,8 @@ from django.db.models.query import EmptyQuerySet
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
 
-from clearance.grants import grants_of
+from clearance.fields import protection_of
+from clearance.grants import KEPT_PREFIX, grants_of
 from clearance.models import ScopeRule
 from clearance.permissions import permission_for
 from clearance.protocols import User
@@ -65,7 +66,7 @@ Rows: TypeAlias = Q | models.QuerySet[Any] | None
 EVERY_ROW = 'all'
 
 #: Where a person's rule scopes are kept on their user object, per model, once read.
-_RULES_ATTRIBUTE = '_clearance_rules'
+_RULES_ATTRIBUTE = f'{KEPT_PREFIX}rules'
 
 
 class ScopedQuerySet(models.QuerySet[ModelT]):
@@ -200,21 +201,23 @@ def rule_scopes(user: User, model: type[models.Model]) -> dict[str, Rule]:
     """
     The rule scopes of ``model``, checked - read once per request, kept on the user.
 
-    A rule that no longer checks out against its model is left out and
-    logged: it reaches nothing until somebody fixes it, and
-    ``clearance_check`` lists it.
+    A rule that no longer checks out against its model - a field gone, or
+    protected since - is left out and logged: it reaches nothing until
+    somebody fixes it, and ``clearance_check`` lists it.
     """
     kept: dict[type[models.Model], dict[str, Rule]] = getattr(user, _RULES_ATTRIBUTE, None) or {}
 
     if model not in kept:
         content_type = ContentType.objects.get_for_model(model)
+        stored_rules = list(
+            ScopeRule.objects.filter(content_type=content_type).select_related('content_type')
+        )
+        protection = protection_of(user) if stored_rules else None
         found: dict[str, Rule] = {}
 
-        for stored in ScopeRule.objects.filter(content_type=content_type).select_related(
-            'content_type'
-        ):
+        for stored in stored_rules:
             try:
-                found[stored.code] = stored.compiled()
+                found[stored.code] = stored.compiled(protection)
             except ValidationError as error:
                 logger.warning(
                     'Scope rule %r of %s reaches nothing until it is fixed: %s',

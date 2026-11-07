@@ -23,8 +23,12 @@ from clearance.backends import groups_lookup
 from clearance.models import PermissionRevocation, ScopeGrant
 from clearance.protocols import User, UserModel
 
+#: What the library keeps on a user object is named with this - grants, rule
+#: scopes, what is protected - so forgetting it all needs no list of it.
+KEPT_PREFIX = '_clearance_'
+
 #: Where a person's grants are kept on their user object once read.
-_CACHE_ATTRIBUTE = '_clearance_grants'
+_CACHE_ATTRIBUTE = f'{KEPT_PREFIX}grants'
 
 #: A scope a permission is given with; ``None`` is "no scope chosen".
 Scope = str | None
@@ -71,9 +75,15 @@ def grants_of(user: User) -> Grants:
     return cached
 
 
+#: What Django keeps there of a person's permissions.
+_DJANGO_CACHES = ('_perm_cache', '_user_perm_cache', '_group_perm_cache')
+
+
 def forget_grants(user: object) -> None:
     """Drop what is kept on ``user``, after their access changed - Django's caches too."""
-    for attribute in (_CACHE_ATTRIBUTE, '_perm_cache', '_user_perm_cache', '_group_perm_cache'):
+    kept = [name for name in getattr(user, '__dict__', {}) if name.startswith(KEPT_PREFIX)]
+
+    for attribute in (*kept, *_DJANGO_CACHES):
         if hasattr(user, attribute):
             delattr(user, attribute)
 

@@ -21,7 +21,7 @@ from django.test import override_settings
 from pytest_django import DjangoAssertNumQueries
 
 from clearance import rules, signals
-from clearance.models import ScopeGrant, ScopeRule
+from clearance.models import ProtectedField, ScopeGrant, ScopeRule
 from clearance.querysets import offered_scopes, visible
 from clearance.rules import Rule
 from clearance.safety import AccessRefused
@@ -29,6 +29,8 @@ from clearance.services import AccessService
 from tests.conftest import MakeBundle, MakeUser, permission
 from tests.project.accounts.models import Person
 from tests.project.lending.models import Loan, Statement
+
+pytestmark = pytest.mark.django_db
 
 
 def condition(field: str, operator: str, **value: Any) -> dict[str, Any]:
@@ -243,7 +245,6 @@ def test_a_rule_scope_joins_a_code_scope_in_their_union(
     assert reached(north, Loan) == pks(loans['north_small'], loans['north_large'])
 
 
-@pytest.mark.django_db
 def test_rule_scopes_are_offered_beside_the_code_scopes() -> None:
     stored_rule(Loan, 'large', condition('amount', 'at_least', constant=500))
 
@@ -295,13 +296,40 @@ def test_a_rule_reaches_at_most_as_far_as_the_setting_allows() -> None:
         Rule.parse(Statement, 'all', far)
 
 
-def test_a_field_the_protected_fields_guard_may_not_be_read(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(rules, 'unreadable_checks', [lambda model, name: name == 'amount'])
+def test_a_protected_field_may_not_be_read_whether_code_or_the_database_protects_it() -> None:
+    with pytest.raises(ValidationError, match=r'Loan\.credit_score may not be read'):
+        Rule.parse(Loan, 'all', [condition('credit_score', 'at_least', constant=1)])
+
+    ProtectedField.objects.create(
+        content_type=ContentType.objects.get_for_model(Loan), field='amount'
+    )
 
     with pytest.raises(ValidationError, match=r'Loan\.amount may not be read'):
         Rule.parse(Loan, 'all', [condition('amount', 'at_least', constant=1)])
+
+
+def test_a_protected_field_of_the_person_may_not_be_read_either() -> None:
+    ProtectedField.objects.create(
+        content_type=ContentType.objects.get_for_model(Person), field='approval_limit'
+    )
+
+    with pytest.raises(ValidationError, match=r'Person\.approval_limit may not be read'):
+        Rule.parse(Loan, 'all', [condition('amount', 'at_most', person='approval_limit')])
+
+
+def test_a_rule_on_a_field_protected_after_it_was_saved_reaches_nothing(
+    north: Person, loans: dict[str, Loan], caplog: pytest.LogCaptureFixture
+) -> None:
+    stored_rule(Loan, 'large', condition('amount', 'at_least', constant=500))
+    give(north, 'lending.loan_view', 'large')
+    ProtectedField.objects.create(
+        content_type=ContentType.objects.get_for_model(Loan), field='amount'
+    )
+
+    with caplog.at_level(logging.WARNING, logger='clearance'):
+        assert reached(north, Loan) == set()
+
+    assert 'Loan.amount may not be read' in caplog.text
 
 
 def test_a_rule_whose_field_is_gone_reaches_nothing_and_says_so(
@@ -316,7 +344,6 @@ def test_a_rule_whose_field_is_gone_reaches_nothing_and_says_so(
     assert "Scope rule 'broken' of lending.Loan reaches nothing" in caplog.text
 
 
-@pytest.mark.django_db
 def test_a_rule_whose_model_is_gone_cannot_be_checked() -> None:
     gone = ContentType.objects.create(app_label='lending', model='overdraft')
     rule = ScopeRule.objects.create(
@@ -337,7 +364,9 @@ def test_rules_are_read_once_per_person_and_model(
     give(north, 'lending.loan_view', 'large')
     person = Person.objects.get(pk=north.pk)
 
-    with django_assert_num_queries(3):  # their grants, the model's rules, the list
+    with django_assert_num_queries(
+        4
+    ):  # their grants, the model's rules, what is protected, the list
         list(visible(Loan.objects.all(), person))
 
     with django_assert_num_queries(1):
@@ -476,7 +505,6 @@ def test_saving_and_deleting_a_rule_is_announced(
     ]
 
 
-@pytest.mark.django_db
 def test_a_rule_says_what_it_is() -> None:
     rule = stored_rule(Loan, 'large', condition('amount', 'at_least', constant=1))
 

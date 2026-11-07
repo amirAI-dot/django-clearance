@@ -113,6 +113,8 @@ def test_migrate_creates_exactly_the_declared_permissions() -> None:
         'loan_delete': 'Can delete loans',
         'loan_approve': 'Can approve or decline loans',
         'loan_look_up': 'Can look up loans',
+        'loan_view_credit_score': 'Can view credit score of loans',
+        'loan_edit_credit_score': 'Can edit credit score of loans',
     }
 
 

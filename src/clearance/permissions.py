@@ -14,6 +14,12 @@ synchronised::
 which would otherwise sit beside these as a second answer to the same
 question - one that no policy ever asks.
 
+**A protected field has two permissions of its own** - one to read it, one to
+write it - declared here (``protected_fields=('price',)``) or marked in the
+database (``clearance.fields``). ``field_permission`` names them the way
+``permission_for`` names a model's: ``shop.order_view_price`` for a model
+declaring its own, ``shop.view_order_price`` for one keeping Django's.
+
 **A model that declares nothing keeps Django's own permissions** -
 ``view_order``, ``add_order``, ``change_order``, ``delete_order`` - and
 ``permission_for`` answers in that style for it, so nothing anywhere spells a
@@ -31,7 +37,7 @@ worked out with translation switched off, and the reader's language is
 import re
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Self
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
@@ -59,15 +65,46 @@ ACTION_LABELS: Final[Mapping[str, str | Promise]] = MappingProxyType(
     }
 )
 
+#: How a protected field's two permissions read.
+FIELD_LABELS: Final[Mapping[str, str | Promise]] = MappingProxyType(
+    {
+        'view': _('Can view %(field)s of %(resource)s'),
+        'edit': _('Can edit %(field)s of %(resource)s'),
+    }
+)
+
+#: The two things a protected field's permissions allow.
+FIELD_ACTIONS: Final = tuple(FIELD_LABELS)
+
 #: A codename or an action: lowercase words joined by underscores. The
 #: ``app_label.codename_action`` a policy asks for is built from these, and a
 #: space or a dot in one would build a permission nobody can ever hold.
 _NAME = re.compile(r'[a-z][a-z0-9]*(?:_[a-z0-9]+)*')
 
 
+class DeclaredPermissions(tuple[tuple[str, str], ...]):
+    """
+    ``Meta.permissions`` as ``build_permissions`` makes it: the ``(codename,
+    name)`` pairs Django reads, and what they were made from - the resource's
+    codename and its protected fields - for the library to read back.
+    """
+
+    codename: str
+    protected_fields: tuple[str, ...]
+
+    def __new__(
+        cls, entries: Iterable[tuple[str, str]], codename: str, protected_fields: Iterable[str]
+    ) -> Self:
+        declared = super().__new__(cls, entries)
+        declared.codename = codename
+        declared.protected_fields = tuple(protected_fields)
+        return declared
+
+
 class PermissionSet:
     """
-    The permissions one resource declares: a codename and its actions.
+    The permissions one resource declares: a codename, its actions and its
+    protected fields.
 
     ``entries()`` is what goes in ``Meta.permissions``. The rest is for whoever
     reads a permission back - ``label`` says it in the reader's language.
@@ -80,10 +117,12 @@ class PermissionSet:
         *,
         actions: Iterable[str] = DEFAULT_ACTIONS,
         labels: Mapping[str, str | Promise] | None = None,
+        protected_fields: Iterable[str] = (),
     ) -> None:
         self.codename = codename
         self.resource = resource
         self.actions = tuple(actions)
+        self.protected_fields = tuple(protected_fields)
         self.labels: Mapping[str, str | Promise] = MappingProxyType(
             {**ACTION_LABELS, **(labels or {})}
         )
@@ -108,11 +147,15 @@ class PermissionSet:
         with translation.override(None):
             return self.label(action)
 
-    def entries(self) -> tuple[tuple[str, str], ...]:
-        """``(codename, name)`` for every action - ``Meta.permissions``."""
-        return tuple(
-            (self.codename_for(action), self.stored_name(action)) for action in self.actions
-        )
+    def entries(self) -> DeclaredPermissions:
+        """``(codename, name)`` for every action and protected field - ``Meta.permissions``."""
+        actions = [(self.codename_for(action), self.stored_name(action)) for action in self.actions]
+        fields = [
+            (f'{self.codename}_{action}_{field}', field_label(action, field, self.resource))
+            for field in self.protected_fields
+            for action in FIELD_ACTIONS
+        ]
+        return DeclaredPermissions([*actions, *fields], self.codename, self.protected_fields)
 
     def _validate(self) -> None:
         if not _NAME.fullmatch(self.codename):
@@ -143,6 +186,35 @@ class PermissionSet:
                 f'{self.codename!r} labels actions it does not declare: {", ".join(unknown)}.'
             )
 
+        self._validate_fields()
+
+    def _validate_fields(self) -> None:
+        for field in self.protected_fields:
+            if not _NAME.fullmatch(field):
+                raise ImproperlyConfigured(
+                    f'{field!r} is not a field name: use lowercase words joined by underscores.'
+                )
+
+        repeated = sorted({f for f in self.protected_fields if self.protected_fields.count(f) > 1})
+
+        if repeated:
+            raise ImproperlyConfigured(
+                f'{self.codename!r} protects {", ".join(repeated)} more than once.'
+            )
+
+        clashing = sorted(
+            f'{action}_{field}'
+            for field in self.protected_fields
+            for action in FIELD_ACTIONS
+            if f'{action}_{field}' in self.actions
+        )
+
+        if clashing:
+            raise ImproperlyConfigured(
+                f'{self.codename!r} declares {", ".join(clashing)} both as an action and as '
+                f'the permission of a protected field.'
+            )
+
 
 def build_permissions(
     codename: str,
@@ -150,15 +222,26 @@ def build_permissions(
     *,
     actions: Iterable[str] = DEFAULT_ACTIONS,
     labels: Mapping[str, str | Promise] | None = None,
-) -> tuple[tuple[str, str], ...]:
+    protected_fields: Iterable[str] = (),
+) -> DeclaredPermissions:
     """
     ``Meta.permissions`` for one resource.
 
     ``build_permissions('loan', 'loans')`` gives ``loan_view``, ``loan_create``,
     ``loan_edit`` and ``loan_delete``. ``labels`` names an action in words of
     its own - ``{'approve': _('Can approve or decline %(resource)s')}``.
+    ``protected_fields=('rate',)`` adds ``loan_view_rate`` and ``loan_edit_rate``.
     """
-    return PermissionSet(codename, resource, actions=actions, labels=labels).entries()
+    return PermissionSet(
+        codename, resource, actions=actions, labels=labels, protected_fields=protected_fields
+    ).entries()
+
+
+def field_label(action: str, field: str | Promise, resource: str | Promise) -> str:
+    """How a protected field's permission reads in English - what is stored."""
+    with translation.override(None):
+        words = str(field).replace('_', ' ')
+        return str(FIELD_LABELS[action]) % {'field': words, 'resource': str(resource)}
 
 
 #: Django's own verb for each of the four actions every model has.
@@ -185,3 +268,36 @@ def permission_for(model: type[Model] | Model, action: str, *, codename: str | N
         return f'{meta.app_label}.{verb}_{meta.model_name}'
 
     return f'{meta.app_label}.{codename or meta.model_name}_{action}'
+
+
+def field_permission(model: type[Model] | Model, field: str, action: str) -> str:
+    """
+    The permission reading (``view``) or writing (``edit``) ``field`` of
+    ``model`` needs, as ``app_label.codename``.
+
+    ``shop.order_view_price`` on a model declaring its own permissions,
+    ``shop.view_order_price`` - Django's verbs - on one keeping Django's.
+    """
+    if action not in FIELD_ACTIONS:
+        raise ValueError(f'A field is read with view or written with edit, not {action!r}.')
+
+    meta = model._meta
+    verb = DJANGO_VERBS[action]
+
+    if verb in meta.default_permissions:
+        return f'{meta.app_label}.{verb}_{meta.model_name}_{field}'
+
+    return f'{meta.app_label}.{resource_codename(model)}_{action}_{field}'
+
+
+def resource_codename(model: type[Model] | Model) -> str:
+    """The codename ``model``'s permissions are built from: ``build_permissions``', or its name."""
+    declared = model._meta.permissions
+    codename = declared.codename if isinstance(declared, DeclaredPermissions) else None
+    return codename or str(model._meta.model_name)
+
+
+def declared_protected_fields(model: type[Model] | Model) -> tuple[str, ...]:
+    """The fields ``model`` protects in code, through ``build_permissions``."""
+    declared = model._meta.permissions
+    return declared.protected_fields if isinstance(declared, DeclaredPermissions) else ()
