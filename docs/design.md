@@ -1,62 +1,98 @@
 # django-clearance - design
 
-> **Status: proposal for review (stage 0).** Nothing described here is
-> implemented yet. Each section ends in something a later stage builds and
-> tests; anything that changes on review is changed here first.
+> **Status: third edition, accepted.** The second edition set the order -
+> access bundles first, roles last - and the owner accepted it. This edition
+> adds what makes the library work the moment it is installed, and makes the
+> admin site the place an administrator does everything the library can do:
+> a **default** that needs no code for any model, a **custom** way for the
+> models that need more, actions an administrator makes without code, row
+> scopes and protected fields made in the admin site, roles kept in the
+> database, and the safety rules that stop the admin site handing anybody
+> everything. Stages 0 to 3 were built on the first edition; section 22 says
+> what changes in them.
 >
 > Persian: [`design.fa.md`](design.fa.md).
 
 **django-clearance** - role, policy and row-level access control for Django.
 Denied by default.
 
-It answers the three questions every access decision is made of, each in one
-place, on top of Django's own permission tables:
+## In one paragraph
 
-| question | answered by | lives in |
-|---|---|---|
-| **What may this person do?** | a *policy*, asked with the object in hand | `clearance.policies` |
-| **Which rows may they reach?** | the *queryset*, scoped per role | `clearance.querysets` |
-| **Where does what they hold come from?** | their *roles*, the groups linked to them, and what was taken away from them alone | `clearance.roles` |
+Install it, run `migrate`, open the admin site. Every model already has its
+four permissions - Django makes them - and every action the code exposes has
+one of its own, found on its own. The administrator makes **bundles** of
+permissions and gives them to people; chooses, beside each permission, the
+**rows** it reaches; marks the **fields** that need a permission of their
+own; makes **actions** that change a status, without code; and, when the
+project has kinds of people, makes **roles** with a **ceiling** no bundle
+gets past. A developer writes code only for what no administrator can: a
+scope too intricate for the rule builder, a policy rule no permission can
+say, a behaviour that needs a view.
 
-Keeping the three apart is the point. A permission class answers the first
-question and nothing else: DRF calls `has_object_permission` only after a view
-has resolved one object, so a list endpoint guarded by a permission class
-returns every row in the table - and nothing fails, which is what makes it
-dangerous. Row visibility therefore belongs to the queryset, and the viewset
-base applies it itself so no endpoint can forget to.
+## The four layers
+
+| | layer | the question | default (no code) | custom (code) |
+|---|---|---|---|---|
+| 1 | **Access bundles** | What may this person do? | Django's four permissions per model; actions found in the code; status actions made in the admin site | `build_permissions` for other names; a policy for rules |
+| 2 | **Row scopes** | On which rows? | scopes built in the admin site from rules | `scope_<name>` methods in a `ScopedQuerySet` |
+| 3 | **Protected fields** | Which fields of a row? | fields marked in the admin site | `protected_fields=(...)` in `build_permissions` |
+| 4 | **Roles** (optional) | What may this kind of person never do? | roles, their ceilings and starting bundles made in the admin site | roles and ceilings seeded from code |
+
+Default and custom are not two modes of the library: they are chosen for
+**each model**, and mixed freely. A project can leave ninety models to the
+default and write code for the three that need it.
+
+Above the layers, a **policy** per resource is the one place every view,
+service and command asks "may this person do this, to this object?". A model
+with no policy of its own is asked through a default one, built from its
+permissions.
+
+Row scopes live in the queryset rather than in a permission check: DRF calls
+`has_object_permission` only once a view has resolved one object, and
+Django's generic views have no such hook at all. A list protected by a
+permission check returns every row - and nothing fails, which is what makes
+it dangerous.
 
 ---
 
 ## 1. Principles
 
-1. **Denied by default.** Every gap in configuration produces a refusal or an
-   empty list, never a leak:
-   * an anonymous or inactive user holds nothing and sees no rows;
-   * a view action no policy maps is refused - at the action level and at the
-     object level;
-   * a role with no scope hook on a queryset sees no rows of it;
-   * a role the project never declared counts for nothing;
-   * a user with no role sees no scoped rows.
-2. **Misconfiguration is loud.** What can be checked at start-up is a Django
-   system check (`manage.py check`, and every `runserver`), so it fails in
-   development and in CI rather than as a 403 a user reports - or worse, as a
-   200 nobody reports. What can only be checked against the database (a
-   codename that does not exist) fails the management command that meets it.
-   See section 9.
-3. **Django's permission tables are the storage.** Permissions are ordinary
-   `auth_permission` rows created by `migrate`; groups are `auth.Group`. So
-   `user.has_perm()`, `PermissionRequiredMixin`, `{{ perms }}` in templates and
-   the admin site keep working, and nothing has to be synchronised.
-4. **Asking is cheap.** Working out what a person holds costs the queries
-   Django's own backend already makes, whatever roles, groups and revocations
-   are involved. Scoping a queryset adds a `WHERE`, never a query per row.
-   Both are held by tests that count queries.
-5. **Layers are opt-in.** The core has no models and no migrations; DRF is an
-   optional extra; the roles app is a separate Django app. A project takes
-   what it needs.
-6. **No opinion about the rest.** Response envelopes, exception formats, audit
-   storage and the project's user model are the project's. The library
-   publishes signals and raises Django's and DRF's own exceptions.
+1. **Denied by default.** Every gap produces a refusal or an empty list,
+   never a leak:
+   * somebody signed out, or a switched-off account, holds nothing and reaches
+     no rows - whatever authentication backend is installed;
+   * a permission given with no scope reaches no rows, unless the model's
+     developer chose a default scope for it;
+   * a protected field is left out for whoever lacks its permission, and a
+     value sent for it by whoever may not edit it is refused;
+   * an action - found in the code or made in the admin site - is held by
+     nobody until somebody is given it;
+   * a role's ceiling stops what a bundle would give.
+2. **It works the moment it is installed.** `migrate` makes every model's
+   permissions and every action's; the admin site manages them. Code is for
+   what an administrator cannot express, never for wiring.
+3. **No permission that does nothing.** Every permission in the admin site
+   is checked somewhere: Django's four by the views and the admin site, a
+   found action by the code it was found in, a status action by the doors a
+   value is written through. An administrator cannot type a permission
+   nothing checks - it would look like control and be none.
+4. **Misconfiguration is loud.** What can be checked at start-up is a Django
+   system check; what only the database can say fails `clearance_check`.
+5. **Django's own tables are the storage.** Permissions are `auth_permission`
+   rows; a bundle is an `auth.Group`; a person's bundles are `user.groups`.
+   `user.has_perm()`, `{{ perms }}` and Django's admin keep working.
+6. **Asking is cheap.** What a person holds costs the queries Django's own
+   backend makes; their scopes, one query per request, read once; a scoped
+   list, one query. Tests count them.
+7. **Every layer is optional**, used only on the models and in the projects
+   that ask for it. The one requirement is `ClearanceBackend`, without which
+   revocations and scopes would silently do nothing.
+8. **The admin site is never the way round the rules.** Every page writes
+   through the one service the code uses, under the same safety rules.
+9. **Code, the admin site, or both.** Everything an administrator does in the
+   admin site, a developer can write in code; and the admin site is optional -
+   without `django.contrib.admin` the library works whole. What code
+   declares, the admin site shows read only.
 
 ---
 
@@ -64,696 +100,809 @@ base applies it itself so no endpoint can forget to.
 
 What the README will list.
 
-* **Permissions declared on the model.** `build_permissions('loan', 'loans',
-  actions=(...))` in `Meta.permissions`; `migrate` creates the rows. No sync
-  command.
-* **Policies with object-level hooks.** `can_view(user, obj)` receives the
-  object, so holding `loan_view` can mean "the loans that are yours".
-  Overriding a hook keeps the codename requirement by calling `super()`.
-* **Custom actions must be declared.** An `@action` that no policy lists in
-  `custom_actions` is refused, and `manage.py check` names it before anybody
-  calls it.
-* **Row scoping per role.** `Model.objects.visible_to(user)` dispatches to
-  `scope_for_<role>` hooks. Unwritten hooks return nothing.
-* **Multiple roles per user.** A person's rows are the union of their roles'
-  scopes; their permissions are the union of their roles' groups.
-* **Roles from anywhere.** A role field on your user model, an attribute, a
-  table of assignments that ships with the library, or your own resolver.
-* **Roles linked to groups.** What a role may do is the groups linked to it -
-  changed in the database, reaching everybody with the role at once, with
-  nothing to move when somebody's role changes.
-* **Taking one permission from one person.** A revocation subtracts a
-  permission their groups give them, without changing their role or making
-  them a group of their own.
-* **Starting permissions, once.** A table in your code gives each role its
-  first group on a new database - and never again, so later changes made in
-  the database stay made.
-* **Works with and without DRF.** One mixin scopes Django's class-based views
-  and DRF's generic views alike; the DRF permission class is generated from
-  the policy.
-* **The same for templates and forms.** `PolicyRequiredMixin` asks the policy
-  from Django's own generic views - the action read off the view, the object
-  handed to the hook - and `@policy_required` does it for a function view.
-* **Usable outside views.** `policy.authorize(user, 'approve', loan)` raises
-  Django's `PermissionDenied` from a service, a management command or a task.
-* **Signals for every change.** Assigning a role, revoking a permission,
-  seeding - so a project writes its own audit trail.
-* **In the admin site.** Every permission listed with the groups and roles
-  that hold it; groups made and given to roles from the group page; a
-  person's roles and revocations on their own page.
-* **Every permission in every language.** An administrator names a permission
-  or a group in any language the project offers, from the admin site, with
-  no translation file and no deployment.
-* **Translated.** Every message is marked for translation; English and
-  Persian ship with the package.
-* **Typed.** Type hints throughout, `py.typed` shipped.
+* **Works on install.** Every model's view, create, edit and delete
+  permissions, made by `migrate` - and those of every model added later.
+* **Access bundles.** Name a set of permissions and give it to anybody; a
+  person may hold many. No roles needed.
+* **Row scopes, per permission**, built in the admin site from simple rules -
+  "the branch is the person's branch" - or written in code when a rule cannot
+  say it.
+* **Protected fields**, marked in the admin site or in code: the price of an
+  order is not shown, or not changed, without its own permission - in the
+  API, the forms and the admin site.
+* **Actions without code.** "Approve an order" made in the admin site as
+  "may set the status to approved or rejected", and enforced wherever the
+  status is written.
+* **Actions found in the code.** Every DRF `@action`, every admin action and
+  every view that names an action gets its permission on `migrate`, with no
+  permission code written.
+* **Roles, when a project has them**, made in the admin site: a ceiling per
+  role that no bundle gets past, and the bundles a role starts with.
+* **Safety rules.** Nobody changes their own access; nobody gives what they do
+  not hold; nobody leaves the platform with nobody able to manage access.
+* **A complete admin site**, right-to-left in Persian and dark-mode aware:
+  bundles as a grid of models and actions with a scope beside each, a rule
+  builder, protected fields, actions, roles and ceilings, each person's whole
+  standing.
+* **Every kind of view.** DRF's `APIView`, generic views, mixins, viewsets,
+  `ModelViewSet` and `@api_view`; Django's generic views and function views.
+* **Access as code.** Bundles, roles and ceilings written in a file kept in
+  git and applied by `clearance_sync`, which shows every change first with
+  `--dry-run` and fails CI with `--check` when the database differs. What the
+  file declares is read only in the admin site.
+* **The admin site is optional.** Everything works without it.
+* **Taking one permission from one person**, whatever bundle gives it.
+* **Policies** with object-level hooks that respect the row scopes.
+* **Every permission, bundle and role named in every language.**
+* **Signals for every change**, for the project's own audit trail.
+* **Translated and typed.**
 
 ---
 
-## 3. Package layout
+## 3. The model in one picture
+
+```
+held     = direct grants + their bundles' permissions + their roles' starting bundles' permissions
+         - what was taken away from them
+allowed  = held, within the ceilings of their roles            (only when roles are used)
+
+rows     = the union of the scopes of every grant of that permission that reaches them
+fields   = a protected field needs <codename>_view_<field> to be read, _edit_ to be written
+values   = a status action's values need that action's permission to be written
+```
+
+The superuser holds every permission, reaches every row, reads and writes
+every field and value.
+
+---
+
+## 4. Package layout
 
 ```
 src/clearance/
     __init__.py            empty
-    apps.py                ClearanceConfig - registers the system checks
+    apps.py                ClearanceConfig - registers the checks, finds the actions on migrate
     conf.py                reading and validating the CLEARANCE setting
     protocols.py           User - the three things the library asks of a person
-    permissions.py         build_permissions, DEFAULT_ACTIONS, RECORD_ACTIONS
-    registry.py            PermissionRegistry, ResourcePermission, registry
-    policies.py            BasePolicy, SignedInReadPolicy
-    resolvers.py           RoleResolver, AttributeResolver, roles_of(), reaches_every_row()
-    querysets.py           ScopedQuerySet, SignedInReadQuerySet, OwnedQuerySet
-    views.py               ScopedQuerySetMixin, PolicyRequiredMixin - Django CBVs (and DRF)
-    decorators.py          policy_required - function views
-    labels.py              label_of() - a permission's or group's name, in the reader's language
-    admin.py               the permission page, and the group page extended
-    checks.py              the core system checks
+    permissions.py         build_permissions; which permission an action of a model needs
+    registry.py            one policy per resource, and the default policy for every other model
+    policies.py            BasePolicy, ModelPolicy, SignedInReadPolicy
+    models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
+    backends.py            ClearanceBackend
+    grants.py              what a person holds, and with which scopes - read once per request
+    rules.py               a ScopeRule's conditions, checked and turned into a Q
+    actions.py             status actions, and the actions found in the code
+    services.py            AccessService: every change, under the safety rules, with signals
+    safety.py              the safety rules
+    declared.py            the ACCESS file: read, compared with the database, applied
+    querysets.py           ScopedQuerySet: named scopes, visible_to(user, action)
+    fields.py              readable_fields(), writable_fields(), writable_values()
+    forms.py               ProtectedFieldsFormMixin
+    views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
+    decorators.py          policy_required
+    labels.py              label_of()
+    admin/                 the admin site's pages, templates, styles and scripts
+    checks.py              the system checks
     signals.py             every signal the library sends
-    locale/fa/LC_MESSAGES/ the Persian catalogue
+    management/commands/   clearance_sync, clearance_check
+    migrations/
+    locale/fa/LC_MESSAGES/
 
-    drf/                   needs djangorestframework (pip install django-clearance[drf])
-        __init__.py        empty
-        permissions.py     PolicyPermission - the bridge from a view action to a policy hook
+    drf/                   pip install django-clearance[drf]
+        permissions.py     PolicyPermission, ModelPolicyPermission
         viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet
-        checks.py          every @action mapped; every scoped viewset's queryset scoped
+        serializers.py     ProtectedFieldsSerializerMixin
+        checks.py
 
-    roles/                 a Django app with models: INSTALLED_APPS += ['clearance.roles']
-        __init__.py        empty
-        apps.py            label 'clearance_roles'
-        models.py          RoleAssignment, RoleGroup, PermissionRevocation, StartingPermissions
-        backends.py        ClearanceBackend
-        resolvers.py       AssignmentResolver
-        services.py        assign_role, unassign_role, revoke_permission, restore_permission
-        seeding.py         giving the starting permissions once
-        admin.py           roles on the group and user pages
-        migrations/
-        management/commands/clearance_seed.py
+    roles/                 INSTALLED_APPS += ['clearance.roles']
+        models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
+        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of()
+        admin/
 
-    translations/          a Django app with models: INSTALLED_APPS += ['clearance.translations']
-        __init__.py        empty
-        apps.py            label 'clearance_translations'
-        models.py          PermissionTranslation, GroupTranslation
-        sources.py         the label source that reads them
-        admin.py           translations on the permission and group pages
-        migrations/
+    translations/          INSTALLED_APPS += ['clearance.translations']
+        models.py          PermissionTranslation, BundleTranslation, RoleTranslation
+        sources.py
+        admin/
 ```
 
-Rules for the layout:
-
-* **`__init__.py` files stay empty.** Everything is imported from the module
-  that defines it: `from clearance.policies import BasePolicy`. The version is
-  read with `importlib.metadata.version('django-clearance')`.
-* **The core imports nothing from `drf`, `roles` or `translations`.** Each of
-  them imports the core, and plugs into it - an admin page, a label source -
-  through a hook the core offers. Tested by importing the core with none of
-  them installed.
-* **The apps' labels are `clearance_roles` and `clearance_translations`**, so
-  neither can collide with a project app of the same short name.
+Every `__init__.py` is empty; everything is imported from the module that
+defines it. The core imports nothing from `drf`, `roles` or `translations`.
 
 ---
 
-## 4. The API, by example
+## 5. The API, by example
 
-A small lending app: customers apply for loans, officers review the ones at
-their branch, administrators read everything.
+A shop: orders placed by customers at one of several branches, managed by
+staff, some of whom may see prices.
 
-### 4.1 Settings
+### 5.1 The default: no code
 
 ```python
-INSTALLED_APPS += ['clearance', 'clearance.roles']
+INSTALLED_APPS += ['clearance']
 
-# Replaces django.contrib.auth.backends.ModelBackend - see check E006.
-AUTHENTICATION_BACKENDS = ['clearance.roles.backends.ClearanceBackend']
+# Replaces django.contrib.auth.backends.ModelBackend - see E006 and E007.
+AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 
-CLEARANCE = {
-    'ROLES': 'accounts.roles.Role',                       # a TextChoices, or a list of codes
-    'ROLE_RESOLVER': 'clearance.roles.resolvers.AssignmentResolver',
-    'EVERY_ROW_ROLES': ['admin'],
-    'STARTING_PERMISSIONS': 'config.access.STARTING_PERMISSIONS',
+# Every DRF view asks the model's policy, unless it names another.
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ['clearance.drf.permissions.ModelPolicyPermission'],
 }
 ```
 
 ```python
-# accounts/roles.py
-class Role(models.TextChoices):
-    ADMIN = 'admin', _('Administrator')
-    OFFICER = 'officer', _('Loan officer')
-    CUSTOMER = 'customer', _('Customer')
+class Order(models.Model):          # nothing about access in the model
+    customer = models.ForeignKey(Customer, ...)
+    branch = models.ForeignKey(Branch, ...)
+    status = models.CharField(choices=Status.choices, ...)
+    price = models.DecimalField(...)
 ```
 
-### 4.2 The model declares its permissions
+`migrate` has made `shop.view_order`, `add_order`, `change_order` and
+`delete_order`, as Django always has. In the admin site the administrator:
+
+1. makes a **row scope** for orders, "Their branch": *branch* - *is* - *the
+   person's branch*;
+2. marks **price** as protected;
+3. makes a **status action**, "Approve": *status* to *approved* or
+   *rejected*, from *pending*;
+4. makes a **bundle**, "Branch managers": view and edit orders in "Their
+   branch", and "Approve" in "Their branch" - but not the price;
+5. gives the bundle to people.
+
+Every list of orders now shows a branch manager their branch's orders, with
+no price, and lets them approve one - in the API, in Django's views, and in
+the admin site.
+
+### 5.2 Custom: code for what the admin site cannot say
 
 ```python
 from clearance.permissions import build_permissions
+from clearance.querysets import ScopedQuerySet
 
-class Loan(models.Model):
-    applicant = models.ForeignKey(settings.AUTH_USER_MODEL, ...)
-    branch = models.ForeignKey(Branch, ...)
-    amount = models.DecimalField(...)
+class OrderQuerySet(ScopedQuerySet):
+    default_scope = 'all'      # optional: what a grant with no scope reaches
+    scopes = {
+        'own': _('Their own orders'),
+        'paid_this_month': _("This month's paid orders"),
+    }
 
-    objects = LoanQuerySet.as_manager()
+    def scope_own(self, user):
+        return Q(customer__user=user)
+
+    def scope_paid_this_month(self, user):
+        return Q(payments__status='paid', payments__paid_at__gte=month_start())
+
+class Order(models.Model):
+    ...
+    objects = OrderQuerySet.as_manager()
 
     class Meta:
         default_permissions = ()
-        permissions = build_permissions(
-            'loan', 'loans', actions=('view', 'create', 'edit', 'approve'),
-        )
+        permissions = build_permissions('order', _('orders'), protected_fields=('price',))
 ```
 
-`default_permissions = ()` turns off Django's add/change/delete/view, which
-would otherwise sit beside these as a second answer to the same question.
-The labels written into `auth_permission.name` are untranslated English on
-purpose: a lazy translation there is resolved at import time and bakes one
-language into the migration, so `makemigrations` reports drift on models
-nobody touched.
+Code scopes and admin-built ones are offered side by side; code-declared
+protected fields and admin-marked ones are enforced the same way.
 
-### 4.3 The queryset says which rows
-
-```python
-from django.db.models import Q
-from clearance.querysets import ScopedQuerySet
-
-class LoanQuerySet(ScopedQuerySet):
-    def scope_for_customer(self, user):
-        return Q(applicant=user)
-
-    def scope_for_officer(self, user):
-        return Q(branch__officers=user)
-    # No scope_for_admin: 'admin' is in EVERY_ROW_ROLES, so it sees every row
-    # unless this queryset says otherwise.
-```
-
-### 4.4 The policy says what may be done
+### 5.3 A policy, for a rule no permission can say
 
 ```python
 from clearance.policies import BasePolicy
 from clearance.registry import registry
 
-class LoanPolicy(BasePolicy):
-    app_label = 'loans'
-    codename = 'loan'
-    custom_actions = {'approve': 'can_approve'}
+class OrderPolicy(BasePolicy):
+    app_label = 'shop'
+    codename = 'order'
 
-    def can_approve(self, user, obj=None):
-        if not self.has(user, 'approve'):
+    def can_edit(self, user, obj=None):
+        if not super().can_edit(user, obj):
             return False
-        if obj is None:
-            return True
-        return obj.applicant_id != user.pk
+        return obj is None or obj.status != 'delivered'   # nobody edits a delivered order
 
-loan_access = registry.register(LoanPolicy)
+order_access = registry.register(OrderPolicy)
 ```
 
-`registry.register` refuses a second policy for the same codename, and a
-`custom_actions` entry naming a hook the policy does not have.
+A model with no policy of its own is asked through `ModelPolicy`, which does
+what `BasePolicy` does with the model's own permissions.
 
-### 4.5 The view only declares
+### 5.4 Every kind of view
+
+| view | permission | rows |
+|---|---|---|
+| `APIView` | `ModelPolicyPermission`, by HTTP method | `Order.objects.visible_to(request.user, 'view')` |
+| `GenericAPIView`, `generics.*` | the same | `ScopedQuerySetMixin` narrows `queryset` |
+| `ViewSet` | by action | `visible_to` |
+| `GenericViewSet` with mixins | by action | `ScopedQuerySetMixin` |
+| `ModelViewSet` | by action | `ScopedQuerySetMixin`, or `ScopedModelViewSet` |
+| `@api_view` function | `@permission_classes([...])` | `visible_to` |
+| Django `ListView`, `DetailView`, `UpdateView`, ... | `PolicyRequiredMixin` | `ScopedQuerySetMixin` |
+| Django function view | `@policy_required(policy, action)` | `visible_to` |
 
 ```python
-from clearance.drf.viewsets import ScopedModelViewSet
+class OrderListCreate(ScopedQuerySetMixin, generics.ListCreateAPIView):
+    queryset = Order.objects.all()          # narrowed to visible_to(user, 'view')
+    serializer_class = OrderSerializer      # price left out without its permission
 
-class LoanViewSet(ScopedModelViewSet):
-    queryset = Loan.objects.all()
-    serializer_class = LoanSerializer
-    permission_classes = [loan_access.drf_class]
-
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        loan = self.get_object()   # only among visible_to(user), then can_approve(user, loan)
+class OrderReport(APIView):
+    def get(self, request):
+        orders = Order.objects.visible_to(request.user, 'view')
         ...
 ```
 
-A Django view with templates and forms uses the same mixin, and asks the
-policy with `PolicyRequiredMixin`:
+`ScopedModelViewSet` is only `ScopedQuerySetMixin` on a `ModelViewSet`, kept
+because it is the most common pair.
+
+### 5.5 Actions found in the code
 
 ```python
-from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
+class OrderViewSet(ScopedQuerySetMixin, viewsets.ModelViewSet):
+    @action(detail=True, methods=['post'])
+    def print_invoice(self, request, pk=None):    # shop.order_print_invoice, made on migrate
+        ...
 
-class LoanListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):
-    policy = loan_access.policy          # 'list', read off ListView
-    queryset = Loan.objects.all()
+class OrderPrintView(APIView):
+    policy_action = 'print_invoice'                # the same permission
 
-class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):
-    policy = loan_access.policy
-    policy_action = 'approve'            # can_approve(user, loan)
-    queryset = Loan.objects.all()
-    form_class = LoanApprovalForm
-```
+class OrderAdmin(admin.ModelAdmin):
+    actions = ['export_excel']                     # shop.order_export_excel
 
-And a function view:
-
-```python
-from clearance.decorators import policy_required
-
-@policy_required(loan_access.policy, 'create')
-def apply(request):
+@policy_required(order_access.policy, 'refund')    # shop.order_refund
+def refund(request, pk):
     ...
 ```
 
-### 4.6 Outside a view
+### 5.6 Outside a view
 
 ```python
-loan_access.policy.allows(user, 'approve', loan)      # -> bool
-loan_access.policy.authorize(user, 'approve', loan)   # raises django's PermissionDenied
-Loan.objects.visible_to(user)
+Order.objects.visible_to(user, 'edit')       # the orders they may edit
+readable_fields(user, Order)                 # {'id', 'customer', 'branch', 'status'}
+writable_values(user, Order, 'status')       # {'pending', 'cancelled'} - not approved
+order_access.policy.authorize(user, 'edit', order)
 ```
 
-### 4.7 Roles, groups and revocations
+### 5.7 In code, the same as in the admin site
 
 ```python
-# config/access.py - read once, on a new database
-STARTING_PERMISSIONS = {
-    'admin': ['loans.loan_view'],
-    'officer': ['loans.loan_view', 'loans.loan_approve'],
-    'customer': ['loans.loan_view', 'loans.loan_create'],
+from clearance.services import AccessService
+
+access = AccessService(actor=request.user)
+
+managers = access.create_bundle(
+    'Branch managers',
+    grants={'shop.view_order': 'branch', 'shop.change_order': 'branch'},
+)
+access.give_bundle(person, managers)
+access.revoke(person, 'shop.change_order', reason='Under review')
+```
+
+### 5.8 Access as code
+
+```python
+# config/access.py - CLEARANCE = {'ACCESS': 'config.access.ACCESS'}
+ACCESS = {
+    'bundles': {
+        'Branch managers': {'shop.view_order': 'branch', 'shop.order_approve': 'branch'},
+        'Accountants': {'shop.view_order': 'all', 'shop.view_order_price': None},
+        'Customers': {'shop.view_order': 'own', 'shop.add_order': None},
+    },
+    'roles': {
+        'customer': {
+            'ceiling': ['shop.view_order', 'shop.add_order'],
+            'bundles': ['Customers'],
+        },
+    },
 }
 ```
 
 ```bash
-python manage.py migrate
-python manage.py clearance_seed
+python manage.py clearance_sync --dry-run    # what would change, writing nothing
+python manage.py clearance_sync --check      # in CI: fail when the database differs from the file
+python manage.py clearance_sync              # apply, and say what changed
 ```
-
-```python
-from clearance.roles.services import assign_role, revoke_permission
-
-assign_role(person, 'officer', by=admin)
-revoke_permission(person, 'loans.loan_approve', by=admin, reason='Under review')
-person.has_perm('loans.loan_approve')   # False - the officer group still gives it to everybody else
-```
-
-### 4.8 Names in every language
-
-```python
-from django.utils.translation import gettext_lazy as _
-
-permissions = build_permissions('loan', _('loans'), actions=(...))
-```
-
-```python
-from clearance.labels import label_of
-
-label_of(permission)                 # in the language of the request
-label_of(permission, language='fa')  # in a language named
-label_of(group)                      # a group's name, the same way
-```
-
-The resource name may be marked for translation: what `migrate` writes into
-`auth_permission.name` is still English - read with translation switched
-off - while `label_of` says it in the reader's language. An administrator's
-own name for a permission or a group, typed in the admin site, comes first
-(8.3).
 
 ---
 
-## 5. Multiple roles
+## 6. Default and custom permissions
 
-### 5.1 Where a person's roles come from
+A model's permissions are its **default** ones unless it declares its own:
 
-`clearance.resolvers.roles_of(user)` answers a `frozenset` of role codes,
-asked of the configured resolver and cached on the user instance for the
-rest of the request.
-
-| resolver | reads | cost |
+| | default | custom |
 |---|---|---|
-| `clearance.resolvers.AttributeResolver` (default) | `user.<ROLE_ATTRIBUTE>` - one code, or an iterable of codes | none |
-| `clearance.roles.resolvers.AssignmentResolver` | `RoleAssignment` rows | one query, once per request; none inside the permission query (5.2) |
-| your own | subclass `RoleResolver`, implement `roles_of(user)` | yours |
+| declared by | Django, for every model | `build_permissions` in `Meta.permissions`, with `default_permissions = ()` |
+| view / create / edit / delete | `view_order`, `add_order`, `change_order`, `delete_order` | `order_view`, `order_create`, `order_edit`, `order_delete` |
+| a field | `view_order_price`, `change_order_price` | `order_view_price`, `order_edit_price` |
+| an action | `order_<action>` | `order_<action>` |
 
-A resolver may also implement `roles_subquery(user)`, returning a queryset of
-role codes. The backend uses it in place of `roles_of`, so the roles are
-looked up inside the permission query instead of before it.
+`permission_for(model, action)` answers which permission an action of a model
+needs, whichever it is, and every part of the library asks it - so nothing
+anywhere spells a permission's name by hand. A model added later and
+migrated has its permissions at once, because Django makes them.
 
-A code the resolver answers that `ROLES` does not declare counts for nothing
-and is logged once as a warning.
+A model that declares its own permissions turns Django's off with
+`default_permissions = ()`; one that kept both would offer a permission
+nothing checks, and is refused (E014). Django's own admin pages ask
+`permission_for` too, so a model with custom permissions is edited in the
+admin site by whoever holds them, not only by the superuser.
 
-### 5.2 What a person holds
+**`migrate` makes the locks; `clearance_sync` hands out the keys.** `migrate`
+makes every permission - a model's, a field's, an action's, found in the code
+or declared there - the way Django makes its own: added, never taken away,
+and harmless, because nobody holds a new permission until given it. Giving
+access - the bundles, roles and ceilings an `ACCESS` file declares - is
+`clearance_sync`'s, an explicit step that shows what it will change before it
+changes it. A project that wants one command sets `SYNC_ON_MIGRATE`: the sync
+then runs once, at the end of a forward `migrate` of the default database -
+never while a test database is made, never on a migration backwards.
 
-```
-held = direct grants (user_permissions)
-     + permissions of every group linked to any of their roles (RoleGroup)
-     + permissions of their own groups (user.groups)
-     - their revocations (PermissionRevocation)      <- subtracted from groups only
-```
-
-A direct grant is not cancelled by a revocation: revoking a permission that
-was granted directly removes the grant instead (`revoke_permission` does
-both, as the case requires). The superuser holds every permission, as in
-Django.
-
-`ClearanceBackend` overrides the group half of `ModelBackend` and keeps its
-caching, so `has_perm` costs exactly the queries `ModelBackend` costs.
-
-### 5.3 Which rows a person sees
-
-`visible_to(user)`:
-
-1. anonymous or inactive -> no rows;
-2. superuser -> every row;
-3. otherwise, for each of their declared roles, the role's scope:
-   * `scope_for_<role>(user)` when the queryset defines it;
-   * else every row, when the role is in `EVERY_ROW_ROLES`;
-   * else nothing;
-4. the rows are the **union** of those scopes; no scopes -> no rows.
-
-A hook returns one of:
-
-| returned | means |
-|---|---|
-| `Q(...)` | these rows - the cheapest to combine |
-| `Q()` (empty) | every row |
-| a queryset of the same model | these rows |
-| `None` or `self.none()` | nothing |
-
-With one role, the scope is applied as it is - a returned queryset is
-returned unchanged. With several, `Q`s are joined with `OR` in one `filter`,
-and a returned queryset joins as `Q(pk__in=queryset.values('pk'))`, so
-combining never meets the restrictions of `QuerySet.__or__`. One role seeing
-every row makes the answer every row. A hook returning anything else raises
-`TypeError`.
-
-A `Q` that crosses a to-many relation can repeat a row when joined with
-another; the documentation says so and shows `pk__in` as the remedy.
-
-What a role with no hook gets is `default_scope(role, user)`, one method, so
-a queryset changes it for every role at once. `OwnedQuerySet` makes it "the
-rows that are yours", through `owner_path`; `SignedInReadQuerySet` gives
-every row to anybody signed in, whatever their roles.
-
-### 5.4 In a policy
-
-`has_role(user, *roles)` is true when the user has **any** of them.
-`reaches_every_row(user)` is the queryset's answer about one object - the
-superuser, or a role in `EVERY_ROW_ROLES` - for a policy deciding whether an
-object needs to be the user's own. It answers *which rows*, never *what may
-be done*.
+The library's own access to itself has its permissions too:
+`clearance.permission_view`, `permission_create`, `permission_edit`,
+`permission_delete`, and `clearance.role_ceiling_edit`. The superuser holds
+them; nobody else does until given them.
 
 ---
 
-## 6. From a view to a policy
+## 7. Layer 1: access bundles
 
-### 6.1 DRF
+A **bundle** is a Django `Group`. A person's bundles are `user.groups`, so a
+person holds many. The library adds: a scope beside each permission in a
+bundle; revocations - one permission taken from one person, whatever bundle
+gives it; names in every language; and one service, `AccessService`, through
+which every page and every line of code changes access.
 
-`PolicyPermission` maps a request to a hook:
-
-| view | hook |
-|---|---|
-| `list` | `can_list` |
-| `retrieve` | `can_view` |
-| `create` | `can_create` |
-| `update`, `partial_update` | `can_edit` |
-| `destroy` | `can_delete` |
-| a custom `@action` | `custom_actions[name]`, or **refused** |
-| an `APIView` (no action) | the HTTP method: `GET`/`HEAD`/`OPTIONS` -> `can_list`, `POST` -> `can_create`, `PUT`/`PATCH` -> `can_edit`, `DELETE` -> `can_delete` |
-
-At the object level the same table applies, with the object passed to the
-hook, and a custom action that is not mapped is refused there too.
-
-`ScopedModelViewSet` and `ScopedReadOnlyViewSet` are DRF's own viewsets with
-`ScopedQuerySetMixin` applied. The read-only one is composed from the read
-mixins rather than trimmed from `ModelViewSet`, so DRF does not publish write
-routes it never serves.
-
-### 6.2 Django views
-
-`PolicyRequiredMixin` is the same bridge for Django's generic views. It names
-a `policy` and, optionally, a `policy_action`; without one, the action is read
-off the view, as DRF's is:
-
-| view | hook |
-|---|---|
-| `ListView` | `can_list` |
-| `DetailView` | `can_view` |
-| `CreateView` | `can_create` |
-| `UpdateView` | `can_edit` |
-| `DeleteView` | `can_delete` |
-| any other view, with no `policy_action` | **`ImproperlyConfigured`** - never allowed by default |
-
-Every view first asks with `obj=None`, in `dispatch`, before anything runs -
-as DRF's `has_permission` does - so somebody without the permission is
-refused before a query is made. A view with an object (`DetailView`,
-`UpdateView`, `DeleteView`, or anything using `SingleObjectMixin`) then asks
-again with the object, when `get_object()` resolves it - so with
-`ScopedQuerySetMixin` the object is found among the rows the user may see,
-and only then judged.
-
-A refusal is Django's own: `AccessMixin.handle_no_permission`, so somebody not
-signed in is sent to the login page and somebody signed in is answered 403.
-
-`@policy_required(policy, action)` does the action-level check for a function
-view. A function view judging one object calls `policy.authorize(user,
-action, obj)` once it has it.
+`ClearanceBackend` replaces `ModelBackend`. It works out what a person holds
+with the queries `ModelBackend` makes, revocations and ceilings subtracted
+inside the same query, and keeps Django's caching.
 
 ---
 
-## 7. Settings
+## 8. Actions
 
-All under one dictionary, `CLEARANCE`.
+Beyond view, create, edit and delete, a model has the actions its project
+gives it. There are two kinds, and an administrator cannot make a third -
+a permission with nothing behind it (principle 3).
+
+### 8.1 Status actions, made in the admin site
+
+Most actions change a value: approving an order sets its status to
+*approved*, shipping it to *shipped*, publishing a post to *published*. A
+**status action** says exactly that, and needs no code:
+
+| | |
+|---|---|
+| model | Order |
+| name | Approve |
+| field | `status` - a field with choices, or a boolean |
+| to | *approved*, *rejected* |
+| from | *pending* - optional |
+
+Saving it makes `shop.order_approve`. Whoever lacks it cannot write those
+values: a form offers the choice without them, the admin site the same, and
+an API refuses them, naming the field and the value. A status action is
+scoped like any permission - "approve, in their branch". Several actions may
+share a field, and a value no action claims is written with the row's own
+`edit`.
+
+The same, in code - in `build_permissions`, or in the `ACCESS` file for a
+model that keeps Django's permissions - and shown read only in the admin
+site:
+
+```python
+permissions = build_permissions(
+    'order', _('orders'),
+    status_actions={
+        'approve': {'field': 'status', 'to': ['approved', 'rejected'], 'from': ['pending']},
+        'ship': {'field': 'status', 'to': ['shipped']},
+    },
+)
+```
+
+### 8.2 Actions found in the code
+
+An action that does something new - prints an invoice, exports a sheet,
+refunds a payment - needs code, but no permission code. `migrate` (and
+`clearance_sync`) finds every one and makes its permission:
+
+| in the code | becomes |
+|---|---|
+| a DRF `@action` on a viewset of a model | `<codename>_<action>` |
+| `policy_action = '...'` on an `APIView` or a Django view | the same |
+| `@policy_required(policy, '...')` on a function view | the same |
+| an entry in a `ModelAdmin`'s `actions` | the same, and the admin action is offered only to whoever holds it |
+
+A found action is held by nobody until it is given. One no longer in the code
+is marked as gone in the admin site, and `clearance_check` lists it.
+
+---
+
+## 9. Layer 2: row scopes
+
+### 9.1 The scopes a model offers
+
+* **`all`** - every row - always.
+* **Rule scopes**, built in the admin site (9.2), for any model.
+* **Code scopes**, for a model managed with a `ScopedQuerySet`: `scope_<code>`
+  methods listed in `scopes`, for a rule no builder can say.
+
+A permission given with no scope reaches the queryset's `default_scope`; with
+none named - the default - no rows. The choice is the developer's, once per
+model.
+
+### 9.2 The rule builder
+
+A **rule scope** is a name and conditions, joined by *all of* or *any of*.
+Each condition is three parts:
+
+| part | may be |
+|---|---|
+| a field | a field of the model, or one reached through its relations, at most three steps away |
+| an operator | is, is not, is one of, contains, is empty, before, after, at least, at most |
+| a value | a constant - "Tehran" - or the person's own: *the person*, *the person's branch*, any field of the user reached the same way |
+
+So "Their branch" is *branch - is - the person's branch*; "Their own" is
+*customer, user - is - the person*; "Large orders" is *price - at least -
+10,000,000*.
+
+A rule is checked when it is saved, against the model as it is: every field
+must exist, every operator suit its field, and **no condition may read a
+protected field** or the user's password - a filter on the price would tell
+whoever lacks `view_price` what the price is. A rule becomes a Django `Q` -
+never SQL - when a list is asked for; a rule whose field no longer exists is
+refused rather than skipped, and `clearance_check` lists it.
+
+A rule and a code scope are offered side by side, and a person's rows are the
+union of every scope that reaches them.
+
+### 9.3 Which rows a person reaches
+
+`Model.objects.visible_to(user, action='view')`:
+
+1. signed out, or switched off -> no rows; the superuser -> every row;
+2. the person does not hold the action's permission -> no rows;
+3. otherwise the scopes of every grant of it that reaches them are joined
+   with OR into **one** filter; `all` makes it every row.
+
+The person's grants are read once per request, in one query. A model with a
+plain manager can still be scoped by rule: `visible_to` is offered on its
+default manager through the library's own queryset.
+
+### 9.4 One object
+
+Handed an object, a policy's hook requires the permission **and** the object
+within the person's scope for that action. A view finds its object among
+`visible_to(user, action)` already; asked from a service, it costs one
+`exists()`.
+
+---
+
+## 10. Layer 3: protected fields
+
+### 10.1 Declaring them
+
+* in the admin site: choose a model and a field, mark it protected;
+* in code: `build_permissions(..., protected_fields=('price',))`.
+
+Either makes the field's view and edit permissions. The password field and
+the primary key cannot be protected - the first is never shown anyway, the
+second is how a row is found.
+
+### 10.2 Two rules
+
+* **Reading:** without the view permission, the field is **left out** - the
+  key is not in the answer.
+* **Writing:** without the edit permission, the field is not offered in a
+  form, and a value sent for it to an API is **refused**, naming the field.
+
+### 10.3 Every door
+
+| where | how |
+|---|---|
+| a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows read-only what may not be written |
+| a Django view | `ProtectedFieldsViewMixin` builds the form that way |
+| the admin site | every `ModelAdmin`, without a mixin: the library's admin hooks hide and lock |
+| a DRF serializer | `ProtectedFieldsSerializerMixin`, and on every serializer `ModelPolicyPermission` guards |
+| a template | `{% if perms.shop.view_order_price %}` |
+| code | `readable_fields(user, Order)`, `writable_fields(user, Order)` |
+
+The library guards the doors it provides; `Order.objects.values('price')` in
+the project's own code is the project's to guard, and the documentation says
+so. In 0.1 a field's permissions are the person's, not the row's.
+
+---
+
+## 11. Layer 4: roles (optional)
+
+`clearance.roles` keeps roles in the database, made in the admin site:
+
+* **A role** is a code and a name in every language. People are given roles
+  in the admin site (`RoleAssignment`), and a person may have several.
+* **A ceiling** is the permissions a role may ever hold - or none, for a role
+  that is not limited. What a person is allowed is what they hold, within the
+  union of their roles' ceilings, applied in the backend after everything, so
+  no bundle, grant or starting bundle gets past it. **Changing a ceiling
+  needs `clearance.role_ceiling_edit`**, which only the superuser holds until
+  given it - so administrators who manage bundles cannot widen what a role
+  may hold.
+* **Starting bundles**: `RoleBundle` gives everybody with a role a bundle.
+* **From code**, roles, ceilings and starting bundles can be written in the
+  `ACCESS` file instead (5.8), and the admin site shows them read only.
+* **Elsewhere**: a project that keeps roles on its user model - a `role`
+  column, `is_staff`, Django groups - reads them with `AttributeResolver` or a
+  resolver of its own instead.
+* **In a policy**, `has_role(user, *roles)` answers whose job an act is.
+
+---
+
+## 12. The safety rules
+
+The admin site manages everything, so whoever may manage access must not be
+able to give themselves everything. Every change - on a page or in code -
+goes through `AccessService`, which refuses:
+
+* **a change to your own access** - your bundles, grants, revocations, roles,
+  or a bundle you hold. Somebody else who manages access does it, or the
+  superuser;
+* **giving what you do not hold** - putting a permission in a bundle, giving
+  a bundle holding it, or granting it, when you do not hold it yourself; and
+  **with a scope you do not hold it with**, unless you hold it with `all` -
+  or a colleague could hand it back to you;
+* **a change after which nobody but the superuser could manage access** -
+  the last holder of `permission_edit` losing it;
+* **a widened ceiling**, without `role_ceiling_edit`.
+
+Every refusal says which rule, and every change is a signal.
+
+---
+
+## 13. From a view to a policy
+
+### 13.1 DRF
+
+`ModelPolicyPermission` finds the view's model - from `queryset`, or
+`get_queryset()` - and asks that model's policy. `PolicyPermission` asks one
+named policy, for a view with no model. Both map `list`/`retrieve` to
+`can_list`/`can_view`, `create` to `can_create`, `update`/`partial_update` to
+`can_edit`, `destroy` to `can_delete`, an `@action` to its found permission
+or the policy's `custom_actions`, and an `APIView` by its HTTP method -
+`policy_action` naming a different one. The object level uses the same
+table, with the object.
+
+### 13.2 Django views
+
+`PolicyRequiredMixin` reads the action off the view - `ListView` `list`,
+`DetailView` `view`, `CreateView` `create`, `UpdateView` `edit`,
+`DeleteView` `delete` - or takes `policy_action`; a view it cannot read is
+`ImproperlyConfigured`. Every view asks first with no object, in
+`dispatch`; a view with an object asks again with it. `policy` may be left
+out, and the model's is asked.
+
+---
+
+## 14. The admin site
+
+Built on Django's own admin: its look, its dark mode, its right-to-left
+layout when the language is Persian. No build step - templates, a stylesheet
+and plain scripts.
+
+| page | what the administrator does there |
+|---|---|
+| **Overview** | sees the bundles, roles, people with access, and what `clearance_check` found |
+| **Bundles** | makes and changes a bundle as a **grid**: a model in each row, an action in each column, a tick, and a scope beside each ticked permission; gives it to people |
+| **Row scopes** | builds a rule scope for a model, sees the code scopes beside it, and which grants use each |
+| **Protected fields** | marks and unmarks fields, model by model |
+| **Actions** | makes status actions; sees the actions found in the code, and the ones gone from it |
+| **Roles** | makes roles, their starting bundles, and - with `role_ceiling_edit` - their ceilings |
+| **People** | a person's whole standing: roles, bundles, direct grants with scopes, revocations with why - and what they end up allowed, with where each permission came from |
+| **Permissions** | every permission, read only, with who holds it and how |
+
+Every page writes through `AccessService` under the safety rules, and needs
+the library's own permissions: `permission_view` to look, `permission_create`,
+`_edit` and `_delete` to change.
+
+What the `ACCESS` file or the code declares is shown as *declared in code*,
+read only: changed in the admin site, it would come back on the next sync.
+Without `django.contrib.admin`, none of these pages exist and nothing else
+changes.
+
+---
+
+## 15. Settings
+
+All under `CLEARANCE`; the default needs none of it. A key the library does
+not know is refused (E011).
 
 | key | default | meaning |
 |---|---|---|
-| `ROLES` | required once a model is managed with a `ScopedQuerySet` | dotted path to a `TextChoices`, or a list of codes. Each code must be a valid Python identifier, because it names a hook. |
-| `ROLE_RESOLVER` | `'clearance.resolvers.AttributeResolver'` | dotted path to a `RoleResolver` |
+| `ROLE_RESOLVER` | `'clearance.roles.resolvers.AssignmentResolver'` | where a person's roles are read from |
 | `ROLE_ATTRIBUTE` | `'role'` | what `AttributeResolver` reads |
-| `EVERY_ROW_ROLES` | `[]` | roles that see every row of a queryset with no hook for them |
-| `STARTING_PERMISSIONS` | `None` | dotted path to `{role: [app_label.codename, ...]}`, read by `clearance_seed` |
-| `ROLE_GROUP_NAME` | `'role:{role}'` | the name of the group `clearance_seed` makes for a role |
+| `ACCESS` | `None` | the access declared in code - bundles, roles, ceilings, status actions - applied by `clearance_sync` |
+| `SYNC_ON_MIGRATE` | `False` | run `clearance_sync` once at the end of a forward `migrate` |
+| `RULE_DEPTH` | `3` | how many relations a rule's field may cross |
 
 ---
 
-## 8. Models and the admin site
+## 16. Models
 
-### 8.1 `clearance.roles`
-
-| model | fields | constraints |
+| app | model | holds |
 |---|---|---|
-| `RoleAssignment` | `user`, `role`, `assigned_by` (nullable), `assigned_at` | unique `(user, role)`; `role` among `ROLES` |
-| `RoleGroup` | `role`, `group` (`auth.Group`), `linked_at` | unique `(role, group)`; `role` among `ROLES` |
-| `PermissionRevocation` | `user`, `permission` (`auth.Permission`), `revoked_by` (nullable), `reason`, `revoked_at` | unique `(user, permission)` |
-| `StartingPermissions` | `given_at`, `summary` (JSON) | at most one row - its presence is "already given" |
+| `clearance` | `ScopeGrant` | `group` or `user` (exactly one), `permission`, `scope` |
+| `clearance` | `PermissionRevocation` | `user`, `permission`, `revoked_by`, `reason`, `revoked_at` |
+| `clearance` | `ScopeRule` | `content_type`, `code`, `name`, `match` (all or any), `conditions` |
+| `clearance` | `ProtectedField` | `content_type`, `field` - with the two permissions it made |
+| `clearance` | `StatusAction` | `content_type`, `code`, `name`, `field`, `to_values`, `from_values` - with its permission |
+| `clearance` | `Declared` | what the `ACCESS` file or the code owns - a bundle, a role, a ceiling, a status action - so the admin site shows it read only |
+| `clearance.roles` | `Role` | `code`, `name`, `limited` |
+| `clearance.roles` | `RoleAssignment` | `user`, `role`, `assigned_by`, `assigned_at` |
+| `clearance.roles` | `RoleCeiling` | `role`, `permission` |
+| `clearance.roles` | `RoleBundle` | `role`, `group` |
+| `clearance.translations` | `PermissionTranslation`, `BundleTranslation`, `RoleTranslation` | a name and a description per language |
 
-Every foreign key to a person is `settings.AUTH_USER_MODEL`. `role` is a plain
-`CharField` validated against `ROLES` in `clean()` and in the services, not a
-database `choices` list - so adding a role is a settings change, not a
-migration.
-
-### 8.2 Starting permissions, once
-
-`clearance_seed`, run after every `migrate`:
-
-1. makes sure every declared permission has its row;
-2. on a database with no `StartingPermissions` row and no `RoleGroup` row,
-   makes one group per role from `STARTING_PERMISSIONS`, links it, and writes
-   the `StartingPermissions` row - **once**: from then on the groups are the
-   database's, and no later run changes them, even for a role somebody left
-   with no group;
-3. lists the permissions nobody holds - what a new release added - for
-   somebody to decide who gets them.
-
-A codename in the table that does not exist fails the command and names it:
-a silently skipped permission is a role that cannot do its job, found by a
-person being refused rather than by a deployment failing.
-
-### 8.3 `clearance.translations`
-
-An administrator names permissions and groups in any language, from the
-admin site. The names are rows, not translation files, because the person
-typing them is not a developer and adding a language is not a deployment.
-
-| model | fields | constraints |
-|---|---|---|
-| `PermissionTranslation` | `permission` (`auth.Permission`), `language`, `name`, `description` | unique `(permission, language)`; `language` among `LANGUAGES` |
-| `GroupTranslation` | `group` (`auth.Group`), `language`, `name`, `description` | unique `(group, language)`; `language` among `LANGUAGES` |
-
-The languages are the project's own `LANGUAGES` setting; offering a new one
-is a settings change, not a migration.
-
-`label_of` asks a chain of **label sources**, in order, and the first with an
-answer wins:
-
-1. the administrator's name in the reader's language - `clearance.translations`,
-   when installed;
-2. the developer's name, marked for translation in the code and translated in
-   the project's catalogue;
-3. the name stored in `auth_permission` or `auth_group`.
-
-A source is a class with one method; the translations app adds its own to the
-front of the chain when it loads, and a project can add one too. The
-language is matched exactly, then by its base (`fa-ir`, then `fa`). Labelling
-a page of permissions costs one query for all of them, never one per row.
-
-The stored `name` is left alone: `migrate` writes it, and a name an
-administrator typed there would be written over by the next `migrate`.
-
-### 8.4 The admin site
-
-Each app adds its part to the pages, through hooks in the core's admin; none
-needs another installed.
-
-| page | from | shows |
-|---|---|---|
-| **Permissions** (new) | `clearance` | every permission, read only - the app, the codename, its name in the reader's language, the groups holding it - searchable, and filtered by app and group. Permissions come from the code, so the page adds and deletes none. |
-| + roles | `clearance.roles` | which roles hold each permission, and a filter by role |
-| + translations | `clearance.translations` | its name and description in each language, editable |
-| **Groups** (Django's, extended) | `clearance` | a group made with the permissions it holds, chosen two columns side by side |
-| + roles | `clearance.roles` | the roles the group is given to (`RoleGroup`) |
-| + translations | `clearance.translations` | its name and description in each language |
-| **The user page** (the project's own) | `clearance.roles` | the person's roles, and the permissions taken away from them with why |
-| **Role assignments**, **Revocations** | `clearance.roles` | each as a list of its own, for finding who holds a role or lost a permission |
-
-The user page is the project's: the roles app adds its two sections to
-whichever admin the project registered for its user model, rather than
-replacing it.
-
-Until 0.2 the pages write directly. When the safety rules come (section 15),
-every form goes through the same service as everything else, so the admin
-site never becomes the way round them.
+Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 
 ---
 
-## 9. System checks
+## 17. System checks
 
 | id | when |
 |---|---|
-| `clearance.E001` | `ROLES` is missing, cannot be imported, or holds a code that is not a valid identifier |
-| `clearance.E002` | a `ScopedQuerySet` defines `scope_for_<x>` for a role `ROLES` does not declare - a typo that would silently deny |
-| `clearance.E003` | a viewset guarded by a `PolicyPermission` has an `@action` its policy does not map |
-| `clearance.E004` | a viewset using `ScopedQuerySetMixin` declares a queryset that is not a `ScopedQuerySet` |
-| `clearance.E005` | `EVERY_ROW_ROLES` or `STARTING_PERMISSIONS` names a role `ROLES` does not declare |
-| `clearance.E006` | `clearance.roles` is installed and `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` - revocations and role groups would do nothing |
-| `clearance.E007` | `ModelBackend` is in `AUTHENTICATION_BACKENDS` beside `ClearanceBackend` - Django grants a permission when *any* backend does, so it would hand back every revoked permission |
-| `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it - they plug into the core's admin pages and label chain, which must load first |
-| `clearance.E009` | a `PolicyRequiredMixin` view has no `policy`, no `policy_action` where none can be read off the view, or an action its policy has no hook for |
-| `clearance.E010` | `ROLE_RESOLVER` cannot be imported or is not a `RoleResolver`, or `ROLE_ATTRIBUTE` is not an attribute name |
-| `clearance.E011` | `CLEARANCE` is not a dictionary, or has a key the library does not know - a misspelled key is refused, not ignored |
+| `clearance.E001` | `ACCESS` cannot be read, or names a permission, scope or field that does not exist |
+| `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
+| `clearance.E003` | a DRF viewset guarded by a policy has an `@action` with no permission |
+| `clearance.E004` | a scoped view's queryset is not a `ScopedQuerySet` |
+| `clearance.E006` | `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` |
+| `clearance.E007` | `ModelBackend` is beside `ClearanceBackend` - it would hand back every revocation |
+| `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it |
+| `clearance.E009` | a `PolicyRequiredMixin` view cannot ask a policy |
+| `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
+| `clearance.E011` | `CLEARANCE` is not a dictionary, or has a key the library does not know |
+| `clearance.E012` | a field protected in code is not a field of its model |
+| `clearance.E013` | an action name found in the code cannot make a permission |
+| `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 
-E004 is also raised at request time (`ImproperlyConfigured`), for a viewset
-the URL configuration does not reach and the check therefore cannot see.
+E005 is retired: it checked ceilings written in code, and ceilings are in
+the database now.
 
----
-
-## 10. Signals
-
-`clearance.signals`, each sent after the transaction commits:
-
-| signal | sent with |
-|---|---|
-| `role_assigned` | `user`, `role`, `by` |
-| `role_unassigned` | `user`, `role`, `by` |
-| `permission_revoked` | `user`, `permission`, `by`, `reason` |
-| `permission_restored` | `user`, `permission`, `by` |
-| `starting_permissions_given` | `summary` - `{role: count}` |
+`clearance_check`, which reads the database, lists grants with no scope, rule
+scopes and status actions whose fields are gone, actions gone from the code,
+and permissions nobody holds.
 
 ---
 
-## 11. What comes from DayarDarman
+## 18. Signals
 
-| | DayarDarman | django-clearance |
-|---|---|---|
-| `build_permissions`, `DEFAULT_ACTIONS`, `RECORD_ACTIONS` | `apps/core/permissions/registry.py` | as it is |
-| `PermissionRegistry`, `ResourcePermission` | same file | as it is, plus validation of `custom_actions` |
-| `BasePolicy` | `apps/core/permissions/policies.py` | `_has` becomes the public `has`; `allows` and `authorize` added; `has_role` means any of several |
-| `PolicyPermission` | `apps/core/permissions/drf.py` | as it is |
-| `ScopedQuerySet.visible_to` | a fixed dictionary of six medical roles | `scope_for_<role>` looked up by name for any declared role; union across roles; `Q` or queryset |
-| `reaches_every_row` | `Role.every_row_roles()` | `EVERY_ROW_ROLES` |
-| `Role` | a `TextChoices` in `apps/core/enums.py` | the project's own, named in `ROLES` |
-| `User.role` | one column | any resolver; `RoleAssignment` for several roles |
-| `RoleAccessGroup` | `role` -> `AccessGroup` (with translated names) | `RoleGroup`: `role` -> `auth.Group` |
-| `AccessGroupTranslation` | a group's name per language | `GroupTranslation`, and `PermissionTranslation` beside it |
-| `RevocableModelBackend` | role groups + own groups - revocations | `ClearanceBackend`, the same rule over several roles |
-| `seed_roles`, `ROLE_PERMISSIONS` | "once" recorded as an audit row | `clearance_seed`, "once" recorded as a `StartingPermissions` row |
-| viewset bases | with the response envelope and pagination | the scoping mixin only |
-| audit rows | `AuditService` | signals |
-| the medical scopes, `ROLE_PERMISSIONS` content | the project | stay in the project |
+Each sent after the transaction commits, with the person or bundle, what
+changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
+`bundle_given`, `bundle_taken`, `permission_granted`, `permission_revoked`,
+`permission_restored`, `scope_changed`, `scope_rule_saved`,
+`scope_rule_deleted`, `field_protected`, `field_unprotected`,
+`status_action_saved`, `status_action_deleted`, `actions_found`, and with
+`clearance.roles`, `role_saved`, `role_deleted`, `role_assigned`,
+`role_unassigned`, `ceiling_changed`.
 
 ---
 
-## 12. Compatibility
+## 19. Compatibility
 
 | | supported | tested in CI |
 |---|---|---|
 | Python | 3.11 - 3.14 | every one |
 | Django | 5.2 LTS, 6.0, 6.1 | each with every Python it supports |
-| Django REST framework | 3.16 and later, optional | the latest, on every Django |
+| Django REST framework | 3.16 and later, optional | the latest |
 | Database | any Django supports | PostgreSQL and SQLite |
-
-A Django release is supported from its `.0` and dropped when Django drops it.
-
----
-
-## 13. Conventions for this repository
-
-* **English only in the code** - source, comments, docstrings, tests. Every
-  message a person reads is marked with `gettext`; the Persian lives in
-  `src/clearance/locale/fa/LC_MESSAGES/`, compiled and committed. Code review
-  holds the rule; no tool checks it.
-* **Documentation in English and in Persian.** Each document is written in
-  English and translated beside it - `design.md` and `design.fa.md`,
-  `README.md` and `README.fa.md` - and a change to one is made to the other in
-  the same pull request. Code in a Persian document stays exactly as in the
-  English one.
-* **Every module's docstring says why it exists**, and every rule says what
-  would go wrong without it.
-* **Tests are named after the behaviour they hold** -
-  `test_an_unmapped_action_is_refused.py`, not `test_drf.py`.
-* **What is claimed about cost is tested** with `django_assert_num_queries`.
-* **ruff** for lint and formatting; **mypy** with `django-stubs` on `src/`.
-* **One stage per pull request**, reviewed and merged before the next starts.
+| Browser, for the admin site | what Django's admin supports | the latest Chromium, by Playwright |
 
 ---
 
-## 14. Stages to 0.1
+## 20. Conventions for this repository
 
-Each is one pull request.
-
-| stage | delivers |
-|---|---|
-| 0 | this document |
-| 1 | the skeleton: `pyproject.toml` (hatchling, `src/` layout, the `drf` extra), the test project, pytest, ruff, mypy, nox, GitHub Actions running the matrix - and no features |
-| 2 | `permissions`, `registry`, `policies`, with their tests |
-| 3 | `resolvers`, `querysets`, `views` (`ScopedQuerySetMixin`, `PolicyRequiredMixin`), `decorators`, the core system checks, with their tests and query counts |
-| 4 | `drf`: the bridge, the viewsets and their checks |
-| 5 | `roles`: models and migrations, the backend, the resolver, the services, `clearance_seed`, the signals; the admin pages - permissions, groups, the user page |
-| 6 | `translations`: the models, `label_of` and its sources, the translations on the admin pages |
-| 7 | documentation: the README with a five-minute start, the docs site, an example project; the Persian catalogue |
-| 8 | used in iranbobco; whatever that shows fixed; `0.1.0` tagged, the repository made public, published to PyPI |
-
-## 15. After 0.1
-
-Planned for 0.2, the parts of DayarDarman that manage permissions rather than
-check them:
-
-* **The safety rules for changing permissions**: nobody changes their own;
-  nobody grants what they do not hold; a change that leaves nobody but the
-  superuser able to manage permissions is refused; a permission is given only
-  to a role it does something for (`ONLY_FOR`); a role change takes away what
-  does nothing in the new role.
-* **Group management through one service**, with the admin site going through
-  it rather than around it.
-* **Describing permissions to a frontend** - each as a section, an action and
-  whether it reads or writes - and the REST endpoints for a permission screen
-  and for "what may I do".
+* **English only in the code**; every message marked for translation, the
+  Persian in `src/clearance/locale/fa/`.
+* **Documentation in English and in Persian**, changed together.
+* **Every module's docstring says why it exists**; every rule, what would go
+  wrong without it.
+* **Tests are named after the behaviour they hold**; cost is counted with
+  `django_assert_num_queries`; the admin site's pages are tested in a browser.
+* **ruff** and **mypy** (strict); one stage per pull request.
 
 ---
 
-## 16. Decisions
+## 21. Stages
 
-Made by the owner on review of this document.
+| stage | delivers | |
+|---|---|---|
+| 0 | the design | done |
+| 1 | the skeleton and CI | done |
+| 2 | permissions, policies, the registry | done |
+| 3 | settings, Django views, the decorator, the checks - built around roles | done; reworked in 3b |
+| **3b** | layers 1 and 2 at their core: default and custom permissions, `ModelPolicy`, `ScopeGrant`, `PermissionRevocation`, `ClearanceBackend`, `grants`, `AccessService` with **the safety rules**, the library's own permissions, code scopes and `visible_to(user, action)`, scope-aware hooks; the role code from stage 3 moves to stage 9 | |
+| 4 | the rule builder: `ScopeRule`, its conditions checked and turned into `Q` | |
+| 5 | protected fields: in code and in the database, and every Django door | |
+| 6 | actions: status actions and their enforcement; actions found in every kind of view | |
+| 7 | DRF: `ModelPolicyPermission`, `PolicyPermission`, the viewsets, the serializer mixin, their checks | |
+| 8 | the admin site, part one: overview, bundles as a grid, people, permissions | |
+| 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers - and their pages | |
+| 10 | access as code: the `ACCESS` file, `clearance_sync` with `--dry-run` and `--check`, `SYNC_ON_MIGRATE`, read only in the admin site | |
+| 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
+| 12 | `clearance.translations` | |
+| 13 | documentation, an example project, the Persian catalogue | |
+| 14 | used in iranbobco; `0.1.0` tagged, made public, published | |
 
-1. **Every import names its module** - `from clearance.policies import
-   BasePolicy`, never a flat `from clearance import BasePolicy`.
-2. **The licence holder** is amir mohammad kashanchian.
-3. **The oldest Python is 3.11.** 3.10 left support in October 2026, and
-   Django 6 itself needs 3.12.
-4. **The default resolver is `AttributeResolver` reading `user.role`**, the
-   shape most projects already have. A project wanting several roles without
-   a column of its own switches to `AssignmentResolver`.
-5. **Django's own views get the same bridge as DRF** - `PolicyRequiredMixin`
-   and `@policy_required` - so a project built on templates and forms gives
-   up nothing. Built in stage 3.
-6. **The admin site shows permissions and makes groups** - a permission page,
-   the group page extended with roles, a person's roles and revocations on
-   their page. Built in stage 5.
-7. **Every permission and group can be named in any language** by an
-   administrator, from the admin site - `clearance.translations`, in 0.1 rather
-   than 0.2. Built in stage 6.
+---
+
+## 22. What this edition changes in what is built
+
+* **Stage 2's permissions** gain the default ones: `permission_for(model,
+  action)` answers both, and the policy asks it.
+* **Stage 3** keeps its settings reader, `PolicyRequiredMixin`, the decorator
+  and the checks. Its scoping by role becomes scoping by grant, and its
+  resolvers move to `clearance.roles`.
+
+## 23. After 0.1
+
+* **A grant on one row** - "Ali may edit order 42".
+* **Protected fields scoped by row** - the price of their own branch's orders.
+* **Rules joined at several levels** - (A and B) or C.
+* **REST endpoints** for an access screen and for "what may I do".
+
+---
+
+## 24. Decisions
+
+Made by the owner.
+
+1. Every import names its module.
+2. The licence holder is amir mohammad kashanchian.
+3. The oldest Python is 3.11.
+4. *(amended by 27)* The default role resolver reads `user.role`.
+5. Django's own views get the same bridge as DRF.
+6. The admin site shows permissions and makes bundles.
+7. Permissions and bundles can be named in any language, in 0.1.
+8. Access bundles are the core; a project needs no roles.
+9. A row scope is chosen per permission within a bundle.
+10. Roles limit, and may start a person with bundles - which the ceiling
+    limits too.
+11. Fields can be protected, each with its own view and edit permission.
+12. A permission given with no scope reaches the model's `default_scope` -
+    and no rows when the developer named none.
+13. In 0.1, a field's permissions are the person's, not scoped by row.
+14. *(replaced by 23)* Ceilings are written in code.
+15. A protected field is left out when it may not be read, and a value sent
+    for it is refused when it may not be written.
+16. `'clearance'` is one app with models, holding layers 1 to 3.
+17. Every layer is optional; the one requirement is `ClearanceBackend`.
+18. **Default and custom are chosen per model**: Django's own permissions by
+    default, `build_permissions` for a model that declares its own.
+19. **The admin site does everything the library can do.**
+20. **Status actions** are made in the admin site, without code.
+21. **Actions are found in the code** - DRF `@action`, `policy_action`,
+    `@policy_required`, admin actions - and get their permissions on
+    `migrate`.
+22. **Row scopes are built in the admin site** from simple rules, in 0.1,
+    beside the code scopes.
+23. **Roles and ceilings are kept in the database** and made in the admin
+    site; **changing a ceiling needs `role_ceiling_edit`**, which only the
+    superuser holds by default.
+24. **The library's own permissions** - `permission_view`, `_create`, `_edit`,
+    `_delete` - are held by the superuser by default.
+25. **The safety rules are in 0.1**, because the admin site manages access.
+26. **Every kind of DRF and Django view works**, `ModelViewSet` among them.
+27. **Decision 4 amended:** with roles made and given in the admin site, the
+    default resolver reads the `RoleAssignment` rows the admin site writes;
+    `AttributeResolver`, reading `user.role`, is for a project that keeps
+    roles on its user model.
+28. **A rule cannot read a protected field**, nor the user's password, and
+    reaches at most three relations away.
+29. **The password field and the primary key cannot be protected.**
+30. **No permission is typed by an administrator**: actions are status actions
+    or found in the code, so every permission in the admin site is checked
+    somewhere.
+31. **A model keeping Django's permissions beside its own is refused** (E014),
+    and Django's own admin pages ask `permission_for`.
+32. **Status actions can be declared in code** as well as made in the admin
+    site.
+33. **Access can be written as code** - the `ACCESS` file - and applied by
+    `clearance_sync`, with `--dry-run` and `--check`.
+34. **What code declares is read only in the admin site**; what the admin
+    site makes, code does not touch.
+35. **The admin site is optional**: without it the library works whole.
+36. **`migrate` makes the permissions; `clearance_sync` gives access.**
+    `SYNC_ON_MIGRATE` joins them for a project that wants one command.
