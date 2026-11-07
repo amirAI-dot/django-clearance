@@ -160,9 +160,9 @@ def test_a_function_view_runs_for_somebody_allowed(client: Client, ana: Person) 
     assert response.text == 'applied'
 
 
-def test_decorating_with_an_action_the_policy_has_no_hook_for_fails_at_once() -> None:
-    with pytest.raises(ImproperlyConfigured, match='can_aprove'):
-        policy_required(LoanPolicy(), 'aprove')
+def test_decorating_with_a_name_that_could_never_be_an_action_fails_at_once() -> None:
+    with pytest.raises(ImproperlyConfigured, match="cannot decide 'Approve!'"):
+        policy_required(LoanPolicy(), 'Approve!')
 
 
 def test_an_async_view_is_refused_rather_than_left_unguarded() -> None:

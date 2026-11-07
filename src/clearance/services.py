@@ -31,10 +31,23 @@ from django.db import transaction
 from django.db.models import Model, Q
 
 from clearance import querysets, signals
+from clearance.actions import status_action_problems, transition
+from clearance.discovery import action_label
 from clearance.fields import Protection, field_permissions, protection_problem
-from clearance.grants import Scope, forget_grants
-from clearance.models import PermissionRevocation, ProtectedField, ScopeGrant, ScopeRule
-from clearance.permissions import declared_protected_fields, field_label
+from clearance.grants import Scope, forget_grants, grants_of
+from clearance.models import (
+    PermissionRevocation,
+    ProtectedField,
+    ScopeGrant,
+    ScopeRule,
+    StatusAction,
+)
+from clearance.permissions import (
+    declared_protected_fields,
+    declared_status_actions,
+    field_label,
+    permission_for,
+)
 from clearance.protocols import User, UserModel
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
 from clearance.safety import AccessRefused, SafetyRules
@@ -448,6 +461,130 @@ class AccessService:
                 reading.append(repr(rule.code))
 
         return reading
+
+    # ------------------------------------------------------------------
+    # Status actions
+    # ------------------------------------------------------------------
+
+    def create_status_action(
+        self,
+        model: type[Model],
+        code: str,
+        name: str,
+        field: str,
+        to: list[Any],
+        start: list[Any] | None = None,
+    ) -> StatusAction:
+        """
+        A new status action: from now on only whoever is allowed ``code`` writes
+        the values in ``to`` - from the values in ``start``, or from any.
+
+        Its permission is made with it and held by nobody, so the values are
+        written by nobody but the superuser until it is given out.
+        """
+        self.rules.require_may('create')
+        start = list(start or ())
+        content_type = ContentType.objects.get_for_model(model)
+        codename = permission_for(model, code).partition('.')[2]
+        problems = status_action_problems(model, code, field, to, start)
+        taken = code in declared_status_actions(model) or (
+            Permission.objects.filter(content_type=content_type, codename=codename).exists()
+        )
+
+        if taken:
+            problems.append(f'{code!r} is an action {model.__name__} has already.')
+
+        if problems:
+            raise ValidationError(problems)
+
+        with transaction.atomic():
+            action = StatusAction.objects.create(
+                content_type=content_type,
+                code=code,
+                name=name,
+                field=field,
+                to_values=list(to),
+                from_values=start,
+            )
+            Permission.objects.create(
+                content_type=content_type, codename=codename, name=action_label(model, code)
+            )
+
+        self._forget_own()
+        self._announce(signals.status_action_saved, action=action, created=True)
+        return action
+
+    def change_status_action(
+        self,
+        action: StatusAction,
+        *,
+        name: str | None = None,
+        to: list[Any] | None = None,
+        start: list[Any] | None = None,
+    ) -> StatusAction:
+        """
+        Rename ``action``, or change the values it claims and where from.
+
+        A value no longer claimed is written by whoever may write the row, so
+        only somebody allowed the action on every row may release one. A
+        ``from`` that lets it write from more values gives whoever holds it
+        more, so it is refused to them.
+        """
+        self.rules.require_may('edit')
+        model = action.content_type.model_class()
+        assert model is not None, 'the model of a status action is never deleted from under it'
+        permission = permission_for(model, action.code)
+        new_to = list(to) if to is not None else list(action.to_values)
+        new_start = list(start) if start is not None else list(action.from_values)
+        problems = status_action_problems(model, action.code, action.field, new_to, new_start)
+
+        if problems:
+            raise ValidationError(problems)
+
+        before = transition(model, action.code, action.field, action.to_values, action.from_values)
+        after = transition(model, action.code, action.field, new_to, new_start)
+
+        if before.to - after.to:
+            self.rules.require_holds({permission: querysets.EVERY_ROW})
+
+        widens = bool(before.start) and (not after.start or bool(after.start - before.start))
+
+        if widens and self._holds(permission):
+            raise AccessRefused(
+                'own_action', 'Nobody lets an action they hold write from more values.'
+            )
+
+        action.name = name if name is not None else action.name
+        action.to_values, action.from_values = new_to, new_start
+        action.save()
+        self._forget_own()
+        self._announce(signals.status_action_saved, action=action, created=False)
+        return action
+
+    def delete_status_action(self, action: StatusAction) -> None:
+        """
+        Delete ``action`` and its permission: its values are then written by
+        whoever may write the row - so only somebody allowed it on every row
+        may delete it.
+        """
+        self.rules.require_may('delete')
+        model = action.content_type.model_class()
+        assert model is not None, 'the model of a status action is never deleted from under it'
+        permission = permission_for(model, action.code)
+        self.rules.require_holds({permission: querysets.EVERY_ROW})
+        code, name = action.code, action.name
+
+        with transaction.atomic():
+            Permission.objects.filter(
+                content_type=action.content_type, codename=permission.partition('.')[2]
+            ).delete()
+            action.delete()
+
+        self._forget_own()
+        self._announce(signals.status_action_deleted, model=model, code=code, name=name)
+
+    def _holds(self, permission: str) -> bool:
+        return not self.rules.unbound and grants_of(self.actor).holds(permission)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
     # Helpers

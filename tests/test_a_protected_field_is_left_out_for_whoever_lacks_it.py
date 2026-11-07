@@ -155,7 +155,7 @@ def test_a_field_marked_in_the_database_is_protected_like_one_in_code(
 
 
 def test_a_model_with_nothing_protected_gives_every_field(make_user: MakeUser) -> None:
-    assert writable_fields(make_user(), Payment) == {'id', 'loan', 'amount'}
+    assert writable_fields(make_user(), Payment) == {'id', 'loan', 'amount', 'state'}
 
 
 def test_what_is_protected_is_read_once_per_request(
@@ -261,7 +261,7 @@ def test_a_page_shows_it_disabled_to_whoever_may_only_read_it(
 def test_a_page_saves_the_field_only_for_whoever_may_write_it(
     client: Client, make_user: MakeUser, loan: Loan
 ) -> None:
-    sent = {'amount': 150, 'region': 'north', 'credit_score': 900}
+    sent = {'amount': 150, 'region': 'north', 'credit_score': 900, 'status': 'pending'}
     client.force_login(make_user(*EDITOR))
     assert client.post(f'/loans/{loan.pk}/edit/', sent).status_code == 302
     loan.refresh_from_db()

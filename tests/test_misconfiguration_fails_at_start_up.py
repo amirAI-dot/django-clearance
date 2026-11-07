@@ -158,8 +158,8 @@ class NoModel(PolicyRequiredMixin, TemplateView):
     policy_action = 'view'
 
 
-class UnknownAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
-    policy_action = 'aprove'
+class UnnameableAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
+    policy_action = 'Approve!'
     model = Loan
 
 
@@ -167,7 +167,7 @@ class UnknownAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
     ('view', 'expected'),
     [
         (NoModel, 'clearance.E009'),
-        (UnknownAction, 'clearance.E009'),
+        (UnnameableAction, 'clearance.E009'),
     ],
 )
 def test_a_view_that_would_show_every_row_or_cannot_ask_is_reported(
@@ -198,6 +198,6 @@ def test_a_urlconf_that_does_not_import_is_left_to_django() -> None:
 
 #: A URLconf for the test above: two views that cannot ask, one behind an include.
 urlpatterns = [
-    path('loans/', UnknownAction.as_view()),
+    path('loans/', UnnameableAction.as_view()),
     path('more/', include([path('nothing/', NoModel.as_view())])),
 ]

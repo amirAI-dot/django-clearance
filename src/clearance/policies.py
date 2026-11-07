@@ -25,10 +25,13 @@ every loan; a hook can add "and it is yours" by overriding, calling
 **A model with no policy of its own** is asked through a ``ModelPolicy``,
 made by the registry from the model's permissions alone.
 
-**An action nobody wrote a hook for is refused.** Asking a policy about an
-action it has no hook for raises, rather than answering yes or no: either
-answer would be a guess, and the caller is a developer who misspelled
-something.
+**An action nobody wrote a hook for is decided by its permission** and its
+scope, as the standard four are: ``print_invoice`` needs
+``shop.order_print_invoice``, and the object within its scope. Its permission
+is made on ``migrate`` when a view asks for it (``clearance.actions``), and
+held by nobody until given - so a misspelled action is refused to everybody,
+and shows in the admin site under the name it was misspelled with. A name
+that could never be a permission - ``Approve!`` - raises instead.
 """
 
 from collections.abc import Callable, Mapping
@@ -108,16 +111,26 @@ class BasePolicy:
             raise PermissionDenied
 
     def hook(self, action: str) -> Hook:
-        """The hook that decides ``action``: ``approve`` -> ``can_approve``."""
-        name = f'{self.hook_prefix}{action}'
-        method = getattr(self, name, None)
+        """
+        The hook that decides ``action``: ``can_approve`` for ``approve`` when
+        the policy has one, and otherwise the action's permission within its
+        scope.
+        """
+        method = getattr(self, f'{self.hook_prefix}{action}', None)
 
-        if not callable(method):
+        if callable(method):
+            return cast(Hook, method)
+
+        if not permissions.is_action_name(action):
             raise ImproperlyConfigured(
-                f'{type(self).__name__} has no {name}() to decide {action!r} with.'
+                f'{type(self).__name__} cannot decide {action!r}: an action is lowercase words '
+                f"joined by underscores, and is the end of a permission's name."
             )
 
-        return cast(Hook, method)
+        def by_permission(user: User, obj: object | None = None) -> bool:
+            return self.has_within_scope(user, action, obj)
+
+        return by_permission
 
     def permission_for(self, action: str) -> str:
         """The permission ``action`` requires: ``shop.change_order``, ``loans.loan_approve``."""

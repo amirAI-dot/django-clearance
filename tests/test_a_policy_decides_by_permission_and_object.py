@@ -158,11 +158,18 @@ def test_authorize_lets_through_whoever_is_allowed(policy: LoanPolicy, make_user
     policy.authorize(make_user('lending.loan_approve'), 'approve')
 
 
-def test_an_action_with_no_hook_is_an_error_not_an_answer(
+def test_an_action_with_no_hook_is_decided_by_its_permission(
     policy: LoanPolicy, make_user: MakeUser
 ) -> None:
-    with pytest.raises(ImproperlyConfigured, match='can_aprove'):
-        policy.allows(make_user(superuser=True), 'aprove')
+    assert not policy.allows(make_user(), 'export'), 'held by nobody until given'
+    assert policy.allows(make_user('lending.loan_export'), 'export')
+
+
+def test_a_name_that_could_never_be_an_action_is_an_error_not_an_answer(
+    policy: LoanPolicy, make_user: MakeUser
+) -> None:
+    with pytest.raises(ImproperlyConfigured, match="cannot decide 'Approve!'"):
+        policy.allows(make_user(superuser=True), 'Approve!')
 
 
 class PlainLoanPolicy(BasePolicy):
