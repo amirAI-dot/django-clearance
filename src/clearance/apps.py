@@ -33,4 +33,10 @@ class ClearanceConfig(AppConfig):
             for check in API_CHECKS:
                 register(check, 'clearance')
 
+        if apps.is_installed('django.contrib.admin'):
+            from clearance.admin.checks import CHECKS as ADMIN_CHECKS  # the admin is optional
+
+            for check in ADMIN_CHECKS:
+                register(check, 'clearance')
+
         post_migrate.connect(make_permissions_after_migrate, sender=self)

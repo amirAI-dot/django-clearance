@@ -1,0 +1,43 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_bundles' %}">{% translate 'Bundles' %}</a> &rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if errors %}<ul class="errorlist">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+
+  <form method="post">{% csrf_token %}
+    <p><label for="clearance-name">{% translate 'Name' %}</label>
+       <input id="clearance-name" type="text" name="name" value="{{ name }}" maxlength="150" required></p>
+
+    <table class="clearance-grid">
+      <thead>
+        <tr><th>{% translate 'Model' %}</th>{% for column in grid.columns %}<th>{{ column }}</th>{% endfor %}<th>{% translate 'Other permissions' %}</th></tr>
+      </thead>
+      <tbody>
+      {% for row in grid.rows %}
+        <tr>
+          <th scope="row">{{ row.label }}</th>
+          {% for cell in row.columns %}
+            <td>{% if cell %}{% include "clearance/admin/cell.html" %}{% endif %}</td>
+          {% endfor %}
+          <td>{% for cell in row.others %}<div class="clearance-other">{% include "clearance/admin/cell.html" with labelled=True %}</div>{% endfor %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if bundle and may_edit or not bundle and may_create %}
+    <div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}">
+      {% if bundle and may_delete %}<a class="deletelink" href="{% url 'admin:clearance_bundle_delete' bundle.pk %}">{% translate 'Delete' %}</a>{% endif %}
+    </div>
+    {% endif %}
+  </form>
+
+  {% if bundle %}
+  <h2>{% translate 'Held by' %}</h2>
+  <ul>{% for person in holders %}<li><a href="{% url 'admin:clearance_person' person.pk %}">{{ person }}</a></li>{% empty %}<li>{% translate 'Nobody holds it.' %}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endblock %}

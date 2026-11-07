@@ -1,0 +1,22 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'Bundles' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if may_create %}
+  <ul class="object-tools"><li><a class="addlink" href="{% url 'admin:clearance_bundle_add' %}">{% translate 'Add a bundle' %}</a></li></ul>
+  {% endif %}
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Bundle' %}</th><th>{% translate 'Permissions' %}</th><th>{% translate 'People' %}</th></tr></thead>
+    <tbody>
+    {% for bundle in bundles %}
+      <tr><td><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a></td><td>{{ bundle.held }}</td><td>{{ bundle.people }}</td></tr>
+    {% empty %}
+      <tr><td colspan="3">{% translate 'There are no bundles yet.' %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

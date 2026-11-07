@@ -1,0 +1,60 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_people' %}">{% translate 'People' %}</a> &rsaquo; {{ person }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if standing.superuser %}<p class="clearance-note">{% translate 'A superuser holds every permission and reaches every row, whatever is given here.' %}</p>{% endif %}
+
+  <h2>{% translate 'Bundles' %}</h2>
+  <ul>
+  {% for bundle in standing.bundles %}
+    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a>
+      {% if may_edit %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="take"><input type="hidden" name="bundle" value="{{ bundle.pk }}"><input type="submit" value="{% translate 'Take back' %}"></form>{% endif %}</li>
+  {% empty %}<li>{% translate 'No bundles.' %}</li>{% endfor %}
+  </ul>
+  {% if may_edit and other_bundles %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="do" value="give">
+    <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle.name }}</option>{% endfor %}</select>
+    <input type="submit" value="{% translate 'Give' %}"></form>
+  {% endif %}
+
+  <h2>{% translate 'Their own grants' %}</h2>
+  <table class="clearance-list"><tbody>
+  {% for permission, scope in standing.direct %}
+    <tr><td>{{ permission.name }}</td><td>{{ scope|default_if_none:_("the model's default") }}</td></tr>
+  {% empty %}<tr><td>{% translate 'None.' %}</td></tr>{% endfor %}
+  </tbody></table>
+
+  <h2>{% translate 'Taken away' %}</h2>
+  <table class="clearance-list"><tbody>
+  {% for revocation in standing.revocations %}
+    <tr><td>{{ revocation.permission.name }}</td><td>{{ revocation.reason }}</td>
+      <td>{% if may_edit %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="restore"><input type="hidden" name="permission" value="{{ revocation.permission.content_type.app_label }}.{{ revocation.permission.codename }}"><input type="submit" value="{% translate 'Give back' %}"></form>{% endif %}</td></tr>
+  {% empty %}<tr><td>{% translate 'Nothing.' %}</td></tr>{% endfor %}
+  </tbody></table>
+
+  {% if may_edit %}
+  <h2>{% translate 'Give or take away one permission' %}</h2>
+  <form method="post">{% csrf_token %}
+    <select name="permission" aria-label="{% translate 'Permission' %}">{% for name in all_permissions %}<option>{{ name }}</option>{% endfor %}</select>
+    <input type="text" name="scope" placeholder="{% translate 'scope' %}" aria-label="{% translate 'Scope' %}">
+    <input type="text" name="reason" placeholder="{% translate 'why it is taken away' %}" aria-label="{% translate 'Reason' %}">
+    <button type="submit" name="do" value="grant">{% translate 'Give' %}</button>
+    <button type="submit" name="do" value="revoke">{% translate 'Take away' %}</button>
+  </form>
+  {% endif %}
+
+  <h2>{% translate 'What they end up allowed' %}</h2>
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Permission' %}</th><th>{% translate 'From' %}</th></tr></thead>
+    <tbody>
+    {% for held in standing.allowed %}
+      <tr><td>{{ held.permission.name }} <code>{{ held.name }}</code></td>
+        <td>{% for source in held.sources %}<div>{% if source.direct %}{% translate 'their own grant' %}{% else %}{{ source.bundle.name }}{% endif %} &mdash; {{ source.scope|default_if_none:_("the model's default") }}</div>{% endfor %}</td></tr>
+    {% empty %}<tr><td colspan="2">{% translate 'Nothing.' %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

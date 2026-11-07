@@ -109,6 +109,33 @@ def field_names(model: type[Model]) -> tuple[str, ...]:
     return tuple(field.name for field in (*meta.fields, *meta.many_to_many))
 
 
+def path_readable(user: User, model: type[Model], path: str) -> bool:
+    """
+    Whether a lookup - ``region``, ``applicant__region``, ``-amount`` - reads
+    only fields ``user`` may read. Searching, filtering or ordering by a field
+    tells somebody what it holds as surely as showing it.
+    """
+    current = model
+
+    for name in path.lstrip('-^=@').split('__'):
+        try:
+            field = current._meta.get_field(name)
+        except FieldDoesNotExist:
+            return True  # a lookup such as icontains: nothing further is read
+
+        if protection_of(user).protects(current, name) and name not in readable_fields(
+            user, current
+        ):
+            return False
+
+        if field.related_model is None:
+            return True
+
+        current = field.related_model
+
+    return True
+
+
 def field_permissions(model: type[Model], name: str) -> dict[str, str]:
     """``{'view': ..., 'edit': ...}`` - the two permissions of ``model.name``."""
     return {action: field_permission(model, name, action) for action in FIELD_ACTIONS}
