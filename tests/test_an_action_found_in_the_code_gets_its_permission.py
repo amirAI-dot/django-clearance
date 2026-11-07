@@ -36,7 +36,12 @@ from tests.project.lending.policies import LoanPolicy, loan_access
 
 pytestmark = pytest.mark.django_db
 
-FOUND = {'lending.statement_print', 'lending.loan_export'}
+FOUND = {
+    'lending.statement_print',
+    'lending.loan_export',
+    'lending.loan_remind',
+    'lending.loan_report',
+}
 
 
 class LedgerPolicy(BasePolicy):
@@ -91,6 +96,7 @@ def test_each_action_is_found_once_with_where_it_was_found() -> None:
     found = find_actions([Twice()])
 
     assert sorted(action.origin for action in found) == [
+        'nowhere',  # kept, to be reported: E013
         'tests.project.lending.views.StatementPrintView',
         'tests.project.lending.views.export',
     ]
@@ -117,7 +123,7 @@ def test_making_them_again_makes_nothing_new() -> None:
 
 
 def test_what_migrate_made_is_announced(capsys: pytest.CaptureFixture[str]) -> None:
-    Permission.objects.filter(codename__in=['statement_print', 'loan_export']).delete()
+    Permission.objects.filter(codename__in=[name.partition('.')[2] for name in FOUND]).delete()
     caught: list[dict[str, Any]] = []
 
     def receiver(**kwargs: Any) -> None:

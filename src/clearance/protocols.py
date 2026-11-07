@@ -28,11 +28,11 @@ class User(Protocol):
     def has_perm(self, perm: str, obj: object | None = None) -> bool: ...
 
 
-def user_of(request: HttpRequest) -> User:
+def user_of(request: HttpRequest | object) -> User:
     """
-    The person a request carries, as the library sees them.
+    The person a request carries - Django's or DRF's - as the library sees them.
 
     Django types ``request.user`` as its own base classes, which promise less
     than every real user has; this is the one place that says so.
     """
-    return cast(User, request.user)
+    return cast(User, getattr(request, 'user'))  # noqa: B009

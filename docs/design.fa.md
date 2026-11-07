@@ -184,6 +184,7 @@ src/clearance/
     rules.py               a ScopeRule's conditions, checked and turned into a Q
     actions.py             status actions, and writable_values()
     discovery.py           the actions found in the code, and their permissions on migrate
+    writes.py              refused_writes() - what a person may not write, of what they sent
     services.py            AccessService: every change, under the safety rules, with signals
     safety.py              the safety rules
     declared.py            the ACCESS file: read, compared with the database, applied
@@ -201,10 +202,11 @@ src/clearance/
     locale/fa/LC_MESSAGES/
 
     drf/                   pip install django-clearance[drf]
-        permissions.py     PolicyPermission, ModelPolicyPermission
-        viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet
+        permissions.py     PolicyPermission, ModelPolicyPermission - writes guarded
+        viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet, ProtectedSerializerMixin
         serializers.py     ProtectedFieldsSerializerMixin
-        checks.py
+        discovery.py       APIViewFinder - @actions and policy_action
+        checks.py          E003, E009
 
     roles/                 INSTALLED_APPS += ['clearance.roles']
         models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
@@ -342,8 +344,11 @@ class OrderReport(APIView):
         ...
 ```
 
-`ScopedModelViewSet` فقط همان `ScopedQuerySetMixin` روی یک `ModelViewSet` است،
-که چون رایج‌ترین ترکیب است نگه داشته شده.
+`ScopedModelViewSet` یک `ModelViewSet` است با سه چیز اضافه، که هر کدام جداگانه
+روی هر ویوی دیگر DRF هم کار می‌کند: `ScopedQuerySetMixin`،
+`ModelPolicyPermission`، و `ProtectedSerializerMixin`، که به serializer ویو
+`ProtectedFieldsSerializerMixin` را می‌دهد، چه برایش نوشته شده باشد چه نه.
+`ScopedReadOnlyViewSet` همین است روی یک `ReadOnlyModelViewSet`.
 
 ### ۵.۵ اکشن‌هایی که در کد پیدا می‌شوند
 
@@ -493,7 +498,7 @@ python manage.py clearance_sync              # apply, and say what changed
 ذخیره کردنش مجوز `shop.order_approve` را می‌سازد. کسی که آن را ندارد نمی‌تواند
 آن مقدارها را بنویسد: فرم گزینه‌ها را بدون آن‌ها نشان می‌دهد و اگر باز هم یکی
 فرستاده شود، رد می‌کند و اسم فیلد را می‌گوید؛ پنل ادمین هم همین‌طور (مرحله‌ی ۸)،
-و یک API آن‌ها را رد می‌کند و اسم فیلد و مقدار را می‌گوید (مرحله‌ی ۷). اکشن وضعیت
+و یک API آن‌ها را رد می‌کند و اسم فیلد و مقدار را می‌گوید. اکشن وضعیت
 هم مثل هر مجوز دیگری scope می‌گیرد - «تأیید، در شعبه‌ی خودش» - و همراه با ردیف از
 policy مدل پرسیده می‌شود، پس hookی مثل «هرگز وام خودش» هم برقرار می‌ماند. چند
 اکشن می‌توانند یک فیلد مشترک داشته باشند، و مقداری که هیچ اکشنی ادعایش نکرده، با
@@ -535,7 +540,7 @@ permissions = build_permissions(
 
 | در کد | تبدیل می‌شود به |
 |---|---|
-| یک `@action` در DRF روی ویوستِ یک مدل (مرحله‌ی ۷) | `<codename>_<action>` |
+| یک `@action` در DRF روی ویوستی که از یک policy می‌پرسد | `<codename>_<action>` |
 | `policy_action = '...'` روی یک `APIView` یا یک ویوی جنگو | همان |
 | `@policy_required(policy, '...')` روی یک ویوی تابعی | همان |
 | یک مورد در `actions` یک `ModelAdmin` (مرحله‌ی ۸) | همان، و آن اکشن ادمین فقط به کسی که آن را دارد نشان داده می‌شود |
@@ -662,7 +667,7 @@ querysetی انجام می‌دهد.
 | یک فرم جنگو | `ProtectedFieldsFormMixin` چیزی را که نمی‌شود خواند حذف می‌کند، و چیزی را که نمی‌شود نوشت غیرفعال نشان می‌دهد - بعد جنگو مقداری را که ردیف دارد نگه می‌دارد، هر چه فرستاده شود |
 | یک ویوی جنگو | `ProtectedFieldsViewMixin` فرم را همین‌طور می‌سازد، و `readable_fields` و `writable_fields` را به تمپلیت می‌دهد |
 | پنل ادمین | هر `ModelAdmin`، بدون mixin: hookهای ادمین کتابخانه پنهان و قفل می‌کنند (مرحله‌ی ۸) |
-| یک serializer در DRF | `ProtectedFieldsSerializerMixin`، و روی هر serializerی `ModelPolicyPermission` نگهبانی می‌کند |
+| یک serializer در DRF | `ProtectedFieldsSerializerMixin` حذف می‌کند، قفل می‌کند و رد می‌کند؛ و روی هر serializerی، `ModelPolicyPermission` و `PolicyPermission` چیزی را که نوشتنش مجاز نیست رد می‌کنند |
 | یک تمپلیت | `{% if perms.shop.view_order_price %}` |
 | کد | `readable_fields(user, Order)`، `writable_fields(user, Order)` |
 
@@ -744,14 +749,29 @@ querysetی انجام می‌دهد.
 
 ### ۱۳.۱ DRF
 
-`ModelPolicyPermission` مدل ویو را پیدا می‌کند - از `queryset`، یا
-`get_queryset()` - و از policy همان مدل می‌پرسد. `PolicyPermission` از یک policy
-مشخص می‌پرسد، برای ویویی که مدل ندارد. هر دو این‌ها را به hookها می‌رسانند:
-`list`/`retrieve` به `can_list`/`can_view`، `create` به `can_create`،
-`update`/`partial_update` به `can_edit`، `destroy` به `can_delete`، یک
-`@action` به مجوزی که برایش پیدا شده یا به `custom_actions` در policy، و یک
-`APIView` بر اساس متد HTTP - که `policy_action` می‌تواند اکشن دیگری را نام ببرد.
-سطح شیء هم همین جدول است، با خود شیء.
+`ModelPolicyPermission` مدل ویو را پیدا می‌کند - از `queryset`، یا از
+`get_queryset()`ای که برای خود ویو نوشته شده - و از policy همان مدل می‌پرسد.
+`PolicyPermission` از policyای می‌پرسد که ویو در `policy` نام برده، برای ویویی
+که مدل ندارد. هر دو این‌ها را به hookها می‌رسانند: `list`/`retrieve` به
+`can_list`/`can_view`، `create` به `can_create`، `update`/`partial_update` به
+`can_edit`، `destroy` به `can_delete`، یک `@action` به مجوزی که برایش پیدا شده
+یا به `custom_actions` در policy، و یک `APIView` بر اساس متد HTTP - که
+`policy_action` می‌تواند اکشن دیگری را نام ببرد؛ متدی که به هیچ اکشنی نمی‌رسد رد
+می‌شود. سطح شیء هم همین جدول است، با خود شیء.
+
+**روی هر serializerی، نوشتن نگهبانی می‌شود.** قبل از اینکه serializer اجرا شود،
+یک `create` یا `edit` که مقداری می‌فرستد که شخص اجازه‌ی نوشتنش را ندارد - یک فیلد
+محافظت‌شده، یا مقداری که یک اکشن وضعیت ادعایش کرده - با 400 رد می‌شود و اسم فیلد
+گفته می‌شود؛ پس serializerی که بدون این کتابخانه نوشته شده نمی‌تواند چیزی را که
+نباید، بنویسد. `ProtectedFieldsSerializerMixin` هم به تنهایی همین‌طور رد می‌کند،
+برای serializerی که بیرون از چنین ویویی به کار می‌رود؛ شخص را از request، یا از
+`context['user']`، می‌خواند، و اگر هیچ‌کدام نباشد ساخته نمی‌شود.
+
+برای خواندن چنین پشتوانه‌ای نیست - یک permission class نمی‌تواند جواب را تغییر
+دهد - پس E003 موقع راه‌اندازی، ویویی را که از policy یک مدل می‌پرسد و serializerش
+همه‌ی فیلدها را نشان می‌دهد، رد می‌کند. این برای همه‌ی مدل‌ها برقرار است، نه فقط
+مدلی که امروز فیلد محافظت‌شده دارد: فیلدی که فردا در پنل ادمین محافظت شود، وگرنه
+با serializerی که هیچ‌کس تغییرش نداده نشان داده می‌شد.
 
 ### ۱۳.۲ ویوهای جنگو
 
@@ -833,11 +853,11 @@ querysetی انجام می‌دهد.
 |---|---|
 | `clearance.E001` | `ACCESS` قابل خواندن نیست، یا مجوز، scope یا فیلدی را نام برده که وجود ندارد |
 | `clearance.E002` | `scopes` یک `ScopedQuerySet` با متدهای `scope_<x>` آن نمی‌خواند، یا `default_scope` آن ارائه نشده |
-| `clearance.E003` | یک ویوست DRF که با policy محافظت شده، `@action`ای دارد که مجوزی ندارد |
+| `clearance.E003` | یک ویوی DRF که از policy یک مدل می‌پرسد، مدل را بدون حذف فیلدهای محافظت‌شده‌اش serialize می‌کند |
 | `clearance.E006` | `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست |
 | `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` است - همه‌ی سلب‌ها را برمی‌گرداند |
 | `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده |
-| `clearance.E009` | یک ویوی `PolicyRequiredMixin` نمی‌تواند از هیچ policyای بپرسد |
+| `clearance.E009` | یک ویوی `PolicyRequiredMixin`، یا یک ویوی DRF که با policy محافظت شده، نمی‌تواند از هیچ policyای بپرسد |
 | `clearance.E010` | `ROLE_RESOLVER` یا `ROLE_ATTRIBUTE` قابل استفاده نیست |
 | `clearance.E011` | `CLEARANCE` دیکشنری نیست، کلیدی دارد که کتابخانه نمی‌شناسد، یا مقداری که نمی‌تواند به کار ببرد - `RULE_DEPTH` کمتر از یک |
 | `clearance.E012` | فیلدی که در کد محافظت‌شده تعریف شده، فیلدی از مدلش نیست، یا نمی‌تواند محافظت شود - کلید اصلی، رمز عبور، رابطه‌ی یک مدل دیگر |
@@ -1003,3 +1023,9 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 40. **مقدار یک اکشن وضعیت را فقط کسی آزاد می‌کند، یا خود اکشن را حذف می‌کند، که آن
     را روی همه‌ی ردیف‌ها دارد**؛ هیچ‌کس جایی را که اکشنی که خودش دارد از آن
     می‌نویسد بازتر نمی‌کند.
+41. **روی هر serializer در DRF، نوشتن نگهبانی می‌شود** - توسط permission class،
+    با 400 و اسم فیلد.
+42. **ویوی DRF که از policy یک مدل می‌پرسد serializerش را محافظت می‌کند** (E003)،
+    برای همه‌ی مدل‌ها - فیلدی می‌تواند بعداً در پنل ادمین محافظت شود.
+43. **`custom_actions` هر جا که از یک policy پرسیده شود خوانده می‌شود**، نه فقط در
+    DRF؛ اکشنی که آن را نگاشت می‌کند مال hook است، و برایش مجوزی ساخته نمی‌شود.
