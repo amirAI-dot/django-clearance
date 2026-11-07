@@ -8,9 +8,14 @@ particular user model to ask it - only these three things. Django's own
 request can carry, signed in or not.
 """
 
-from typing import Protocol, cast
+from typing import Any, Protocol, TypeAlias, cast
 
 from django.http import HttpRequest
+
+#: A row of the project's own user model, whatever it is. The library cannot
+#: name it - it is the project's ``AUTH_USER_MODEL`` - so a person stored and
+#: queried by the library is typed as this.
+UserModel: TypeAlias = Any
 
 
 class User(Protocol):

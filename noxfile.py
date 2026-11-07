@@ -61,4 +61,15 @@ def types(session: nox.Session) -> None:
 def tests(session: nox.Session, django: str) -> None:
     """The suite, against one Python and one Django release."""
     session.install('-e', '.', '--group', 'test', django_release(django))
+    # The library ships migrations: one forgotten is a release that cannot migrate.
+    session.run(
+        'python',
+        '-m',
+        'django',
+        'makemigrations',
+        '--check',
+        '--dry-run',
+        '--settings=tests.project.settings',
+        env={'PYTHONPATH': '.'},
+    )
     session.run('pytest', '--cov', '--cov-report=term', *session.posargs)

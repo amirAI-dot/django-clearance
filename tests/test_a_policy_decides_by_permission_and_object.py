@@ -125,8 +125,8 @@ def test_an_overridden_hook_still_requires_the_permission(
 
 
 def test_a_hook_judges_the_object_it_is_handed(policy: LoanPolicy, make_user: MakeUser) -> None:
-    applicant = make_user('lending.loan_view')
-    other = make_user('lending.loan_view')
+    applicant = make_user(('lending.loan_view', 'all'))
+    other = make_user(('lending.loan_view', 'all'))
     loan = loan_for(applicant)
 
     assert policy.allows(applicant, 'view', loan)
@@ -165,15 +165,30 @@ def test_an_action_with_no_hook_is_an_error_not_an_answer(
         policy.allows(make_user(superuser=True), 'aprove')
 
 
-def test_a_policy_asks_about_roles_and_reach_through_the_resolvers(
-    policy: LoanPolicy, make_user: MakeUser
-) -> None:
-    admin = make_user(role='admin')
+class PlainLoanPolicy(BasePolicy):
+    """Loans, with nothing but the standard hooks."""
 
-    assert policy.has_role(admin, 'officer', 'admin')
-    assert not policy.has_role(admin, 'officer')
-    assert policy.reaches_every_row(admin)
-    assert not policy.reaches_every_row(make_user(role='officer'))
+    model = Loan
+
+
+def test_a_hook_never_allows_an_object_outside_the_persons_scope(make_user: MakeUser) -> None:
+    policy = PlainLoanPolicy()
+    editor = make_user(('lending.loan_edit', 'own'))
+    own, other = loan_for(editor), loan_for(make_user())
+
+    assert policy.allows(editor, 'edit', own)
+    assert not policy.allows(editor, 'edit', other), 'held, but not in their scope'
+    assert policy.allows(editor, 'edit'), 'with no object, the permission alone decides'
+
+
+def test_an_object_of_a_model_with_no_scopes_needs_the_permission_alone(
+    make_user: MakeUser,
+) -> None:
+    policy = PlainLoanPolicy()
+    person = make_user()
+
+    assert policy.within_scope(person, 'edit', person), 'a person is not a scoped model'
+    assert policy.within_scope(person, 'edit', 'not a model at all')
 
 
 # ---------------------------------------------------------------- reference data

@@ -10,14 +10,19 @@ Registering is what turns a policy class into something a view can use::
 The registry refuses a second policy for the same resource. Two policies
 claiming one codename is almost always a copy and paste, and the second
 would silently decide in the first one's place.
+
+``policy_for(model)`` is how the library asks about a model: the policy
+registered for it, or - for every model nobody wrote one for - a
+``ModelPolicy`` made from its permissions, once.
 """
 
 from collections.abc import Iterator
 from typing import Any, Generic, TypeVar
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Model
 
-from clearance.policies import BasePolicy
+from clearance.policies import BasePolicy, ModelPolicy
 
 PolicyT = TypeVar('PolicyT', bound=BasePolicy)
 
@@ -47,6 +52,7 @@ class PermissionRegistry:
 
     def __init__(self) -> None:
         self._resources: dict[str, ResourcePermission[Any]] = {}
+        self._defaults: dict[type[Model], ModelPolicy] = {}
 
     def register(self, policy_class: type[PolicyT]) -> ResourcePermission[PolicyT]:
         """
@@ -69,6 +75,19 @@ class PermissionRegistry:
 
     def get(self, app_label: str, codename: str) -> ResourcePermission[Any] | None:
         return self._resources.get(f'{app_label}.{codename}')
+
+    def policy_for(self, model: type[Model]) -> BasePolicy:
+        """The policy registered for ``model``, or the model's own ``ModelPolicy``."""
+        for resource in self._resources.values():
+            policy: BasePolicy = resource.policy
+
+            if policy.model is model:
+                return policy
+
+        if model not in self._defaults:
+            self._defaults[model] = ModelPolicy.for_model(model)
+
+        return self._defaults[model]
 
     def __contains__(self, key: object) -> bool:
         return key in self._resources

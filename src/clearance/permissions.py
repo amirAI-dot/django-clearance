@@ -14,6 +14,11 @@ synchronised::
 which would otherwise sit beside these as a second answer to the same
 question - one that no policy ever asks.
 
+**A model that declares nothing keeps Django's own permissions** -
+``view_order``, ``add_order``, ``change_order``, ``delete_order`` - and
+``permission_for`` answers in that style for it, so nothing anywhere spells a
+permission's name by hand.
+
 **The name written to the database is always English.** ``migrate`` stores it
 in ``auth_permission.name`` once. A resource name marked for translation
 would otherwise be resolved in whatever language was active when the model
@@ -29,6 +34,7 @@ from types import MappingProxyType
 from typing import Final
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Model
 from django.utils import translation
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
@@ -153,3 +159,29 @@ def build_permissions(
     its own - ``{'approve': _('Can approve or decline %(resource)s')}``.
     """
     return PermissionSet(codename, resource, actions=actions, labels=labels).entries()
+
+
+#: Django's own verb for each of the four actions every model has.
+DJANGO_VERBS: Final[Mapping[str, str]] = MappingProxyType(
+    {'view': 'view', 'create': 'add', 'edit': 'change', 'delete': 'delete'}
+)
+
+
+def permission_for(model: type[Model] | Model, action: str, *, codename: str | None = None) -> str:
+    """
+    The permission ``action`` on ``model`` needs, as ``app_label.codename``.
+
+    A model keeping Django's permissions answers in Django's style -
+    ``shop.change_order`` for ``edit``; a model that declares its own answers
+    in the library's - ``shop.order_edit``. Listing is viewing. An action
+    beyond the four is ``<codename>_<action>`` either way. ``codename`` names
+    the resource when it is not the model's own name.
+    """
+    meta = model._meta
+    action = 'view' if action == 'list' else action
+    verb = DJANGO_VERBS.get(action)
+
+    if verb is not None and verb in meta.default_permissions:
+        return f'{meta.app_label}.{verb}_{meta.model_name}'
+
+    return f'{meta.app_label}.{codename or meta.model_name}_{action}'

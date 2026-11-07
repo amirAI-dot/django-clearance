@@ -101,7 +101,9 @@ def test_a_label_for_an_action_not_declared_is_refused() -> None:
 @pytest.mark.django_db
 def test_migrate_creates_exactly_the_declared_permissions() -> None:
     stored = dict(
-        Permission.objects.filter(content_type__app_label='lending').values_list('codename', 'name')
+        Permission.objects.filter(
+            content_type__app_label='lending', content_type__model='loan'
+        ).values_list('codename', 'name')
     )
 
     assert stored == {
@@ -112,3 +114,14 @@ def test_migrate_creates_exactly_the_declared_permissions() -> None:
         'loan_approve': 'Can approve or decline loans',
         'loan_look_up': 'Can look up loans',
     }
+
+
+@pytest.mark.django_db
+def test_a_model_that_declares_nothing_keeps_djangos_own_four() -> None:
+    stored = set(
+        Permission.objects.filter(
+            content_type__app_label='lending', content_type__model='payment'
+        ).values_list('codename', flat=True)
+    )
+
+    assert stored == {'view_payment', 'add_payment', 'change_payment', 'delete_payment'}

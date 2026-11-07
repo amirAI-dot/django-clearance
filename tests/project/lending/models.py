@@ -3,6 +3,8 @@ A small lending app, the resource the suite guards.
 
 Loans are applied for by customers and approved by officers - enough to give
 a policy something to decide about, with an action beyond the standard four.
+A loan declares its own permissions (``loan_view``); a payment keeps
+Django's (``view_payment``), so the suite holds both styles.
 """
 
 from django.conf import settings
@@ -10,7 +12,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from clearance.permissions import DEFAULT_ACTIONS, build_permissions
-from tests.project.lending.querysets import LoanQuerySet
+from tests.project.lending.querysets import LoanQuerySet, PaymentQuerySet
 
 
 class Loan(models.Model):
@@ -40,3 +42,13 @@ class Loan(models.Model):
 
     def __str__(self) -> str:
         return f'Loan {self.pk} for {self.amount}'
+
+
+class Payment(models.Model):
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name='payments')
+    amount = models.PositiveIntegerField()
+
+    objects = PaymentQuerySet.as_manager()
+
+    def __str__(self) -> str:
+        return f'Payment {self.pk} of {self.amount}'
