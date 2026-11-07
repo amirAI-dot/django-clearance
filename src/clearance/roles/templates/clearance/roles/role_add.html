@@ -1,0 +1,16 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_roles' %}">{% translate 'Roles' %}</a> &rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if errors %}<ul class="errorlist">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+  <p>{% translate 'A new role may hold nothing until its ceiling is set.' %}</p>
+  <form method="post">{% csrf_token %}
+    <p><label for="clearance-code">{% translate 'Code' %}</label> <input id="clearance-code" type="text" name="code" value="{{ code }}" maxlength="64" required></p>
+    <p><label for="clearance-name">{% translate 'Name' %}</label> <input id="clearance-name" type="text" name="name" value="{{ name }}" maxlength="160"></p>
+    {% if may_create %}<div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}"></div>{% endif %}
+  </form>
+</div>
+{% endblock %}

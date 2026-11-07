@@ -8,6 +8,7 @@ safety rules as the code. A refusal is shown on the page, saying which rule;
 nothing here decides anything the service does not.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any
 
 from django.contrib import messages
@@ -33,11 +34,97 @@ from clearance.services import AccessService
 PEOPLE_PER_PAGE = 50
 
 
-class AccessPages:
-    """The pages, mounted by ``ClearanceAdminSite`` under ``access/``."""
+class PageSet(ABC):
+    """
+    A set of access pages, mounted by ``ClearanceAdminSite`` under ``access/``
+    and listed on the admin index. A layer above the core - ``clearance.roles``
+    - adds its own with ``ClearanceAdminSite.add_pages``.
+    """
+
+    #: Where the pages' templates are: ``<template_dir>/<page>.html``.
+    template_dir = 'clearance/admin'
 
     def __init__(self, site: AdminSite) -> None:
         self.site = site
+
+    @abstractmethod
+    def get_urls(self) -> list[URLPattern]:
+        """The pages, each named for ``reverse``."""
+
+    def menu(self, request: HttpRequest) -> list[dict[str, Any]]:
+        """The entries these pages add to the admin index, for ``request``'s person."""
+        return []
+
+    # ------------------------------------------------------------------ helpers
+
+    def require(self, request: HttpRequest, change: str) -> None:
+        """403 unless the person may ``change`` access - ``view`` to look at it."""
+        try:
+            SafetyRules(user_of(request)).require_may(change)
+        except AccessRefused as error:
+            raise PermissionDenied(str(error)) from None
+
+    def may(self, request: HttpRequest, change: str) -> bool:
+        try:
+            self.require(request, change)
+        except PermissionDenied:
+            return False
+        return True
+
+    def render(
+        self, request: HttpRequest, template: str, title: str, **context: Any
+    ) -> HttpResponse:
+        request.current_app = self.site.name  # as Django's own admin views say which site
+        return TemplateResponse(
+            request,
+            f'{self.template_dir}/{template}.html',
+            {
+                **self.site.each_context(request),
+                'title': title,
+                'may_create': self.may(request, 'create'),
+                'may_edit': self.may(request, 'edit'),
+                'may_delete': self.may(request, 'delete'),
+                **context,
+            },
+        )
+
+    def redirect(self, name: str, *args: Any) -> HttpResponseRedirect:
+        return HttpResponseRedirect(self.url(name, *args))
+
+    def url(self, name: str, *args: Any) -> str:
+        return reverse(f'{self.site.name}:{name}', args=args, current_app=self.site.name)
+
+
+class AccessPages(PageSet):
+    """The overview, the bundles, the people and the permissions."""
+
+    def menu(self, request: HttpRequest) -> list[dict[str, Any]]:
+        view_only = not self.may(request, 'edit')
+        return [
+            {
+                'name': _('Bundles'),
+                'object_name': 'Bundle',
+                'admin_url': self.url('clearance_bundles'),
+                'add_url': self.url('clearance_bundle_add')
+                if self.may(request, 'create')
+                else None,
+                'view_only': view_only,
+            },
+            {
+                'name': _('People'),
+                'object_name': 'Person',
+                'admin_url': self.url('clearance_people'),
+                'add_url': None,
+                'view_only': view_only,
+            },
+            {
+                'name': _('Permissions'),
+                'object_name': 'Permission',
+                'admin_url': self.url('clearance_permissions'),
+                'add_url': None,
+                'view_only': True,
+            },
+        ]
 
     def get_urls(self) -> list[URLPattern]:
         wrap = self.site.admin_view
@@ -202,44 +289,6 @@ class AccessPages:
 
         return self.render(
             request, 'permissions', _('Permissions'), permissions=permissions, nobody=nobody
-        )
-
-    # ------------------------------------------------------------------ helpers
-
-    def require(self, request: HttpRequest, change: str) -> None:
-        """403 unless the person may ``change`` access - ``view`` to look at it."""
-        try:
-            SafetyRules(user_of(request)).require_may(change)
-        except AccessRefused as error:
-            raise PermissionDenied(str(error)) from None
-
-    def may(self, request: HttpRequest, change: str) -> bool:
-        try:
-            self.require(request, change)
-        except PermissionDenied:
-            return False
-        return True
-
-    def render(
-        self, request: HttpRequest, template: str, title: str, **context: Any
-    ) -> HttpResponse:
-        request.current_app = self.site.name  # as Django's own admin views say which site
-        return TemplateResponse(
-            request,
-            f'clearance/admin/{template}.html',
-            {
-                **self.site.each_context(request),
-                'title': title,
-                'may_create': self.may(request, 'create'),
-                'may_edit': self.may(request, 'edit'),
-                'may_delete': self.may(request, 'delete'),
-                **context,
-            },
-        )
-
-    def redirect(self, name: str, *args: Any) -> HttpResponseRedirect:
-        return HttpResponseRedirect(
-            reverse(f'{self.site.name}:{name}', args=args, current_app=self.site.name)
         )
 
     def _change_person(self, request: HttpRequest, person: Any) -> None:

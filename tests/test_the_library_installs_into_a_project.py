@@ -6,6 +6,9 @@ was not installed, the app did not load, or the suite is not running against
 the database it claims to.
 """
 
+import os
+import subprocess
+import sys
 from importlib.metadata import version
 
 import pytest
@@ -40,3 +43,30 @@ def test_the_suite_runs_on_the_database_it_was_asked_for() -> None:
         cursor.execute('SELECT 1')
 
     assert connection.vendor == expected
+
+
+def test_the_librarys_migrations_hold_whatever_primary_key_a_project_defaults_to() -> None:
+    """
+    A project left on Django's default ``AutoField`` must find nothing to
+    migrate in the library's apps - or every such project would be told to
+    make a migration for a library it does not own.
+    """
+    done = subprocess.run(
+        [
+            sys.executable,
+            '-m',
+            'django',
+            'makemigrations',
+            'clearance',
+            'clearance_roles',
+            '--check',
+            '--dry-run',
+            '--settings=tests.project.autofield_settings',
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, 'PYTHONPATH': '.'},
+    )
+
+    assert done.returncode == 0, done.stdout + done.stderr

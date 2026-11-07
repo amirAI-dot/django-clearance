@@ -17,9 +17,10 @@ from typing import Any, cast
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db.models import F, OuterRef, Subquery
+from django.db.models import F, OuterRef, Q, Subquery
 
 from clearance.backends import groups_lookup
+from clearance.limits import limits
 from clearance.models import PermissionRevocation, ScopeGrant
 from clearance.protocols import User, UserModel
 
@@ -89,12 +90,18 @@ def forget_grants(user: object) -> None:
 
 
 def _rows(user: UserModel) -> Any:
-    """Every grant reaching ``user``, as one query: their bundles', less revocations, and theirs."""
+    """
+    Every grant reaching ``user``, as one query: their bundles' - those they
+    were given and those they start with - less revocations, and theirs; each
+    within their ceiling.
+    """
     user_field: Any = get_user_model()._meta.get_field('user_permissions')
     by_group: Any = Group.permissions.through.objects
     by_user: Any = user_field.remote_field.through.objects
     user_column = user_field.m2m_field_name()
     revoked = PermissionRevocation.objects.filter(user=user).values('permission')
+    given = limits()
+    within = given.allowed(user, 'permission_id')
 
     def scope_of(**holder: object) -> Subquery:
         return Subquery(
@@ -104,8 +111,9 @@ def _rows(user: UserModel) -> Any:
         )
 
     through_groups = (
-        by_group.filter(**{groups_lookup(): user})
+        by_group.filter(Q(**{groups_lookup(): user}) | Q(group__in=given.starting_bundles(user)))
         .exclude(permission_id__in=revoked)
+        .filter(within)
         .annotate(
             app=F('permission__content_type__app_label'),
             code=F('permission__codename'),
@@ -115,6 +123,7 @@ def _rows(user: UserModel) -> Any:
     )
     directly = (
         by_user.filter(**{user_column: user})
+        .filter(within)
         .annotate(
             app=F('permission__content_type__app_label'),
             code=F('permission__codename'),

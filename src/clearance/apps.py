@@ -13,6 +13,10 @@ class ClearanceConfig(AppConfig):
     name = 'clearance'
     label = 'clearance'
 
+    #: The library's own tables, whatever DEFAULT_AUTO_FIELD a project sets - or its
+    #: migrations would differ from every project's models but the one that made them.
+    default_auto_field = 'django.db.models.BigAutoField'
+
     # A product name, the same in every language - so not marked for translation.
     verbose_name = 'Clearance'
 
