@@ -1,0 +1,11 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_actions' %}">{% translate 'Actions' %}</a> &rsaquo; <a href="{% url 'admin:clearance_action' row.pk %}">{{ row.name }}</a> &rsaquo; {% translate 'Delete' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <p>{% blocktranslate with name=row.name %}Deleting {{ name }} takes its permission from everybody holding it, and lets whoever may edit the row write its values.{% endblocktranslate %}</p>
+  <form method="post">{% csrf_token %}<input type="submit" value="{% translate 'Yes, delete it' %}"></form>
+</div>
+{% endblock %}

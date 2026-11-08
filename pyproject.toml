@@ -48,6 +48,7 @@ test = [
     "psycopg[binary]>=3.2",
 ]
 lint = ["ruff>=0.15"]
+browser = ["playwright>=1.55"]
 types = [
     "mypy>=1.15",
     "django-stubs>=5.2",
@@ -73,6 +74,7 @@ DJANGO_SETTINGS_MODULE = "tests.project.settings"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
+markers = ["browser: drives the pages in a real browser - run with nox -s browser"]
 xfail_strict = true
 filterwarnings = ["error"]
 

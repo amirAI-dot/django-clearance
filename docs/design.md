@@ -173,6 +173,7 @@ src/clearance/
     limits.py              what a layer above bundles adds: starting bundles, a ceiling
     rules.py               a ScopeRule's conditions, checked and turned into a Q
     actions.py             status actions, and writable_values()
+    health.py              what only the database can say is wrong - for clearance_check
     discovery.py           the actions found in the code, and their permissions on migrate
     writes.py              refused_writes() - what a person may not write, of what they sent
     services.py            AccessService: every change, under the safety rules, with signals
@@ -188,11 +189,14 @@ src/clearance/
         apps.py            ClearanceAdminConfig - the library's site as the default one
         sites.py           ClearanceAdminSite - every ModelAdmin given the hooks, the pages added
         options.py         the hooks: policies, rows, fields, values, actions
-        views.py           the access pages
+        views.py           PageSet, and the overview, bundles, people and permissions pages
+        scopes.py          the row scopes pages and the rule builder
+        protection.py      the protected fields pages
+        actions.py         the actions pages
         standing.py        Standing, PermissionGrid
         discovery.py       AdminActionFinder
         checks.py          E016
-    templates/, static/    the access pages' templates and stylesheet - no build step
+    templates/, static/    the pages' templates, stylesheet and rule builder script - no build step
     checks.py              the system checks
     signals.py             every signal the library sends
     management/commands/   clearance_sync, clearance_check
@@ -910,15 +914,39 @@ is a group, and that page wrote round every rule. An admin site that is not
 the library's is refused at start-up (E016); a project with a site of its own
 subclasses `ClearanceAdminSite`.
 
-### 14.2 In this release and the next
+### 14.2 The pages
 
-The overview, bundles, people and permissions pages come first, with every
-`ModelAdmin` asking the library. The pages for rule scopes, protected fields
-and actions come with the admin site's second part; until then those are made
-in code, through `AccessService`, and shown on the pages that exist. The
-roles pages - every role, and each one's name, ceiling, starting bundles and
-people - are mounted with `clearance.roles`, and a person's page shows their
-roles, the bundles they start with, and what their ceiling stops.
+* **Row scopes** - every scope each model offers, in code or as a rule, with
+  the grants using it, and a rule that reaches nothing marked. The rule
+  builder offers the fields a rule may read - the model's own, and one
+  relation further, never a protected field or the password - and a script
+  adds and removes conditions; without the script the page still works,
+  three conditions at a time. Every condition is checked on saving, and each
+  one wrong is named.
+* **Protected fields** - each model's fields, which are protected and how -
+  in code, or here - and their two permissions.
+* **Actions** - status actions made in two steps, the model and then its
+  field, so the values are offered rather than typed; the actions found in
+  the code; and the permissions nothing checks any more.
+* **Roles** - with `clearance.roles`: every role, and each one's name,
+  ceiling, starting bundles and people; a person's page shows their roles,
+  the bundles they start with, and what their ceiling stops.
+
+Each is a `PageSet`, mounted beside the others; every one of them writes
+through the services. No page is wider than the screen, in either
+direction - a wide table scrolls in its own box - and a browser test
+(`nox -s browser`) holds that, the rule builder's script, and Persian read
+right to left.
+
+### 14.3 What the database says is wrong
+
+`clearance_check` - and the overview page - say what only the database can
+tell. **Errors** fail the command, because each is something made to give
+access that now gives none, silently: a rule scope that no longer checks out,
+a status action whose field or values are gone, a grant whose scope its model
+offers no more. **Warnings** are listed without failing: a grant with no
+scope on a model whose default reaches no rows, and a permission nothing
+accounts for - an action gone from the code, or one made by hand.
 
 ---
 
@@ -980,7 +1008,7 @@ E004 and E005 are retired. E004 refused a scoped view over a plain manager,
 and every queryset can be scoped now; E005 checked ceilings written in code,
 and ceilings are in the database now.
 
-`clearance_check`, which reads the database, lists grants with no scope, rule
+`clearance_check` (14.3), which reads the database, lists grants with no scope, rule
 scopes and status actions whose fields are gone, actions gone from the code,
 and permissions nobody holds.
 
@@ -1040,7 +1068,7 @@ changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
 | 8 | the admin site, part one: overview, bundles as a grid, people, permissions; every `ModelAdmin` asking `permission_for`, hiding and locking protected fields, narrowing status values, and offering its actions to whoever holds them | |
 | 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers - and their pages | |
 | 10 | access as code: the `ACCESS` file, `clearance_sync` with `--dry-run` and `--check`, `SYNC_ON_MIGRATE`, read only in the admin site | |
-| 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
+| 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests; `clearance_check` and the overview's findings | |
 | 12 | `clearance.translations` | |
 | 13 | documentation, an example project, the Persian catalogue | |
 | 14 | used in iranbobco; `0.1.0` tagged, made public, published | |
@@ -1167,3 +1195,8 @@ Made by the owner.
     person, the superuser too.
 53. **Who has a bundle or a role is not the file's to say**; it stays in the
     admin site.
+54. **`clearance_check` fails on what gives no access silently**, and warns of
+    what may not be meant.
+55. **A page works without its script**; the script only makes it easier.
+56. **No page is wider than the screen, in either direction**, and a browser
+    test holds it.

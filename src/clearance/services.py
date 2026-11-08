@@ -533,7 +533,7 @@ class AccessService:
         more, so it is refused to them.
         """
         self.rules.require_may('edit')
-        self.rules.require_not_declared('status_action', _status_key(action))
+        self.rules.require_not_declared('status_action', status_key(action))
         model = action.content_type.model_class()
         assert model is not None, 'the model of a status action is never deleted from under it'
         permission = permission_for(model, action.code)
@@ -571,7 +571,7 @@ class AccessService:
         may delete it.
         """
         self.rules.require_may('delete')
-        self.rules.require_not_declared('status_action', _status_key(action))
+        self.rules.require_not_declared('status_action', status_key(action))
         model = action.content_type.model_class()
         assert model is not None, 'the model of a status action is never deleted from under it'
         permission = permission_for(model, action.code)
@@ -685,7 +685,7 @@ def offered_scopes(permission: Permission) -> set[str]:
     return set(querysets.offered_scopes(model)) if model is not None else {EVERY_ROW}
 
 
-def _status_key(action: StatusAction) -> str:
+def status_key(action: StatusAction) -> str:
     """How the ``ACCESS`` file names a status action: ``app_label.Model.code``."""
     model = action.content_type.model_class()
     label = model._meta.label if model is not None else action.content_type.model

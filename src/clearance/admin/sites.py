@@ -21,7 +21,10 @@ from django.http import HttpRequest
 from django.urls import URLPattern, URLResolver, include, path
 from django.utils.translation import gettext as _
 
+from clearance.admin.actions import ActionPages
 from clearance.admin.options import protected_admin
+from clearance.admin.protection import FieldPages
+from clearance.admin.scopes import ScopePages
 from clearance.admin.views import AccessPages, PageSet
 
 
@@ -38,7 +41,7 @@ class ClearanceAdminSite(admin.AdminSite):
         super().register(model_or_iterable, protected_admin(chosen), **options)
 
     #: The sets of access pages every site mounts. ``add_pages`` adds one.
-    page_sets: ClassVar[list[type[PageSet]]] = [AccessPages]
+    page_sets: ClassVar[list[type[PageSet]]] = [AccessPages, ScopePages, FieldPages, ActionPages]
 
     @classmethod
     def add_pages(cls, pages: type[PageSet]) -> None:

@@ -1,0 +1,41 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'Actions' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <h2>{% translate 'Status actions' %}</h2>
+  {% if may_create %}
+  <form method="get" action="{% url 'admin:clearance_action_add' %}" class="clearance-choose">
+    <label for="clearance-model">{% translate 'Make a status action for' %}</label>
+    <select id="clearance-model" name="model">{% for label, words in models %}<option value="{{ label }}">{{ words }}</option>{% endfor %}</select>
+    <input type="submit" value="{% translate 'Next' %}">
+  </form>
+  {% endif %}
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Model' %}</th><th>{% translate 'Action' %}</th><th>{% translate 'Field' %}</th><th>{% translate 'Writes' %}</th><th>{% translate 'Made' %}</th></tr></thead>
+    <tbody>
+    {% for row, declared in made %}
+      <tr><td>{{ row.content_type }}</td><td><a href="{% url 'admin:clearance_action' row.pk %}">{{ row.name }}</a> <code>{{ row.code }}</code></td><td>{{ row.field }}</td><td>{{ row.to_values|join:', ' }}</td><td>{% if declared %}{% translate 'in the ACCESS file' %}{% else %}{% translate 'here' %}{% endif %}</td></tr>
+    {% endfor %}
+    {% for label, code, spec in in_code %}
+      <tr><td>{{ label }}</td><td><code>{{ code }}</code></td><td>{{ spec.field }}</td><td>{{ spec.to|join:', ' }}</td><td>{% translate 'in code' %}</td></tr>
+    {% endfor %}
+    {% if not made and not in_code %}<tr><td colspan="5">{% translate 'None yet.' %}</td></tr>{% endif %}
+    </tbody>
+  </table>
+
+  <h2>{% translate 'Actions found in the code' %}</h2>
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Permission' %}</th><th>{% translate 'Found in' %}</th></tr></thead>
+    <tbody>
+    {% for action in found %}<tr><td><code>{{ action.permission }}</code></td><td><code>{{ action.origin }}</code></td></tr>
+    {% empty %}<tr><td colspan="2">{% translate 'None.' %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+
+  <h2>{% translate 'Gone from the code' %}</h2>
+  <ul class="clearance-findings">{% for finding in gone %}<li class="clearance-warning">{{ finding.message }}</li>{% empty %}<li>{% translate 'Nothing.' %}</li>{% endfor %}</ul>
+</div>
+{% endblock %}
