@@ -1,0 +1,15 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_scopes' %}">{% translate 'Row scopes' %}</a> &rsaquo; <a href="{% url 'admin:clearance_scope' rule.pk %}">{{ rule.name }}</a> &rsaquo; {% translate 'Delete' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if grants %}
+  <p>{% blocktranslate count grants=grants %}{{ grants }} grant chooses this scope: choose another for it first.{% plural %}{{ grants }} grants choose this scope: choose another for them first.{% endblocktranslate %}</p>
+  {% else %}
+  <p>{% translate 'No grant chooses this scope.' %}</p>
+  <form method="post">{% csrf_token %}<input type="submit" value="{% translate 'Yes, delete it' %}"></form>
+  {% endif %}
+</div>
+{% endblock %}

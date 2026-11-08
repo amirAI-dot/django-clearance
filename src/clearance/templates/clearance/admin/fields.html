@@ -1,0 +1,17 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'Protected fields' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Model' %}</th><th>{% translate 'Protected fields' %}</th></tr></thead>
+    <tbody>
+    {% for label, words, protected in rows %}
+      <tr><td><a href="{% url 'admin:clearance_fields_of' label %}">{{ words }}</a></td><td>{{ protected }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

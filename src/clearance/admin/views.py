@@ -11,20 +11,22 @@ nothing here decides anything the service does not.
 from abc import ABC, abstractmethod
 from typing import Any
 
+from django.apps import apps
 from django.contrib import messages
 from django.contrib.admin import AdminSite
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.db.models import Count, Model, Q
+from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import URLPattern, path, reverse
 from django.utils.translation import gettext as _
 
 from clearance.admin.standing import PermissionGrid, Standing, name_of
+from clearance.health import findings
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import user_of
 from clearance.safety import AccessRefused, SafetyRules
@@ -91,6 +93,25 @@ class PageSet(ABC):
     def redirect(self, name: str, *args: Any) -> HttpResponseRedirect:
         return HttpResponseRedirect(self.url(name, *args))
 
+    @staticmethod
+    def model_named(label: str) -> type[Model]:
+        """The model ``app_label.Model`` names - or a 404, as for any page about nothing."""
+        try:
+            return apps.get_model(label)
+        except (LookupError, ValueError):
+            raise Http404(label) from None
+
+    @staticmethod
+    def models() -> list[tuple[str, str]]:
+        """Every model, as ``(label, how it reads)`` - for a page choosing one."""
+        return [
+            (
+                model._meta.label,
+                f'{model._meta.app_config.verbose_name}: {model._meta.verbose_name_plural}',
+            )
+            for model in sorted(apps.get_models(), key=lambda model: model._meta.label)
+        ]
+
     def url(self, name: str, *args: Any) -> str:
         return reverse(f'{self.site.name}:{name}', args=args, current_app=self.site.name)
 
@@ -155,6 +176,7 @@ class AccessPages(PageSet):
             people=people.count(),
             permissions=Permission.objects.count(),
             unheld=Permission.objects.exclude(held).count(),
+            findings=findings(),
         )
 
     def bundles(self, request: HttpRequest) -> HttpResponse:

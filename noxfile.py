@@ -12,6 +12,8 @@ passes here passes there and a supported version cannot be left out of one.
 Pythons that are not installed are fetched by uv.
 """
 
+import os
+
 import nox
 
 nox.needs_version = '>=2025.2.9'
@@ -72,4 +74,22 @@ def tests(session: nox.Session, django: str) -> None:
         '--settings=tests.project.settings',
         env={'PYTHONPATH': '.'},
     )
-    session.run('pytest', '--cov', '--cov-report=term', *session.posargs)
+    session.run('pytest', '-m', 'not browser', '--cov', '--cov-report=term', *session.posargs)
+
+
+@nox.session(python=NEWEST_PYTHON)
+def browser(session: nox.Session) -> None:
+    """The pages in a real browser: the rule builder's script, and right to left."""
+    session.install(
+        '-e', '.[drf]', '--group', 'test', '--group', 'browser', django_release(NEWEST_DJANGO)
+    )
+
+    # A machine with a browser already says where (PLAYWRIGHT_BROWSERS_PATH); CI installs one.
+    if not os.environ.get('PLAYWRIGHT_BROWSERS_PATH'):
+        session.run('python', '-m', 'playwright', 'install', '--with-deps', 'chromium')
+
+    # Playwright drives the browser from an event loop; the test's own database calls are
+    # made between its steps, never while a page is loading.
+    session.run(
+        'pytest', '-m', 'browser', *session.posargs, env={'DJANGO_ALLOW_ASYNC_UNSAFE': 'true'}
+    )

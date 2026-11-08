@@ -1,0 +1,52 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n static %}
+
+{% block extrahead %}{{ block.super }}<script src="{% static 'clearance/rules.js' %}" defer></script>{% endblock %}
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_scopes' %}">{% translate 'Row scopes' %}</a> &rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <p>{{ model_words|capfirst }} <code>{{ model_label }}</code>{% if rule %} &mdash; {% blocktranslate count grants=grants %}used by {{ grants }} grant{% plural %}used by {{ grants }} grants{% endblocktranslate %}{% endif %}</p>
+  {% if errors %}<ul class="errorlist">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+
+  <form method="post" id="clearance-rule">{% csrf_token %}
+    <p><label for="clearance-code">{% translate 'Code' %}</label>
+      <input id="clearance-code" type="text" name="code" value="{{ form.code }}" maxlength="64"{% if rule %} readonly{% endif %} required></p>
+    <p><label for="clearance-name">{% translate 'Name' %}</label>
+      <input id="clearance-name" type="text" name="name" value="{{ form.name }}" maxlength="160" required></p>
+    <p><label for="clearance-match">{% translate 'Rows that meet' %}</label>
+      <select id="clearance-match" name="match">
+        <option value="all"{% if form.match == 'all' %} selected{% endif %}>{% translate 'all of the conditions' %}</option>
+        <option value="any"{% if form.match == 'any' %} selected{% endif %}>{% translate 'any of the conditions' %}</option>
+      </select></p>
+
+    <table class="clearance-conditions">
+      <thead><tr><th>{% translate 'Field' %}</th><th>{% translate 'Operator' %}</th><th>{% translate 'Compared with' %}</th><th>{% translate 'Value' %}</th><th></th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr class="clearance-condition">
+          <td><input type="text" name="field" value="{{ row.field }}" list="clearance-paths" aria-label="{% translate 'Field' %}"></td>
+          <td><select name="operator" aria-label="{% translate 'Operator' %}">{% for operator in operators %}<option value="{{ operator }}"{% if row.operator == operator %} selected{% endif %}>{{ operator }}</option>{% endfor %}</select></td>
+          <td><select name="kind" aria-label="{% translate 'Compared with' %}">
+            <option value="constant"{% if row.kind == 'constant' %} selected{% endif %}>{% translate 'a value' %}</option>
+            <option value="person"{% if row.kind == 'person' %} selected{% endif %}>{% translate "the person's" %}</option>
+          </select></td>
+          <td><input type="text" name="value" value="{{ row.value }}" aria-label="{% translate 'Value' %}"></td>
+          <td><button type="button" class="clearance-remove" hidden>{% translate 'Remove' %}</button></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p><button type="button" id="clearance-add" hidden>{% translate 'Add a condition' %}</button></p>
+    <p class="clearance-note">{% translate "A value of the person's names a field of theirs - region - or nothing, for the person themselves. Separate the values of “is one of” with commas." %}</p>
+
+    <datalist id="clearance-paths">{% for path in paths %}<option value="{{ path }}">{% endfor %}</datalist>
+
+    {% if rule and may_edit or not rule and may_create %}
+    <div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}">
+      {% if rule and may_delete %}<a class="deletelink" href="{% url 'admin:clearance_scope_delete' rule.pk %}">{% translate 'Delete' %}</a>{% endif %}
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

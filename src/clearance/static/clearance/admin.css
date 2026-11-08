@@ -7,3 +7,11 @@
 .clearance-inline { display: inline; margin-inline-start: 0.5em; }
 .clearance-note { color: var(--body-quiet-color); }
 .clearance-grid label.clearance-other { display: inline-block; margin-inline-end: 1.5em; white-space: nowrap; }
+.clearance-choose { margin-bottom: 1.5em; }
+.clearance-conditions input[type="text"] { width: 100%; box-sizing: border-box; }
+.clearance-findings li { margin-bottom: 0.5em; }
+.clearance-findings .clearance-error, tr.clearance-error td { color: var(--error-fg); }
+.clearance-findings .clearance-warning { color: var(--body-quiet-color); }
+/* A wide table scrolls inside its own box: the page never scrolls sideways, in either direction. */
+.clearance { min-width: 0; }
+.clearance-scroll { overflow-x: auto; max-width: 100%; }

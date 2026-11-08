@@ -1,0 +1,23 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_fields' %}">{% translate 'Protected fields' %}</a> &rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Field' %}</th><th>{% translate 'Protected' %}</th><th>{% translate 'Its permissions' %}</th><th></th></tr></thead>
+    <tbody>
+    {% for field in fields %}
+      <tr><td>{{ field.words|capfirst }} <code>{{ field.name }}</code></td>
+        <td>{% if field.in_code %}{% translate 'in code' %}{% elif field.protected %}{% translate 'yes' %}{% else %}{% translate 'no' %}{% endif %}</td>
+        <td>{% if field.protected %}<code>{{ field.permissions.view }}</code><br><code>{{ field.permissions.edit }}</code>{% endif %}</td>
+        <td>{% if field.cannot %}<span class="clearance-note">{{ field.cannot }}</span>
+          {% elif field.in_code %}<span class="clearance-note">{% translate 'Unprotected in code.' %}</span>
+          {% elif field.protected and may_delete %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="unprotect"><input type="hidden" name="field" value="{{ field.name }}"><input type="submit" value="{% translate 'Unprotect' %}"></form>
+          {% elif not field.protected and may_create %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="protect"><input type="hidden" name="field" value="{{ field.name }}"><input type="submit" value="{% translate 'Protect' %}"></form>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
