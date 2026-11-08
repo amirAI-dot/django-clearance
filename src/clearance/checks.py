@@ -16,11 +16,14 @@ things from the running project.
                     value it cannot use
 ``clearance.E012``  a field protected in code is not a field of its model, or
                     cannot be protected
+``clearance.E013``  an action found in the code cannot make a permission
 ``clearance.E014``  a model declares its own permissions but keeps Django's
+``clearance.E015``  a status action declared in code names a field or a value
+                    its model does not have
 ==================  =========================================================
 """
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 from django.apps import apps
@@ -28,13 +31,14 @@ from django.conf import settings
 from django.core.checks import CheckMessage, Error
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
-from django.urls import URLPattern, URLResolver, get_resolver
 
+from clearance.actions import status_action_problems
 from clearance.conf import clearance_settings
+from clearance.discovery import FoundAction, action_problems, find_actions
 from clearance.fields import protection_problem
-from clearance.permissions import declared_protected_fields
+from clearance.permissions import declared_protected_fields, declared_status_actions
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
-from clearance.views import PolicyRequiredMixin
+from clearance.views import PolicyRequiredMixin, urlconf_callbacks
 
 BACKEND = 'clearance.backends.ClearanceBackend'
 MODEL_BACKEND = 'django.contrib.auth.backends.ModelBackend'
@@ -123,9 +127,23 @@ def field_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
     ]
 
 
+def status_action_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
+    """E015: every status action a model declares in code can work."""
+    return [
+        Error(
+            f'{model._meta.label}, status action {code!r}: {problem}',
+            obj=model,
+            id='clearance.E015',
+        )
+        for model in models
+        for code, spec in declared_status_actions(model).items()
+        for problem in status_action_problems(model, code, spec['field'], spec['to'], spec['from'])
+    ]
+
+
 def check_models(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
     models = apps.get_models()
-    return [*permission_errors(models), *field_errors(models)]
+    return [*permission_errors(models), *field_errors(models), *status_action_errors(models)]
 
 
 def scope_errors(querysets: Iterable[type[ScopedQuerySet[Any]]]) -> list[CheckMessage]:
@@ -205,25 +223,36 @@ def view_errors(views: Iterable[type]) -> list[CheckMessage]:
 
 def check_views(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
     try:
-        patterns = get_resolver().url_patterns
+        callbacks = list(urlconf_callbacks())
     except Exception:
         # A URLconf that does not import is Django's own check to report.
         return []
 
-    return view_errors(dict.fromkeys(_view_classes(patterns)))
+    views = [getattr(callback, 'view_class', None) for callback in callbacks]
+    return view_errors(dict.fromkeys(view for view in views if isinstance(view, type)))
 
 
-def _view_classes(patterns: Iterable[URLPattern | URLResolver]) -> Iterator[type]:
-    for pattern in patterns:
-        if isinstance(pattern, URLResolver):
-            yield from _view_classes(pattern.url_patterns)
-            continue
+# ---------------------------------------------------------------------- actions
 
-        view_class = getattr(pattern.callback, 'view_class', None)
 
-        if isinstance(view_class, type):
-            yield view_class
+def found_action_errors(found: Iterable[FoundAction]) -> list[CheckMessage]:
+    """E013: every action found in the code can make its permission."""
+    return [
+        Error(problem, id='clearance.E013')
+        for action in found
+        if (problem := action_problems(action)) is not None
+    ]
+
+
+def check_actions(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
+    try:
+        found = find_actions()
+    except Exception:
+        # A URLconf that does not import is Django's own check to report.
+        return []
+
+    return found_action_errors(found)
 
 
 #: Every check the core registers, in the order they run.
-CHECKS = (check_settings, check_backends, check_models, check_scopes, check_views)
+CHECKS = (check_settings, check_backends, check_models, check_scopes, check_views, check_actions)

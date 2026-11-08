@@ -65,7 +65,7 @@ class Protection:
 
     def stored(self, model: type[Model]) -> frozenset[str]:
         """The fields of ``model`` an administrator protected in the database."""
-        return self._stored.get(_key(model), frozenset())
+        return self._stored.get(model_key(model), frozenset())
 
     def protects(self, model: type[Model], name: str) -> bool:
         return name in self.fields(model)
@@ -78,7 +78,7 @@ class Protection:
 
     def adding(self, model: type[Model], name: str) -> 'Protection':
         """As it would be with ``model.name`` protected too - to see what that would break."""
-        key = _key(model)
+        key = model_key(model)
         return Protection({**self._stored, key: self.stored(model) | {name}})
 
 
@@ -158,6 +158,7 @@ def _allowed(user: User, model: type[Model], actions: Iterable[str]) -> frozense
     )
 
 
-def _key(model: type[Model]) -> ModelKey:
+def model_key(model: type[Model]) -> ModelKey:
+    """How the library's tables name a model: ``(app_label, model_name)`` of its concrete model."""
     meta = model._meta.concrete_model._meta  # type: ignore[union-attr]
     return meta.app_label, str(meta.model_name)

@@ -5,7 +5,8 @@ A bundle is Django's ``Group``, a person's bundles are ``user.groups``, and a
 permission is an ``auth_permission`` row; none of that is copied here. These
 tables hold only what Django has no place for: the scope a permission is
 given with, a permission taken away from one person, the scopes an
-administrator builds from rules, and the fields they protect.
+administrator builds from rules, the fields they protect, and the status
+actions they make.
 """
 
 from typing import TYPE_CHECKING
@@ -210,3 +211,38 @@ class ProtectedField(models.Model):
 
     def __str__(self) -> str:
         return f'{self.content_type.model}.{self.field}'
+
+
+class StatusAction(models.Model):
+    """
+    An action an administrator made that writes values: ``approve`` sets
+    ``status`` to ``approved`` or ``rejected``, from ``pending``.
+
+    Its permission - ``<codename>_<code>`` - is made with it and deleted with
+    it. A status action declared in code (``build_permissions(status_actions=
+    ...)``) has no row here; ``clearance.actions`` reads both.
+    """
+
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name='+', verbose_name=_('model')
+    )
+    code = models.CharField(_('code'), max_length=64)
+    name = models.CharField(_('name'), max_length=160)
+    field = models.CharField(_('field'), max_length=64)
+    #: The values only this action writes.
+    to_values = models.JSONField(_('to'), default=list)
+    #: The values it may write them from; empty is from any value.
+    from_values = models.JSONField(_('from'), default=list, blank=True)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = _('status action')
+        verbose_name_plural = _('status actions')
+        constraints = (
+            models.UniqueConstraint(
+                fields=['content_type', 'code'], name='clearance_statusaction_one_code_per_model'
+            ),
+        )
+
+    def __str__(self) -> str:
+        return f'{self.content_type.model}: {self.name}'
