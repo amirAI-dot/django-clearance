@@ -6,7 +6,8 @@
 {% block content %}
 <div id="content-main" class="clearance">
   <p><code>{{ role.code }}</code></p>
-  {% if may_edit %}
+  {% if declared %}<p class="clearance-note">{% translate 'Declared in code: it is changed in the ACCESS file, and shown here read only. Who has it is given here.' %}</p>{% endif %}
+  {% if may_edit and not declared %}
   <form method="post">{% csrf_token %}<input type="hidden" name="do" value="rename">
     <input type="text" name="name" value="{{ role.name }}" aria-label="{% translate 'Name' %}"> <input type="submit" value="{% translate 'Rename' %}"></form>
   {% endif %}
@@ -31,10 +32,10 @@
   <ul>
   {% for bundle in starting %}
     <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a>
-      {% if may_edit %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="take"><input type="hidden" name="bundle" value="{{ bundle.pk }}"><input type="submit" value="{% translate 'Take back' %}"></form>{% endif %}</li>
+      {% if may_edit and not declared %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="take"><input type="hidden" name="bundle" value="{{ bundle.pk }}"><input type="submit" value="{% translate 'Take back' %}"></form>{% endif %}</li>
   {% empty %}<li>{% translate 'None.' %}</li>{% endfor %}
   </ul>
-  {% if may_edit and other_bundles %}
+  {% if may_edit and other_bundles and not declared %}
   <form method="post">{% csrf_token %}<input type="hidden" name="do" value="give">
     <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle.name }}</option>{% endfor %}</select>
     <input type="submit" value="{% translate 'Give' %}"></form>
@@ -52,6 +53,6 @@
     <input type="text" name="person" placeholder="{% translate 'username' %}" aria-label="{% translate 'Person' %}"> <input type="submit" value="{% translate 'Give the role' %}"></form>
   {% elif not assigns %}<p class="clearance-note">{% translate 'Roles are read from each person, not given here.' %}</p>{% endif %}
 
-  {% if may_delete %}<p><a class="deletelink" href="{% url 'admin:clearance_role_delete' role.pk %}">{% translate 'Delete' %}</a></p>{% endif %}
+  {% if may_delete and not declared %}<p><a class="deletelink" href="{% url 'admin:clearance_role_delete' role.pk %}">{% translate 'Delete' %}</a></p>{% endif %}
 </div>
 {% endblock %}

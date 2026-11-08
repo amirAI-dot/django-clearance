@@ -32,7 +32,7 @@ from django.db.models import Q, QuerySet
 from clearance.backends import groups_lookup
 from clearance.grants import Scope, grants_of
 from clearance.limits import limits
-from clearance.models import PermissionRevocation
+from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import User
 from clearance.querysets import EVERY_ROW
 
@@ -92,6 +92,17 @@ class SafetyRules:
 
         if getattr(person, 'pk', None) == getattr(self.actor, 'pk', None):
             raise AccessRefused('own_access', 'Nobody changes their own access.')
+
+    def require_not_declared(self, kind: str, key: str) -> None:
+        """
+        What the ``ACCESS`` file owns is changed there - by anybody, the
+        superuser too. Only the system, syncing the file, changes it here.
+        """
+        if self.actor is not None and Declared.holds(kind, key):
+            raise AccessRefused(
+                'declared',
+                f'The {kind.replace("_", " ")} {key!r} is declared in code: change it there.',
+            )
 
     def require_not_held(self, bundle: Group) -> None:
         if self.unbound:

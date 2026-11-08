@@ -21,6 +21,7 @@ from django.utils.translation import gettext as _
 
 from clearance.admin.standing import name_of
 from clearance.admin.views import PageSet
+from clearance.models import Declared
 from clearance.protocols import user_of
 from clearance.roles.models import Role
 from clearance.roles.resolvers import resolver
@@ -62,7 +63,14 @@ class RolePages(PageSet):
             starting=Count('bundles', distinct=True),
             people=Count('assignments', distinct=True),
         )
-        return self.render(request, 'roles', _('Roles'), roles=roles, assigns=resolver().assigns)
+        return self.render(
+            request,
+            'roles',
+            _('Roles'),
+            roles=roles,
+            assigns=resolver().assigns,
+            declared=Declared.keys('role'),
+        )
 
     def add_role(self, request: HttpRequest) -> HttpResponse:
         self.require(request, 'view')
@@ -92,6 +100,7 @@ class RolePages(PageSet):
 
         service = RoleService(actor=user_of(request))
         ceiling = service.ceiling_of(role)
+        declared = Declared.holds('role', role.code)
         starting = list(Group.objects.filter(role_bundles__role=role).order_by('name'))
         return self.render(
             request,
@@ -104,7 +113,8 @@ class RolePages(PageSet):
             other_bundles=Group.objects.exclude(pk__in=[b.pk for b in starting]).order_by('name'),
             people=resolver().holders(Role.objects.filter(pk=role.pk)).order_by('pk'),
             assigns=resolver().assigns,
-            may_ceiling=self.may(request, 'ceiling'),
+            may_ceiling=self.may(request, 'ceiling') and not declared,
+            declared=declared,
         )
 
     def delete_role(self, request: HttpRequest, pk: int) -> HttpResponse:

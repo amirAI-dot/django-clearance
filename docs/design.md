@@ -213,6 +213,7 @@ src/clearance/
         services.py        RoleService
         pages.py, admin.py the roles pages, mounted beside the access pages
         checks.py          E008, E010
+        declared.py        the roles section of the ACCESS file
         signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
@@ -404,9 +405,15 @@ ACCESS = {
         'Accountants': {'shop.view_order': 'all', 'shop.view_order_price': None},
         'Customers': {'shop.view_order': 'own', 'shop.add_order': None},
     },
-    'roles': {
+    'status_actions': {                  # for a model keeping Django's permissions
+        'shop.Order': {
+            'approve': {'field': 'status', 'to': ['approved', 'rejected'], 'from': ['pending']},
+        },
+    },
+    'roles': {                           # with clearance.roles installed
         'customer': {
-            'ceiling': ['shop.view_order', 'shop.add_order'],
+            'name': 'Customer',
+            'ceiling': ['shop.view_order', 'shop.add_order'],   # None: no ceiling
             'bundles': ['Customers'],
         },
     },
@@ -418,6 +425,24 @@ python manage.py clearance_sync --dry-run    # what would change, writing nothin
 python manage.py clearance_sync --check      # in CI: fail when the database differs from the file
 python manage.py clearance_sync              # apply, and say what changed
 ```
+
+**The file owns what it names, and nothing else.** A sync makes what the file
+adds, changes what it changes, and deletes what it once named and names no
+more. A bundle, role or status action made in the admin site is never touched
+until the file comes to name it - the sync says so - and from then on the file
+owns it. Who is given a bundle or a role is not the file's to say: that stays
+in the admin site.
+
+A sync is listed whole before anything is written, and applied in one
+transaction through the same services the admin site uses, as the system: a
+sync that would leave nobody able to manage access changes nothing. What the
+file owns is refused to every person - the superuser too - because the next
+sync would put it back; the admin site shows it as *declared in code*.
+
+`bundles` and `status_actions` are the core's sections; `clearance.roles`
+adds `roles` when it is installed. E001 checks at start-up what can be told
+without the database - that the file reads, and says nothing that cannot be;
+whether every permission and scope it names exists is `--check`'s to say.
 
 ---
 
@@ -451,7 +476,8 @@ access - the bundles, roles and ceilings an `ACCESS` file declares - is
 `clearance_sync`'s, an explicit step that shows what it will change before it
 changes it. A project that wants one command sets `SYNC_ON_MIGRATE`: the sync
 then runs once, at the end of a forward `migrate` of the default database -
-never while a test database is made, never on a migration backwards.
+after the last app has made its permissions - never while a test database is
+made, and never on a migration backwards.
 
 The library's own access to itself has its permissions too:
 `clearance.permission_view`, `permission_create`, `permission_edit`,
@@ -772,6 +798,8 @@ goes through `AccessService`, which refuses:
 * **unprotecting a field you do not hold both permissions of** (10.4);
 * **releasing a status action's value, or deleting it, without holding it on
   every row; letting one you hold write from more values** (8.1);
+* **changing what the `ACCESS` file owns** - anybody, the superuser too; only
+  the sync changes it (5.8);
 * **lifting a ceiling from anybody without `role_ceiling_edit`, or changing
   what your own role holds** (11.2);
 * **a widened ceiling**, without `role_ceiling_edit`.
@@ -918,7 +946,7 @@ not know is refused (E011).
 | `clearance` | `ScopeRule` | `content_type`, `code`, `name`, `match` (all or any), `conditions` |
 | `clearance` | `ProtectedField` | `content_type`, `field` - with the two permissions it made |
 | `clearance` | `StatusAction` | `content_type`, `code`, `name`, `field`, `to_values`, `from_values` - with its permission |
-| `clearance` | `Declared` | what the `ACCESS` file or the code owns - a bundle, a role, a ceiling, a status action - so the admin site shows it read only |
+| `clearance` | `Declared` | what the `ACCESS` file owns - a bundle, a role, a status action - so a sync knows what it may delete, and the admin site shows it read only |
 | `clearance.roles` | `Role` | `code`, `name`, `limited` |
 | `clearance.roles` | `RoleAssignment` | `user`, `role`, `assigned_by`, `assigned_at` |
 | `clearance.roles` | `RoleCeiling` | `role`, `permission` |
@@ -933,7 +961,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 
 | id | when |
 |---|---|
-| `clearance.E001` | `ACCESS` cannot be read, or names a permission, scope or field that does not exist |
+| `clearance.E001` | `ACCESS` cannot be read, has a section no installed app reads, or says something that cannot be - a permission not named `app_label.codename`, a model not installed, a status action's field or value its model does not have |
 | `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
 | `clearance.E003` | a DRF view asking a model's policy serializes the model without leaving out its protected fields |
 | `clearance.E006` | `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` |
@@ -1132,3 +1160,10 @@ Made by the owner.
     importing them.
 50. **The library's apps set their own primary key**, so a project's
     `DEFAULT_AUTO_FIELD` never asks it to make a migration for them.
+51. **The `ACCESS` file owns what it names, and nothing else**: a sync deletes
+    only what the file once named, and takes over what the admin site made
+    once the file names it.
+52. **What the file owns is changed only by the sync** - refused to every
+    person, the superuser too.
+53. **Who has a bundle or a role is not the file's to say**; it stays in the
+    admin site.

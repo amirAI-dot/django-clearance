@@ -6,6 +6,7 @@
 {% block content %}
 <div id="content-main" class="clearance">
   {% if errors %}<ul class="errorlist">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+  {% if declared %}<p class="clearance-note">{% translate 'Declared in code: it is changed in the ACCESS file, and shown here read only.' %}</p>{% endif %}
 
   <form method="post">{% csrf_token %}
     <p><label for="clearance-name">{% translate 'Name' %}</label>
@@ -28,7 +29,7 @@
       </tbody>
     </table>
 
-    {% if bundle and may_edit or not bundle and may_create %}
+    {% if not declared and bundle and may_edit or not bundle and may_create %}
     <div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}">
       {% if bundle and may_delete %}<a class="deletelink" href="{% url 'admin:clearance_bundle_delete' bundle.pk %}">{% translate 'Delete' %}</a>{% endif %}
     </div>

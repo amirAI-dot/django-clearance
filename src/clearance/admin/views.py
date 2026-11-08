@@ -25,7 +25,7 @@ from django.urls import URLPattern, path, reverse
 from django.utils.translation import gettext as _
 
 from clearance.admin.standing import PermissionGrid, Standing, name_of
-from clearance.models import PermissionRevocation
+from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import user_of
 from clearance.safety import AccessRefused, SafetyRules
 from clearance.services import AccessService
@@ -162,7 +162,9 @@ class AccessPages(PageSet):
         bundles = Group.objects.annotate(
             people=Count('user', distinct=True), held=Count('permissions', distinct=True)
         ).order_by('name')
-        return self.render(request, 'bundles', _('Bundles'), bundles=bundles)
+        return self.render(
+            request, 'bundles', _('Bundles'), bundles=bundles, declared=Declared.keys('bundle')
+        )
 
     def bundle(self, request: HttpRequest, pk: int | None = None) -> HttpResponse:
         self.require(request, 'view')
@@ -205,6 +207,7 @@ class AccessPages(PageSet):
             grid=PermissionGrid.build(grants),
             holders=holders,
             errors=errors,
+            declared=bundle is not None and Declared.holds('bundle', bundle.name),
         )
 
     def delete_bundle(self, request: HttpRequest, pk: int) -> HttpResponse:
