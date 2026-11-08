@@ -5,8 +5,8 @@ A bundle is Django's ``Group``, a person's bundles are ``user.groups``, and a
 permission is an ``auth_permission`` row; none of that is copied here. These
 tables hold only what Django has no place for: the scope a permission is
 given with, a permission taken away from one person, the scopes an
-administrator builds from rules, the fields they protect, and the status
-actions they make.
+administrator builds from rules, the fields they protect, the status
+actions they make - and which of all that the ``ACCESS`` file owns.
 """
 
 from typing import TYPE_CHECKING
@@ -246,3 +246,44 @@ class StatusAction(models.Model):
 
     def __str__(self) -> str:
         return f'{self.content_type.model}: {self.name}'
+
+
+class Declared(models.Model):
+    """
+    Something the ``ACCESS`` file owns - a bundle, a role, a status action.
+
+    ``clearance_sync`` makes, changes and deletes what is listed here, and
+    nothing else; the admin site shows it read only and refuses changing it,
+    because the next sync would put it back.
+    """
+
+    KIND_CHOICES = (
+        ('bundle', _('bundle')),
+        ('role', _('role')),
+        ('status_action', _('status action')),
+    )
+
+    kind = models.CharField(_('kind'), max_length=16, choices=KIND_CHOICES)
+    #: A bundle's name, a role's code, a status action's ``app_label.Model.code``.
+    key = models.CharField(_('key'), max_length=255)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = _('declared in code')
+        verbose_name_plural = _('declared in code')
+        constraints = (
+            models.UniqueConstraint(fields=['kind', 'key'], name='clearance_declared_once'),
+        )
+
+    def __str__(self) -> str:
+        return f'{self.kind}: {self.key}'
+
+    @classmethod
+    def holds(cls, kind: str, key: str) -> bool:
+        """Whether the ``ACCESS`` file owns ``kind`` ``key``."""
+        return cls.objects.filter(kind=kind, key=key).exists()
+
+    @classmethod
+    def keys(cls, kind: str) -> set[str]:
+        """Everything of ``kind`` the ``ACCESS`` file owns."""
+        return set(cls.objects.filter(kind=kind).values_list('key', flat=True))

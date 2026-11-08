@@ -92,6 +92,7 @@ class RoleService:
     def rename_role(self, role: Role, name: str) -> Role:
         """Renaming changes nobody's access, so even somebody holding the role may do it."""
         self.rules.require_may('edit')
+        self.rules.require_not_declared('role', role.code)
 
         if name != role.name:
             role.name = name
@@ -106,6 +107,7 @@ class RoleService:
         was limited, its ceiling, which needs ``role_ceiling_edit``.
         """
         self.rules.require_may('delete')
+        self.rules.require_not_declared('role', role.code)
         self._require_not_own_role(role)
 
         if role.limited:
@@ -137,6 +139,7 @@ class RoleService:
         holding the role.
         """
         self.rules.require_may('ceiling')
+        self.rules.require_not_declared('role', role.code)
         self._require_not_own_role(role)
         before = self.ceiling_of(role)
         after: Ceiling = None if permissions is None else frozenset(permissions)
@@ -162,6 +165,7 @@ class RoleService:
     def give_bundle(self, role: Role, bundle: Group) -> None:
         """Everybody with ``role`` starts with ``bundle`` - the actor must hold what it gives."""
         self.rules.require_may('edit')
+        self.rules.require_not_declared('role', role.code)
         self._require_not_own_role(role)
         self.rules.require_holds(self._grants_of(bundle))
 
@@ -173,6 +177,7 @@ class RoleService:
     def take_bundle(self, role: Role, bundle: Group) -> None:
         """Nobody with ``role`` starts with ``bundle`` any more."""
         self.rules.require_may('edit')
+        self.rules.require_not_declared('role', role.code)
         self._require_not_own_role(role)
 
         with transaction.atomic(), self.rules.keeping_somebody_managing():

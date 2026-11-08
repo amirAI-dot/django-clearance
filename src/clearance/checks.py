@@ -7,6 +7,8 @@ with exactly what they mean to, and a registered check that gathers those
 things from the running project.
 
 ==================  =========================================================
+``clearance.E001``  the ``ACCESS`` file cannot be read, or says something that
+                    cannot be
 ``clearance.E002``  a queryset's ``scopes`` and its ``scope_<x>`` methods
                     disagree, or its ``default_scope`` is not offered
 ``clearance.E006``  ``ClearanceBackend`` is not installed
@@ -34,6 +36,7 @@ from django.db.models import Model
 
 from clearance.actions import status_action_problems
 from clearance.conf import clearance_settings
+from clearance.declared import access_problems, read_access
 from clearance.discovery import FoundAction, action_problems, find_actions
 from clearance.fields import protection_problem
 from clearance.permissions import declared_protected_fields, declared_status_actions
@@ -56,6 +59,23 @@ def check_settings(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]
     except ImproperlyConfigured as error:
         return [Error(str(error), id='clearance.E011')]
     return []
+
+
+def check_access(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
+    """
+    E001: the ``ACCESS`` file reads, and says nothing that cannot be. Whether
+    the permissions and scopes it names exist is the database's to say:
+    ``clearance_sync --check`` says it.
+    """
+    try:
+        access = read_access()
+    except ImproperlyConfigured as error:
+        return [Error(str(error), id='clearance.E001')]
+
+    if access is None:
+        return []
+
+    return [Error(f'ACCESS {problem}', id='clearance.E001') for problem in access_problems(access)]
 
 
 def backend_errors(backends: Sequence[str]) -> list[CheckMessage]:
@@ -255,4 +275,12 @@ def check_actions(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
 
 
 #: Every check the core registers, in the order they run.
-CHECKS = (check_settings, check_backends, check_models, check_scopes, check_views, check_actions)
+CHECKS = (
+    check_settings,
+    check_access,
+    check_backends,
+    check_models,
+    check_scopes,
+    check_views,
+    check_actions,
+)
