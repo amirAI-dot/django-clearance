@@ -41,6 +41,7 @@ FOUND = {
     'lending.loan_export',
     'lending.loan_remind',
     'lending.loan_report',
+    'lending.loan_mark_reviewed',
 }
 
 

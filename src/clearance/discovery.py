@@ -86,13 +86,18 @@ class ViewFinder(ActionFinder):
 
 
 def default_finders() -> list[ActionFinder]:
-    """Django's views always; DRF's when ``rest_framework`` is installed."""
+    """Django's views always; DRF's and the admin site's when they are installed."""
     finders: list[ActionFinder] = [ViewFinder()]
 
     if apps.is_installed('rest_framework'):
         from clearance.drf.discovery import APIViewFinder  # DRF is optional
 
         finders.append(APIViewFinder())
+
+    if apps.is_installed('django.contrib.admin'):
+        from clearance.admin.discovery import AdminActionFinder  # the admin site is optional
+
+        finders.append(AdminActionFinder())
 
     return finders
 

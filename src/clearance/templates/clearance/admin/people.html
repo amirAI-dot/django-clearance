@@ -1,0 +1,25 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'People' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <form method="get" id="changelist-search"><input type="search" name="q" value="{{ query }}" aria-label="{% translate 'Find a person' %}"> <input type="submit" value="{% translate 'Find' %}"></form>
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Person' %}</th><th>{% translate 'Bundles' %}</th><th>{% translate 'Superuser' %}</th></tr></thead>
+    <tbody>
+    {% for person in page %}
+      <tr><td><a href="{% url 'admin:clearance_person' person.pk %}">{{ person }}</a></td><td>{{ person.bundles }}</td><td>{% if person.is_superuser %}{% translate 'yes' %}{% endif %}</td></tr>
+    {% empty %}
+      <tr><td colspan="3">{% translate 'Nobody found.' %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}<p class="paginator">
+    {% if page.has_previous %}<a href="?q={{ query|urlencode }}&amp;page={{ page.previous_page_number }}">{% translate 'Previous' %}</a>{% endif %}
+    {{ page.number }} / {{ page.paginator.num_pages }}
+    {% if page.has_next %}<a href="?q={{ query|urlencode }}&amp;page={{ page.next_page_number }}">{% translate 'Next' %}</a>{% endif %}
+  </p>{% endif %}
+</div>
+{% endblock %}

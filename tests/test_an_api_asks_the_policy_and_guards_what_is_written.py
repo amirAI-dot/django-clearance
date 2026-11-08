@@ -377,12 +377,12 @@ def test_a_view_with_no_policy_to_ask_has_nothing_to_find() -> None:
         }
 
 
-def test_without_drf_only_djangos_views_are_searched(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_without_drf_its_views_are_not_searched(monkeypatch: pytest.MonkeyPatch) -> None:
     from django.apps import apps
 
     monkeypatch.setattr(apps, 'is_installed', lambda name: name != 'rest_framework')
 
-    assert [type(finder).__name__ for finder in default_finders()] == ['ViewFinder']
+    assert 'APIViewFinder' not in [type(finder).__name__ for finder in default_finders()]
 
 
 def test_the_library_works_with_drf_not_installed_at_all() -> None:
