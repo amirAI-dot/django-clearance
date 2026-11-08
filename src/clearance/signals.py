@@ -26,3 +26,7 @@ permission_revoked = Signal()
 permission_restored = Signal()
 #: ``person``, ``permission``, ``before``, ``after``.
 scope_changed = Signal()
+#: ``rule``, ``created`` - whether it is new.
+scope_rule_saved = Signal()
+#: ``model``, ``code``, ``name``.
+scope_rule_deleted = Signal()

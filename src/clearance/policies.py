@@ -148,21 +148,28 @@ class BasePolicy:
         """
         Whether ``obj`` is among the rows ``user`` reaches for ``action``.
 
-        True when there is no object, or the object's model scopes no rows.
-        Otherwise one ``exists()``: the same question ``visible_to`` answers
+        True when there is no object, or the person reaches every row of its
+        model. Otherwise one ``exists()``: the same question ``visible`` answers
         for a list, asked about one row.
         """
-        from clearance.querysets import ScopedQuerySet
+        from clearance.querysets import EVERY_ROW, scopes_reaching, visible
 
         if not isinstance(obj, Model):
             return True
 
-        rows = type(obj)._default_manager.all()
-
-        if not isinstance(rows, ScopedQuerySet):
+        if getattr(user, 'is_superuser', False) and user.is_active:
             return True
 
-        return bool(rows.visible_to(user, action).filter(pk=obj.pk).exists())
+        rows = type(obj)._default_manager.all()
+        names = scopes_reaching(rows, user, action)
+
+        if names is None:
+            return False
+
+        if EVERY_ROW in names:
+            return True
+
+        return bool(visible(rows, user, action).filter(pk=obj.pk).exists())
 
     def has_within_scope(self, user: User, action: str, obj: object | None) -> bool:
         """The permission for ``action``, and ``obj`` within its scope: every standard hook."""

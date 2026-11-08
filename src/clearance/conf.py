@@ -16,7 +16,7 @@ never changes, and nobody can tell why.
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Final, cast
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -51,11 +51,23 @@ class ClearanceSettings:
                 f'It knows {", ".join(DEFAULTS)}.'
             )
 
+        self._check_rule_depth(raw.get('RULE_DEPTH', DEFAULTS['RULE_DEPTH']))
         return raw
 
     def value(self, key: str) -> object:
         """``key`` as the project set it, or its default."""
         return self.raw().get(key, DEFAULTS[key])
+
+    def rule_depth(self) -> int:
+        """How many relations a rule may cross."""
+        return cast(int, self.value('RULE_DEPTH'))  # raw() refuses anything else
+
+    @staticmethod
+    def _check_rule_depth(depth: object) -> None:
+        if not isinstance(depth, int) or isinstance(depth, bool) or depth < 1:
+            raise ImproperlyConfigured(
+                f"CLEARANCE['RULE_DEPTH'] must be a whole number from 1, not {depth!r}."
+            )
 
 
 #: The project's settings, as the library reads them.

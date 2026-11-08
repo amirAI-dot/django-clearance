@@ -15,7 +15,7 @@ from django.core.checks import CheckMessage
 from django.db.models import Q
 from django.test import override_settings
 from django.urls import include, path
-from django.views.generic import DetailView, ListView, TemplateView, UpdateView
+from django.views.generic import TemplateView, UpdateView
 
 from clearance.checks import (
     BACKEND,
@@ -30,8 +30,7 @@ from clearance.checks import (
 from clearance.permissions import build_permissions
 from clearance.protocols import User
 from clearance.querysets import ScopedQuerySet
-from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
-from tests.project.accounts.models import Person
+from clearance.views import PolicyRequiredMixin
 from tests.project.lending.models import Loan, Payment
 from tests.project.lending.querysets import LoanQuerySet, PaymentQuerySet
 
@@ -45,8 +44,8 @@ def ids(messages: list[CheckMessage]) -> list[str | None]:
 
 @pytest.mark.parametrize(
     'setting',
-    [{'SYNC_ON_MIGRAT': True}, ['ACCESS']],
-    ids=['a misspelled key', 'not a dictionary'],
+    [{'SYNC_ON_MIGRAT': True}, ['ACCESS'], {'RULE_DEPTH': 0}, {'RULE_DEPTH': True}],
+    ids=['a misspelled key', 'not a dictionary', 'no relations at all', 'not a number'],
 )
 def test_a_setting_that_cannot_be_read_is_refused_not_ignored(setting: object) -> None:
     with override_settings(CLEARANCE=setting):
@@ -155,14 +154,6 @@ def test_the_querysets_checked_are_the_ones_models_use() -> None:
 # ---------------------------------------------------------------- views
 
 
-class ScopedOverPeople(ScopedQuerySetMixin, ListView):  # type: ignore[type-arg]
-    model = Person
-
-
-class ScopedOverLoans(ScopedQuerySetMixin, DetailView):  # type: ignore[type-arg]
-    model = Loan
-
-
 class NoModel(PolicyRequiredMixin, TemplateView):
     policy_action = 'view'
 
@@ -175,7 +166,6 @@ class UnknownAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
 @pytest.mark.parametrize(
     ('view', 'expected'),
     [
-        (ScopedOverPeople, 'clearance.E004'),
         (NoModel, 'clearance.E009'),
         (UnknownAction, 'clearance.E009'),
     ],
@@ -188,15 +178,15 @@ def test_a_view_that_would_show_every_row_or_cannot_ask_is_reported(
     assert ids(view_errors([view])) == [expected]
 
 
-def test_a_scoped_view_over_a_scoped_model_passes() -> None:
+def test_a_view_that_asks_no_policy_is_not_this_checks_business() -> None:
     from clearance.checks import view_errors
 
-    assert view_errors([ScopedOverLoans]) == []
+    assert view_errors([TemplateView]) == []
 
 
 def test_the_views_checked_are_found_through_every_include() -> None:
     with override_settings(ROOT_URLCONF='tests.test_misconfiguration_fails_at_start_up'):
-        assert ids(check_views()) == ['clearance.E004', 'clearance.E009']
+        assert ids(check_views()) == ['clearance.E009', 'clearance.E009']
 
     assert check_views() == [], 'the project itself is configured right'
 
@@ -206,8 +196,8 @@ def test_a_urlconf_that_does_not_import_is_left_to_django() -> None:
     assert check_views() == []
 
 
-#: A URLconf for the test above: two broken views, one behind an include.
+#: A URLconf for the test above: two views that cannot ask, one behind an include.
 urlpatterns = [
-    path('people/', ScopedOverPeople.as_view()),
+    path('loans/', UnknownAction.as_view()),
     path('more/', include([path('nothing/', NoModel.as_view())])),
 ]

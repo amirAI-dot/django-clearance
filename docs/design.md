@@ -525,7 +525,9 @@ is marked as gone in the admin site, and `clearance_check` lists it.
 
 A permission given with no scope reaches the queryset's `default_scope`; with
 none named - the default - no rows. The choice is the developer's, once per
-model.
+model. A model with a plain manager has no queryset to name one, so a grant
+with no scope reaches every row, as Django always has, until a scope is
+chosen for it.
 
 ### 9.2 The rule builder
 
@@ -534,7 +536,7 @@ Each condition is three parts:
 
 | part | may be |
 |---|---|
-| a field | a field of the model, or one reached through its relations, at most three steps away |
+| a field | a field of the model, or one reached through its relations, at most `RULE_DEPTH` (three) steps away |
 | an operator | is, is not, is one of, contains, is empty, before, after, at least, at most |
 | a value | a constant - "Tehran" - or the person's own: *the person*, *the person's branch*, any field of the user reached the same way |
 
@@ -545,25 +547,42 @@ So "Their branch" is *branch - is - the person's branch*; "Their own" is
 A rule is checked when it is saved, against the model as it is: every field
 must exist, every operator suit its field, and **no condition may read a
 protected field** or the user's password - a filter on the price would tell
-whoever lacks `view_price` what the price is. A rule becomes a Django `Q` -
-never SQL - when a list is asked for; a rule whose field no longer exists is
-refused rather than skipped, and `clearance_check` lists it.
+whoever lacks `view_price` what the price is. A constant must be a value the
+field can hold, and one of its choices when it has them; a value of the
+person's must hold the same kind of thing as the field. Every problem is
+named, condition by condition. A rule becomes a Django `Q` - never SQL - when
+a list is asked for. A rule whose field has gone since it was saved
+**reaches nothing** rather than everything: it is logged, and
+`clearance_check` lists it.
 
 A rule and a code scope are offered side by side, and a person's rows are the
-union of every scope that reaches them.
+union of every scope that reaches them. A rule's code is a name of its own:
+never `all`, never a code scope of its model.
+
+Rules are made, changed and deleted through `AccessService`, under the
+library's own permissions, and two more refusals hold:
+
+* **nobody changes the rows of a rule their own grants are in** - it would
+  widen their own access (`own_scope`); renaming it is no change to anybody's
+  rows;
+* **a rule still chosen in a grant is not deleted** - the grant would reach
+  nothing without anybody deciding it should. Its grants are moved first.
 
 ### 9.3 Which rows a person reaches
 
-`Model.objects.visible_to(user, action='view')`:
+`visible(queryset, user, action='view')`, for any queryset of any model -
+`Model.objects.visible_to(user, action)` on a `ScopedQuerySet`:
 
 1. signed out, or switched off -> no rows; the superuser -> every row;
 2. the person does not hold the action's permission -> no rows;
 3. otherwise the scopes of every grant of it that reaches them are joined
    with OR into **one** filter; `all` makes it every row.
 
-The person's grants are read once per request, in one query. A model with a
-plain manager can still be scoped by rule: `visible_to` is offered on its
-default manager through the library's own queryset.
+The person's grants are read once per request, in one query, and a model's
+rules once per request, in one more; a list then costs its own query and
+nothing else. A model with a plain manager is scoped by rule with no change
+to its code: a view asks `visible`, and `ScopedQuerySetMixin` does it for any
+queryset.
 
 ### 9.4 One object
 
@@ -647,6 +666,7 @@ goes through `AccessService`, which refuses:
   or a colleague could hand it back to you;
 * **a change after which nobody but the superuser could manage access** -
   the last holder of `permission_edit` losing it;
+* **a change to the rows of a rule scope your own grants are in** (9.2);
 * **a widened ceiling**, without `role_ceiling_edit`.
 
 Every refusal says which rule, and every change is a signal.
@@ -747,19 +767,19 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E001` | `ACCESS` cannot be read, or names a permission, scope or field that does not exist |
 | `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
 | `clearance.E003` | a DRF viewset guarded by a policy has an `@action` with no permission |
-| `clearance.E004` | a scoped view's queryset is not a `ScopedQuerySet` |
 | `clearance.E006` | `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` |
 | `clearance.E007` | `ModelBackend` is beside `ClearanceBackend` - it would hand back every revocation |
 | `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it |
 | `clearance.E009` | a `PolicyRequiredMixin` view cannot ask a policy |
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
-| `clearance.E011` | `CLEARANCE` is not a dictionary, or has a key the library does not know |
+| `clearance.E011` | `CLEARANCE` is not a dictionary, has a key the library does not know, or a value it cannot use - `RULE_DEPTH` below one |
 | `clearance.E012` | a field protected in code is not a field of its model |
 | `clearance.E013` | an action name found in the code cannot make a permission |
 | `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 
-E005 is retired: it checked ceilings written in code, and ceilings are in
-the database now.
+E004 and E005 are retired. E004 refused a scoped view over a plain manager,
+and every queryset can be scoped now; E005 checked ceilings written in code,
+and ceilings are in the database now.
 
 `clearance_check`, which reads the database, lists grants with no scope, rule
 scopes and status actions whose fields are gone, actions gone from the code,

@@ -6,26 +6,25 @@ and Django's generic views have no such hook at all. So a list protected by
 a permission check returns every row in the table - and nothing fails, which
 is what makes it dangerous. The rows are therefore the queryset's to decide::
 
-    class OrderQuerySet(ScopedQuerySet):
-        scopes = {
-            'own': _('Their own orders'),
-            'branch': _("Their branch's orders"),
-        }
-
-        def scope_own(self, user):
-            return Q(customer__user=user)
-
-        def scope_branch(self, user):
-            return Q(branch__staff=user)
-
-    Order.objects.visible_to(user, 'edit')
+    Order.objects.visible_to(user, 'edit')        # a model with a ScopedQuerySet
+    visible(Order.objects.all(), user, 'edit')    # any model at all
 
 A person reaches the union of the scopes of every grant of the action's
-permission that reaches them - each bundle's, and their own. ``all`` is
-always offered and means every row. A grant with no scope reaches the
-queryset's ``default_scope``; with none named, no rows.
+permission that reaches them - each bundle's, and their own. A scope is one
+of three things:
 
-A scope method answers with one of:
+* ``all`` - every row, always offered;
+* a **code scope** - a ``scope_<code>`` method a ``ScopedQuerySet`` lists in
+  ``scopes``, for a rule too intricate to build;
+* a **rule scope** - built by an administrator from conditions
+  (``clearance.rules``), for any model, scoped in code or not.
+
+A grant with no scope reaches the queryset's ``default_scope``. A
+``ScopedQuerySet`` names none unless its developer chose one, so such a grant
+reaches no rows; a model with a plain manager defaults to every row, as
+Django always has, until a scope is chosen.
+
+A code scope answers with one of:
 
 * ``Q(...)`` - these rows, the cheapest to combine;
 * ``Q()`` - every row;
@@ -33,12 +32,15 @@ A scope method answers with one of:
 * ``None`` or ``self.none()`` - nothing.
 """
 
+import logging
 from collections.abc import Mapping
 from functools import reduce
 from operator import or_
 from types import MappingProxyType
 from typing import Any, ClassVar, Self, TypeAlias, TypeVar
 
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.db.models.query import EmptyQuerySet
@@ -46,22 +48,30 @@ from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
 
 from clearance.grants import grants_of
+from clearance.models import ScopeRule
 from clearance.permissions import permission_for
 from clearance.protocols import User
+from clearance.rules import Rule
+
+logger = logging.getLogger('clearance')
 
 ModelT = TypeVar('ModelT', bound=models.Model)
+QuerySetT = TypeVar('QuerySetT', bound=models.QuerySet[Any])
 
-#: What a scope method may answer.
+#: What a scope may answer.
 Rows: TypeAlias = Q | models.QuerySet[Any] | None
 
-#: The scope every scoped model offers: every row.
+#: The scope every model offers: every row.
 EVERY_ROW = 'all'
+
+#: Where a person's rule scopes are kept on their user object, per model, once read.
+_RULES_ATTRIBUTE = '_clearance_rules'
 
 
 class ScopedQuerySet(models.QuerySet[ModelT]):
-    """A queryset that knows which of its rows each person may reach."""
+    """A queryset that knows which of its rows each person may reach, with scopes in code."""
 
-    #: The scopes this model offers, each with the label an administrator reads.
+    #: The scopes this model offers in code, each with the label an administrator reads.
     scopes: ClassVar[Mapping[str, str | Promise]] = MappingProxyType({})
 
     #: What a grant with no scope chosen reaches. ``None`` - no rows - unless named.
@@ -72,84 +82,16 @@ class ScopedQuerySet(models.QuerySet[ModelT]):
 
     @classmethod
     def offered_scopes(cls) -> dict[str, str | Promise]:
-        """Every scope an administrator may choose for this model, ``all`` first."""
+        """``all`` and the scopes in code. ``offered_scopes(model)`` adds the rule scopes."""
         return {EVERY_ROW: _('Every row'), **cls.scopes}
 
     def visible_to(self, user: User, action: str = 'view') -> Self:
         """The rows ``user`` may reach for ``action``."""
-        if not (user.is_authenticated and user.is_active):
-            return self.none()
+        return visible(self, user, action)
 
-        if getattr(user, 'is_superuser', False):
-            return self.all()
-
-        given = grants_of(user).scopes(permission_for(self.model, action))
-
-        if given is None:
-            return self.none()
-
-        names = {self.default_scope if scope is None else scope for scope in given}
-        return self._combine([self.rows_in(name, user) for name in sorted(n for n in names if n)])
-
-    def rows_in(self, scope: str, user: User) -> Rows:
-        """
-        The rows ``scope`` gives ``user``.
-
-        A scope this queryset does not offer - one removed from the code since
-        it was chosen - reaches nothing, rather than everything.
-        """
-        if scope == EVERY_ROW:
-            return Q()
-
-        if scope not in self.scopes:
-            return None
-
-        rows: Rows = getattr(self, f'{self.hook_prefix}{scope}')(user)
+    def code_scope(self, code: str, user: User) -> Rows:
+        rows: Rows = getattr(self, f'{self.hook_prefix}{code}')(user)
         return rows
-
-    def _combine(self, scopes: list[Rows]) -> Self:
-        """
-        The union of ``scopes``.
-
-        One scope is applied as it is, so a queryset a method built is
-        returned unchanged. Several are joined with OR in a single ``filter``,
-        a queryset joining as ``pk__in`` it - which never meets the limits of
-        combining querysets with ``|``.
-        """
-        reached: list[Q | models.QuerySet[Any]] = []
-
-        for scope in scopes:
-            if scope is None or isinstance(scope, EmptyQuerySet):
-                continue
-
-            if isinstance(scope, Q):
-                if not scope:
-                    return self.all()
-                reached.append(scope)
-            elif isinstance(scope, models.QuerySet):
-                if scope.model is not self.model:
-                    raise TypeError(
-                        f'A scope of {type(self).__name__} answered with rows of '
-                        f'{scope.model.__name__}, not {self.model.__name__}.'
-                    )
-                reached.append(scope)
-            else:
-                raise TypeError(
-                    f'A scope of {type(self).__name__} answered with '
-                    f'{type(scope).__name__}. Answer with Q, a queryset, or None.'
-                )
-
-        if not reached:
-            return self.none()
-
-        if len(reached) == 1:
-            (only,) = reached
-            return only if isinstance(only, models.QuerySet) else self.filter(only)  # type: ignore[return-value]
-
-        conditions = [
-            scope if isinstance(scope, Q) else Q(pk__in=scope.values('pk')) for scope in reached
-        ]
-        return self.filter(reduce(or_, conditions))
 
 
 class OwnedQuerySet(ScopedQuerySet[ModelT]):
@@ -181,3 +123,153 @@ class SignedInReadQuerySet(ScopedQuerySet[ModelT]):
         if user.is_authenticated and user.is_active:
             return self.all()
         return self.none()
+
+
+# ---------------------------------------------------------------------- any queryset
+
+
+def visible(queryset: QuerySetT, user: User, action: str = 'view') -> QuerySetT:
+    """
+    The rows of ``queryset`` ``user`` may reach for ``action`` - for any model.
+
+    Signed out or switched off, no rows; the superuser, every row; otherwise
+    the union of the scopes of the action's grants.
+    """
+    if not (user.is_authenticated and user.is_active):
+        return queryset.none()
+
+    if getattr(user, 'is_superuser', False):
+        return queryset.all()
+
+    names = scopes_reaching(queryset, user, action)
+
+    if names is None:
+        return queryset.none()
+
+    return _combine(queryset, [rows_in(queryset, name, user) for name in sorted(names)])
+
+
+def scopes_reaching(queryset: models.QuerySet[Any], user: User, action: str) -> set[str] | None:
+    """
+    The scopes ``user`` holds the action in on this model - with the default
+    put in for a grant with none - or ``None`` when they do not hold it.
+    """
+    given = grants_of(user).scopes(permission_for(queryset.model, action))
+
+    if given is None:
+        return None
+
+    default = queryset.default_scope if isinstance(queryset, ScopedQuerySet) else EVERY_ROW
+    return {default if scope is None else scope for scope in given} - {None}  # type: ignore[return-value]
+
+
+def rows_in(queryset: models.QuerySet[Any], scope: str, user: User) -> Rows:
+    """
+    The rows ``scope`` gives ``user``.
+
+    A scope the model no longer offers - removed from the code, or a rule
+    whose fields are gone - reaches nothing, rather than everything.
+    """
+    if scope == EVERY_ROW:
+        return Q()
+
+    if isinstance(queryset, ScopedQuerySet) and scope in queryset.scopes:
+        return queryset.code_scope(scope, user)
+
+    rule = rule_scopes(user, queryset.model).get(scope)
+    return rule.q(user) if rule is not None else None
+
+
+def offered_scopes(model: type[models.Model]) -> dict[str, str | Promise]:
+    """Every scope an administrator may choose for ``model``: ``all``, code, rules."""
+    rows = model._default_manager.all()
+    offered: dict[str, str | Promise] = (
+        rows.offered_scopes() if isinstance(rows, ScopedQuerySet) else {EVERY_ROW: _('Every row')}
+    )
+    content_type = ContentType.objects.get_for_model(model)
+
+    for code, name in ScopeRule.objects.filter(content_type=content_type).values_list(
+        'code', 'name'
+    ):
+        offered.setdefault(code, name)
+
+    return offered
+
+
+def rule_scopes(user: User, model: type[models.Model]) -> dict[str, Rule]:
+    """
+    The rule scopes of ``model``, checked - read once per request, kept on the user.
+
+    A rule that no longer checks out against its model is left out and
+    logged: it reaches nothing until somebody fixes it, and
+    ``clearance_check`` lists it.
+    """
+    kept: dict[type[models.Model], dict[str, Rule]] = getattr(user, _RULES_ATTRIBUTE, None) or {}
+
+    if model not in kept:
+        content_type = ContentType.objects.get_for_model(model)
+        found: dict[str, Rule] = {}
+
+        for stored in ScopeRule.objects.filter(content_type=content_type).select_related(
+            'content_type'
+        ):
+            try:
+                found[stored.code] = stored.compiled()
+            except ValidationError as error:
+                logger.warning(
+                    'Scope rule %r of %s reaches nothing until it is fixed: %s',
+                    stored.code,
+                    model._meta.label,
+                    '; '.join(error.messages),
+                )
+
+        kept[model] = found
+        setattr(user, _RULES_ATTRIBUTE, kept)
+
+    return kept[model]
+
+
+def _combine(queryset: QuerySetT, scopes: list[Rows]) -> QuerySetT:
+    """
+    The union of ``scopes``.
+
+    One scope is applied as it is, so a queryset a method built is returned
+    unchanged. Several are joined with OR in a single ``filter``, a queryset
+    joining as ``pk__in`` it - which never meets the limits of combining
+    querysets with ``|``.
+    """
+    reached: list[Q | models.QuerySet[Any]] = []
+    name = type(queryset).__name__
+
+    for scope in scopes:
+        if scope is None or isinstance(scope, EmptyQuerySet):
+            continue
+
+        if isinstance(scope, Q):
+            if not scope:
+                return queryset.all()
+            reached.append(scope)
+        elif isinstance(scope, models.QuerySet):
+            if scope.model is not queryset.model:
+                raise TypeError(
+                    f'A scope of {name} answered with rows of {scope.model.__name__}, '
+                    f'not {queryset.model.__name__}.'
+                )
+            reached.append(scope)
+        else:
+            raise TypeError(
+                f'A scope of {name} answered with {type(scope).__name__}. '
+                f'Answer with Q, a queryset, or None.'
+            )
+
+    if not reached:
+        return queryset.none()
+
+    if len(reached) == 1:
+        (only,) = reached
+        return only if isinstance(only, models.QuerySet) else queryset.filter(only)  # type: ignore[return-value]
+
+    conditions = [
+        scope if isinstance(scope, Q) else Q(pk__in=scope.values('pk')) for scope in reached
+    ]
+    return queryset.filter(reduce(or_, conditions))

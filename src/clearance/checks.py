@@ -9,11 +9,11 @@ things from the running project.
 ==================  =========================================================
 ``clearance.E002``  a queryset's ``scopes`` and its ``scope_<x>`` methods
                     disagree, or its ``default_scope`` is not offered
-``clearance.E004``  a scoped view's queryset is not a ``ScopedQuerySet``
 ``clearance.E006``  ``ClearanceBackend`` is not installed
 ``clearance.E007``  ``ModelBackend`` is installed beside it
 ``clearance.E009``  a ``PolicyRequiredMixin`` view cannot ask a policy
-``clearance.E011``  ``CLEARANCE`` is not a dictionary, or has an unknown key
+``clearance.E011``  ``CLEARANCE`` is not a dictionary, has an unknown key, or a
+                    value it cannot use
 ``clearance.E014``  a model declares its own permissions but keeps Django's
 ==================  =========================================================
 """
@@ -30,7 +30,7 @@ from django.urls import URLPattern, URLResolver, get_resolver
 
 from clearance.conf import clearance_settings
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
-from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
+from clearance.views import PolicyRequiredMixin
 
 BACKEND = 'clearance.backends.ClearanceBackend'
 MODEL_BACKEND = 'django.contrib.auth.backends.ModelBackend'
@@ -171,24 +171,10 @@ def scoped_querysets() -> list[type[ScopedQuerySet[Any]]]:
 
 
 def view_errors(views: Iterable[type]) -> list[CheckMessage]:
-    """E004 and E009: views that would show every row, or cannot ask a policy."""
+    """E009: views that cannot ask a policy."""
     errors: list[CheckMessage] = []
 
     for view in views:
-        if issubclass(view, ScopedQuerySetMixin):
-            queryset = _declared_queryset(view)
-
-            if queryset is not None and not isinstance(queryset, ScopedQuerySet):
-                errors.append(
-                    Error(
-                        f'{view.__name__} uses ScopedQuerySetMixin, but its queryset is a '
-                        f'{type(queryset).__name__} - so it shows every row to everybody.',
-                        hint='Manage the model with a ScopedQuerySet.',
-                        obj=view,
-                        id='clearance.E004',
-                    )
-                )
-
         if issubclass(view, PolicyRequiredMixin):
             errors += [
                 Error(message, obj=view, id='clearance.E009')
@@ -218,17 +204,6 @@ def _view_classes(patterns: Iterable[URLPattern | URLResolver]) -> Iterator[type
 
         if isinstance(view_class, type):
             yield view_class
-
-
-def _declared_queryset(view: type) -> object:
-    """What the view declares to list, without running it - or ``None``."""
-    queryset = getattr(view, 'queryset', None)
-
-    if queryset is not None:
-        return queryset
-
-    model = getattr(view, 'model', None)
-    return model._default_manager.all() if model is not None else None
 
 
 #: Every check the core registers, in the order they run.

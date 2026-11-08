@@ -6,7 +6,9 @@ Two mixins, for templates and forms as much as for an API:
 ``ScopedQuerySetMixin`` narrows the view's queryset to the rows the person
 reaches for the view's action, in ``get_queryset`` - so a list shows only
 those, and a page for anybody else's row is a 404, exactly as if it did not
-exist. It works with Django's generic views and DRF's alike.
+exist. It works with Django's generic views and DRF's alike, and with any
+model: one with no scopes in code is scoped by the rules an administrator
+builds for it.
 
 ``PolicyRequiredMixin`` asks the policy, the way DRF's bridge does: first
 with no object, in ``dispatch``, before anything runs; then, for a view with
@@ -38,7 +40,7 @@ from django.views.generic.list import BaseListView
 
 from clearance.policies import BasePolicy
 from clearance.protocols import user_of
-from clearance.querysets import ScopedQuerySet
+from clearance.querysets import visible
 from clearance.registry import registry
 
 #: How an action is read off a Django generic view, most specific first:
@@ -112,16 +114,8 @@ class ScopedQuerySetMixin:
         return self.scope_action or action_of(self) or 'view'
 
     def get_queryset(self) -> QuerySet[Any]:
-        queryset = cast(Any, super()).get_queryset()
-
-        if not isinstance(queryset, ScopedQuerySet):
-            raise ImproperlyConfigured(
-                f'{type(self).__name__} uses ScopedQuerySetMixin, but its queryset is a '
-                f'{type(queryset).__name__}. Give the model a ScopedQuerySet, or the view '
-                f'shows every row to everybody.'
-            )
-
-        return queryset.visible_to(user_of(self.request), self.get_scope_action())
+        queryset: QuerySet[Any] = cast(Any, super()).get_queryset()
+        return visible(queryset, user_of(self.request), self.get_scope_action())
 
 
 class PolicyRequiredMixin(AccessMixin):

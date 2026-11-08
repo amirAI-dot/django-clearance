@@ -28,6 +28,12 @@ class Loan(models.Model):
     )
     amount = models.PositiveIntegerField()
     approved = models.BooleanField(default=False)
+    region = models.CharField(max_length=32, blank=True)
+    status = models.CharField(
+        max_length=16,
+        choices=(('pending', 'Pending'), ('approved', 'Approved'), ('declined', 'Declined')),
+        default='pending',
+    )
 
     objects = LoanQuerySet.as_manager()
 
@@ -52,3 +58,15 @@ class Payment(models.Model):
 
     def __str__(self) -> str:
         return f'Payment {self.pk} of {self.amount}'
+
+
+class Statement(models.Model):
+    """Nothing about access here at all: Django's permissions, a plain manager."""
+
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name='statements')
+    region = models.CharField(max_length=32, blank=True)
+    total = models.PositiveIntegerField()
+    issued_on = models.DateField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f'Statement {self.pk}'
