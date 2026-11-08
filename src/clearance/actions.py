@@ -97,7 +97,7 @@ def status_action_problems(
         problems.append('It writes no value.')
 
     for value in (*to, *start):
-        if _clean(model, field, value) not in every:
+        if clean_value(model, field, value) not in every:
             problems.append(f'{value!r} is not one of the values of {model.__name__}.{field}.')
 
     return problems
@@ -111,8 +111,8 @@ def transition(
         model,
         code,
         field,
-        frozenset(_clean(model, field, value) for value in to),
-        frozenset(_clean(model, field, value) for value in start),
+        frozenset(clean_value(model, field, value) for value in to),
+        frozenset(clean_value(model, field, value) for value in start),
     )
 
 
@@ -205,7 +205,7 @@ def writable_values(
     return (every - claimed) | given | (every & {current})
 
 
-def _clean(model: type[Model], field: str, value: object) -> object:
+def clean_value(model: type[Model], field: str, value: object) -> object:
     """``value`` as the field holds it - ``'1'`` is ``1`` for a number - or as it was."""
     try:
         return model._meta.get_field(field).to_python(value)  # type: ignore[union-attr]

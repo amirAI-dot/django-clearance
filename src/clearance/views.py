@@ -182,12 +182,8 @@ class PolicyRequiredMixin(AccessMixin):
                 f'{cls.__name__} names no policy_action, and none can be read off it: it is '
                 f'not a ListView, DetailView, CreateView, UpdateView or DeleteView.'
             )
-        elif policy is not None:
-            try:
-                policy.hook(action)
-            except ImproperlyConfigured as error:
-                errors.append(f'{cls.__name__}: {error}')
 
+        # An action that cannot be a permission's name is E013, with every action found.
         return errors
 
     def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:

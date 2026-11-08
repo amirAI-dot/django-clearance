@@ -15,6 +15,7 @@ from django.core.checks import CheckMessage
 from django.db.models import Q
 from django.test import override_settings
 from django.urls import include, path
+from django.views import View
 from django.views.generic import TemplateView, UpdateView
 
 from clearance.checks import (
@@ -158,6 +159,10 @@ class NoModel(PolicyRequiredMixin, TemplateView):
     policy_action = 'view'
 
 
+class NoAction(PolicyRequiredMixin, View):
+    model = Loan
+
+
 class UnnameableAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-arg]
     policy_action = 'Approve!'
     model = Loan
@@ -167,7 +172,7 @@ class UnnameableAction(PolicyRequiredMixin, UpdateView):  # type: ignore[type-ar
     ('view', 'expected'),
     [
         (NoModel, 'clearance.E009'),
-        (UnnameableAction, 'clearance.E009'),
+        (NoAction, 'clearance.E009'),
     ],
 )
 def test_a_view_that_would_show_every_row_or_cannot_ask_is_reported(
@@ -184,6 +189,17 @@ def test_a_view_that_asks_no_policy_is_not_this_checks_business() -> None:
     assert view_errors([TemplateView]) == []
 
 
+def test_an_action_that_could_never_be_a_permission_is_reported_once(db: None) -> None:
+    from clearance.checks import check_actions
+
+    with override_settings(ROOT_URLCONF='tests.test_misconfiguration_fails_at_start_up'):
+        errors = check_actions()
+        assert ids(check_views()) == ['clearance.E009', 'clearance.E009'], 'not as E009 too'
+
+    assert ids(errors) == ['clearance.E013']
+    assert "'Approve!', which cannot end a permission's name" in errors[0].msg
+
+
 def test_the_views_checked_are_found_through_every_include() -> None:
     with override_settings(ROOT_URLCONF='tests.test_misconfiguration_fails_at_start_up'):
         assert ids(check_views()) == ['clearance.E009', 'clearance.E009']
@@ -196,8 +212,10 @@ def test_a_urlconf_that_does_not_import_is_left_to_django() -> None:
     assert check_views() == []
 
 
-#: A URLconf for the test above: two views that cannot ask, one behind an include.
+#: A URLconf for the tests above: two views that cannot ask, one behind an include, and
+#: one asking for an action that could never be a permission.
 urlpatterns = [
-    path('loans/', UnnameableAction.as_view()),
+    path('loans/', NoAction.as_view()),
     path('more/', include([path('nothing/', NoModel.as_view())])),
+    path('approve/', UnnameableAction.as_view()),
 ]

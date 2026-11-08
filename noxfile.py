@@ -60,7 +60,7 @@ def types(session: nox.Session) -> None:
 )
 def tests(session: nox.Session, django: str) -> None:
     """The suite, against one Python and one Django release."""
-    session.install('-e', '.', '--group', 'test', django_release(django))
+    session.install('-e', '.[drf]', '--group', 'test', django_release(django))
     # The library ships migrations: one forgotten is a release that cannot migrate.
     session.run(
         'python',

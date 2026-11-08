@@ -17,6 +17,7 @@ class ClearanceConfig(AppConfig):
     verbose_name = 'Clearance'
 
     def ready(self) -> None:
+        from django.apps import apps
         from django.core.checks import register
         from django.db.models.signals import post_migrate
 
@@ -25,5 +26,11 @@ class ClearanceConfig(AppConfig):
 
         for check in CHECKS:
             register(check, 'clearance')
+
+        if apps.is_installed('rest_framework'):
+            from clearance.drf.checks import CHECKS as API_CHECKS  # DRF is optional
+
+            for check in API_CHECKS:
+                register(check, 'clearance')
 
         post_migrate.connect(make_permissions_after_migrate, sender=self)
