@@ -181,6 +181,7 @@ src/clearance/
     models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
+    limits.py              what a layer above bundles adds: starting bundles, a ceiling
     rules.py               a ScopeRule's conditions, checked and turned into a Q
     actions.py             status actions, and writable_values()
     discovery.py           the actions found in the code, and their permissions on migrate
@@ -218,8 +219,12 @@ src/clearance/
 
     roles/                 INSTALLED_APPS += ['clearance.roles']
         models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
-        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of()
-        admin/
+        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of(), has_role()
+        limits.py          RoleLimits - installed in clearance.limits when the app starts
+        services.py        RoleService
+        pages.py, admin.py the roles pages, mounted beside the access pages
+        checks.py          E008, E010
+        signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
         models.py          PermissionTranslation, BundleTranslation, RoleTranslation
@@ -726,6 +731,35 @@ querysetی انجام می‌دهد.
   resolver مخصوص خودش آن‌ها را می‌خواند.
 * **در یک policy**، `has_role(user, *roles)` جواب می‌دهد یک کار کار چه کسی است.
 
+### ۱۱.۱ سقف چطور کار می‌کند
+
+سقف یک شخص اجتماع سقف‌های نقش‌هایش است. کسی که هیچ نقشی ندارد سقفی ندارد، و
+کسی که حتی یکی از نقش‌هایش محدود نیست هم سقفی ندارد: نقش‌ها محدود می‌کنند، جای
+بسته‌ها را نمی‌گیرند. یک نقش تازه محدود است و هیچ چیزی را اجازه نمی‌دهد، پس دادن
+آن به کسی تا وقتی سقفش تعیین نشده همه چیز را از او می‌گیرد - که جهت امن است.
+
+سقف و بسته‌های شروع، شرط‌هایی داخل همان کوئری‌هایی‌اند که backend و مجوزها از
+قبل می‌سازند (`clearance.limits`)، پس پرسیدن درباره‌ی کسی که نقش دارد هزینه‌ی
+بیشتری ندارد. هسته هیچ چیزی از `clearance.roles` import نمی‌کند: خود اپ موقع
+شروع آن‌ها را برقرار می‌کند.
+
+`AttributeResolver` یک فیلد از مدل کاربر را می‌خواند - یک ستون، هرگز یک property
+- تا بتواند داخل همان کوئری خوانده شود. هر چیز دیگری resolver خود پروژه است که با
+querysetها جواب می‌دهد.
+
+### ۱۱.۲ تغییر دادن نقش‌ها
+
+هر تغییری از طریق `RoleService` انجام می‌شود، زیر قواعد هسته و دو قاعده‌ی دیگر:
+
+* **سقف فقط با `role_ceiling_edit` تغییر می‌کند** - تعیین کردنش، برداشتنش، و هر
+  کاری که سقفی را از کسی برمی‌دارد: حذف یک نقش محدود، یا گرفتن یک نقش محدود از
+  یک شخص؛
+* **هیچ‌کس چیزی را که نقش خودش دارد تغییر نمی‌دهد** - سقفش، بسته‌های شروعش، یا
+  اینکه اصلاً وجود داشته باشد.
+
+بسته‌های شروع مثل بسته‌ها داده می‌شوند: فقط توسط کسی که چیزی را که می‌دهد دارد.
+نقش‌هایی که از مدل کاربر خوانده می‌شوند همان‌جا داده می‌شوند، نه اینجا.
+
 ---
 
 ## ۱۲. قواعد ایمنی
@@ -747,6 +781,8 @@ querysetی انجام می‌دهد.
 * **برداشتن محافظت فیلدی که هر دو مجوزش را ندارید** (۱۰.۴)؛
 * **آزاد کردن مقدار یک اکشن وضعیت، یا حذفش، بدون داشتن آن روی همه‌ی ردیف‌ها؛ و
   اینکه بگذارید اکشنی که خودتان دارید از مقدارهای بیشتری بنویسد** (۸.۱)؛
+* **برداشتن سقف از کسی بدون `role_ceiling_edit`، یا تغییر چیزی که نقش خودتان
+  دارد** (۱۱.۲)؛
 * **بازتر کردن یک سقف**، بدون `role_ceiling_edit`.
 
 هر رد شدنی می‌گوید کدام قاعده بوده، و هر تغییری یک signal است.
@@ -858,9 +894,11 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 
 صفحه‌های نمای کلی، بسته‌ها، آدم‌ها و مجوزها اول می‌آیند، همراه با اینکه هر
 `ModelAdmin` از کتابخانه بپرسد. صفحه‌های scopeهای قانونی، فیلدهای محافظت‌شده و
-اکشن‌ها با بخش دوم پنل ادمین می‌آیند، و صفحه‌های نقش‌ها با `clearance.roles`. تا
-آن موقع این‌ها در کد، از طریق `AccessService`، ساخته می‌شوند و در صفحه‌هایی که
-وجود دارند نشان داده می‌شوند.
+اکشن‌ها با بخش دوم پنل ادمین می‌آیند؛ تا آن موقع این‌ها در کد، از طریق
+`AccessService`، ساخته می‌شوند و در صفحه‌هایی که وجود دارند نشان داده می‌شوند.
+صفحه‌های نقش‌ها - همه‌ی نقش‌ها، و اسم، سقف، بسته‌های شروع و آدم‌های هر کدام - با
+`clearance.roles` اضافه می‌شوند، و صفحه‌ی یک شخص نقش‌هایش، بسته‌هایی که با آن‌ها
+شروع می‌کند، و چیزهایی را که سقفش جلویشان را می‌گیرد نشان می‌دهد.
 
 ---
 
@@ -1090,3 +1128,12 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 46. **اکشن ادمینی که `permissions=` جنگو را نام می‌برد مال جنگوست**؛ هر اکشن دیگری
     پیدا می‌شود، مجوز خودش را لازم دارد، و روی ردیف‌هایی اجرا می‌شود که scopeاش به
     آن‌ها می‌رسد.
+47. **کسی که نقشی ندارد، یا حتی یکی از نقش‌هایش محدود نیست، سقفی ندارد**؛ یک نقش
+    تازه محدود است و تا وقتی سقفش تعیین نشده هیچ چیزی را اجازه نمی‌دهد.
+48. **برداشتن سقف از هر کسی `role_ceiling_edit` لازم دارد** - تغییر یک سقف، حذف یک
+    نقش محدود، گرفتن یک نقش محدود - و هیچ‌کس چیزی را که نقش خودش دارد تغییر
+    نمی‌دهد.
+49. **نقش‌ها داخل کوئری خوانده می‌شوند**: `AttributeResolver` یک فیلد را می‌خواند،
+    و هسته نقش‌ها را بدون import کردنشان از طریق `clearance.limits` برقرار می‌کند.
+50. **اپ‌های کتابخانه نوع کلید اصلی خودشان را تعیین می‌کنند**، پس
+    `DEFAULT_AUTO_FIELD` یک پروژه هرگز از آن نمی‌خواهد برایشان migration بسازد.

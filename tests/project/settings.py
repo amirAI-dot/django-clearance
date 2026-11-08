@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'rest_framework',
     'clearance',
+    'clearance.roles',
     'tests.project.accounts',
     'tests.project.lending',
 ]

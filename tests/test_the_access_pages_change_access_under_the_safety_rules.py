@@ -392,7 +392,9 @@ def test_a_standing_is_read_in_a_fixed_number_of_queries(
     bundles = [make_bundle({'lending.loan_view': 'all'}, name=f'B{n}') for n in range(3)]
     person = Person.objects.get(pk=make_user('lending.loan_edit', bundles=bundles).pk)
 
-    with django_assert_num_queries(5):
+    with django_assert_num_queries(
+        8
+    ):  # bundles, starting, theirs, own, scopes, taken, ceiling, roles
         Standing.of(person)
 
 

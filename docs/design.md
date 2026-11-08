@@ -170,6 +170,7 @@ src/clearance/
     models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
+    limits.py              what a layer above bundles adds: starting bundles, a ceiling
     rules.py               a ScopeRule's conditions, checked and turned into a Q
     actions.py             status actions, and writable_values()
     discovery.py           the actions found in the code, and their permissions on migrate
@@ -207,8 +208,12 @@ src/clearance/
 
     roles/                 INSTALLED_APPS += ['clearance.roles']
         models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
-        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of()
-        admin/
+        resolvers.py       RoleResolver, AssignmentResolver, AttributeResolver, roles_of(), has_role()
+        limits.py          RoleLimits - installed in clearance.limits when the app starts
+        services.py        RoleService
+        pages.py, admin.py the roles pages, mounted beside the access pages
+        checks.py          E008, E010
+        signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
         models.py          PermissionTranslation, BundleTranslation, RoleTranslation
@@ -716,6 +721,36 @@ refusals hold beside the library's own permissions:
   resolver of its own instead.
 * **In a policy**, `has_role(user, *roles)` answers whose job an act is.
 
+### 11.1 How a ceiling works
+
+A person's ceiling is the union of their roles' ceilings. A person with no
+role has none, and nor does a person with any role that is not limited: roles
+limit, they do not stand in for bundles. A new role is limited and permits
+nothing, so giving it to somebody takes everything from them until its
+ceiling is set - the safe way round.
+
+The ceiling and the starting bundles are conditions inside the queries the
+backend and the grants already make (`clearance.limits`), so a person with
+roles costs nothing more to ask about. The core imports nothing from
+`clearance.roles`: the app puts them in force when it starts.
+
+`AttributeResolver` reads a field of the user model - a column, never a
+property - so that it can be read inside the same query. Anything else is a
+resolver of the project's own, answering with querysets.
+
+### 11.2 Changing roles
+
+Every change goes through `RoleService`, under the core's rules and two more:
+
+* **a ceiling is changed only with `role_ceiling_edit`** - setting one,
+  removing one, and anything that lifts one from somebody: deleting a limited
+  role, or taking a limited role away from a person;
+* **nobody changes what their own role holds** - its ceiling, its starting
+  bundles, or whether it exists.
+
+Starting bundles are given like bundles: only by somebody holding what they
+give. Roles read from the user model are given there, not here.
+
 ---
 
 ## 12. The safety rules
@@ -737,6 +772,8 @@ goes through `AccessService`, which refuses:
 * **unprotecting a field you do not hold both permissions of** (10.4);
 * **releasing a status action's value, or deleting it, without holding it on
   every row; letting one you hold write from more values** (8.1);
+* **lifting a ceiling from anybody without `role_ceiling_edit`, or changing
+  what your own role holds** (11.2);
 * **a widened ceiling**, without `role_ceiling_edit`.
 
 Every refusal says which rule, and every change is a signal.
@@ -849,9 +886,11 @@ subclasses `ClearanceAdminSite`.
 
 The overview, bundles, people and permissions pages come first, with every
 `ModelAdmin` asking the library. The pages for rule scopes, protected fields
-and actions come with the admin site's second part, and the roles pages with
-`clearance.roles`. Until then those are made in code, through
-`AccessService`, and shown on the pages that exist.
+and actions come with the admin site's second part; until then those are made
+in code, through `AccessService`, and shown on the pages that exist. The
+roles pages - every role, and each one's name, ceiling, starting bundles and
+people - are mounted with `clearance.roles`, and a person's page shows their
+roles, the bundles they start with, and what their ceiling stops.
 
 ---
 
@@ -1082,3 +1121,14 @@ Made by the owner.
 46. **An admin action naming Django's `permissions=` is Django's**; any other
     is found, needs its own permission, and runs over the rows its scope
     reaches.
+47. **A person with no role, or with any role that is not limited, has no
+    ceiling**; a new role is limited and permits nothing until its ceiling is
+    set.
+48. **Lifting a ceiling from anybody needs `role_ceiling_edit`** - changing
+    one, deleting a limited role, taking a limited role away - and nobody
+    changes what their own role holds.
+49. **Roles are read inside the query**: `AttributeResolver` reads a field,
+    and the core puts roles in force through `clearance.limits` without
+    importing them.
+50. **The library's apps set their own primary key**, so a project's
+    `DEFAULT_AUTO_FIELD` never asks it to make a migration for them.
