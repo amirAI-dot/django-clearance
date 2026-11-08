@@ -147,7 +147,7 @@ held     = direct grants + their bundles' permissions + their roles' starting bu
 allowed  = held, within the ceilings of their roles            (only when roles are used)
 
 rows     = the union of the scopes of every grant of that permission that reaches them
-fields   = a protected field needs <codename>_view_<field> to be read, _edit_ to be written
+fields   = a protected field needs its view permission to be read, and its edit one too to be written
 values   = a status action's values need that action's permission to be written
 ```
 
@@ -600,9 +600,12 @@ within the person's scope for that action. A view finds its object among
 * in the admin site: choose a model and a field, mark it protected;
 * in code: `build_permissions(..., protected_fields=('price',))`.
 
-Either makes the field's view and edit permissions. The password field and
-the primary key cannot be protected - the first is never shown anyway, the
-second is how a row is found.
+Either makes the field's view and edit permissions, named the way the
+model's own are: `shop.order_view_price` and `shop.order_edit_price` on a
+model declaring its own, `shop.view_order_price` and `shop.change_order_price`
+on one keeping Django's. The password field and the primary key cannot be
+protected - the first is never shown anyway, the second is how a row is
+found - and nor can a relation another model has to this one.
 
 ### 10.2 Two rules
 
@@ -611,13 +614,18 @@ second is how a row is found.
 * **Writing:** without the edit permission, the field is not offered in a
   form, and a value sent for it to an API is **refused**, naming the field.
 
+A field that may not be read may not be written either: a form offering it
+would show what it holds. A field's permissions take no scope - they are the
+person's, not the row's (decision 13) - so a grant of one with a scope is
+refused.
+
 ### 10.3 Every door
 
 | where | how |
 |---|---|
-| a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows read-only what may not be written |
-| a Django view | `ProtectedFieldsViewMixin` builds the form that way |
-| the admin site | every `ModelAdmin`, without a mixin: the library's admin hooks hide and lock |
+| a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows disabled what may not be written - Django then keeps the value the row holds, whatever is sent |
+| a Django view | `ProtectedFieldsViewMixin` builds the form that way, and gives the template `readable_fields` and `writable_fields` |
+| the admin site | every `ModelAdmin`, without a mixin: the library's admin hooks hide and lock (stage 8) |
 | a DRF serializer | `ProtectedFieldsSerializerMixin`, and on every serializer `ModelPolicyPermission` guards |
 | a template | `{% if perms.shop.view_order_price %}` |
 | code | `readable_fields(user, Order)`, `writable_fields(user, Order)` |
@@ -625,6 +633,26 @@ second is how a row is found.
 The library guards the doors it provides; `Order.objects.values('price')` in
 the project's own code is the project's to guard, and the documentation says
 so. In 0.1 a field's permissions are the person's, not the row's.
+
+What is protected is read once per request, in one query over the whole
+table - it holds the handful of fields a project protects - and kept on the
+user beside their grants.
+
+### 10.4 Protecting and unprotecting
+
+`AccessService.protect_field(model, field)` marks a field and makes its two
+permissions; nobody holds them yet, so from then on only the superuser reads
+the field until a bundle holding them is given out.
+`unprotect_field(model, field)` deletes both, and every grant of them. Three
+refusals hold beside the library's own permissions:
+
+* **a field a scope rule reads is not protected** - the rule would tell
+  whoever it reaches what the field holds. The rules are named, and changed
+  first. A rule on a field protected some other way - in code, after it was
+  saved - reaches nothing, as any rule that no longer checks out;
+* **nobody unprotects a field they do not hold both permissions of** - it
+  would give them a field they were never given (`not_held`);
+* **a field protected in code is unprotected in code**.
 
 ---
 
@@ -667,6 +695,7 @@ goes through `AccessService`, which refuses:
 * **a change after which nobody but the superuser could manage access** -
   the last holder of `permission_edit` losing it;
 * **a change to the rows of a rule scope your own grants are in** (9.2);
+* **unprotecting a field you do not hold both permissions of** (10.4);
 * **a widened ceiling**, without `role_ceiling_edit`.
 
 Every refusal says which rule, and every change is a signal.
@@ -773,7 +802,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E009` | a `PolicyRequiredMixin` view cannot ask a policy |
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
 | `clearance.E011` | `CLEARANCE` is not a dictionary, has a key the library does not know, or a value it cannot use - `RULE_DEPTH` below one |
-| `clearance.E012` | a field protected in code is not a field of its model |
+| `clearance.E012` | a field protected in code is not a field of its model, or cannot be protected - the primary key, the password, a relation of another model |
 | `clearance.E013` | an action name found in the code cannot make a permission |
 | `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 
@@ -835,10 +864,10 @@ changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
 | 3 | settings, Django views, the decorator, the checks - built around roles | done; reworked in 3b |
 | **3b** | layers 1 and 2 at their core: default and custom permissions, `ModelPolicy`, `ScopeGrant`, `PermissionRevocation`, `ClearanceBackend`, `grants`, `AccessService` with **the safety rules**, the library's own permissions, code scopes and `visible_to(user, action)`, scope-aware hooks; the role code from stage 3 moves to stage 9 | |
 | 4 | the rule builder: `ScopeRule`, its conditions checked and turned into `Q` | |
-| 5 | protected fields: in code and in the database, and every Django door | |
+| 5 | protected fields: in code and in the database, under the safety rules; forms, views, templates and code - the admin site's door with the admin site, in stage 8 | |
 | 6 | actions: status actions and their enforcement; actions found in every kind of view | |
 | 7 | DRF: `ModelPolicyPermission`, `PolicyPermission`, the viewsets, the serializer mixin, their checks | |
-| 8 | the admin site, part one: overview, bundles as a grid, people, permissions | |
+| 8 | the admin site, part one: overview, bundles as a grid, people, permissions; every `ModelAdmin` asking `permission_for` and hiding and locking protected fields | |
 | 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers - and their pages | |
 | 10 | access as code: the `ACCESS` file, `clearance_sync` with `--dry-run` and `--check`, `SYNC_ON_MIGRATE`, read only in the admin site | |
 | 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
@@ -926,3 +955,7 @@ Made by the owner.
 35. **The admin site is optional**: without it the library works whole.
 36. **`migrate` makes the permissions; `clearance_sync` gives access.**
     `SYNC_ON_MIGRATE` joins them for a project that wants one command.
+37. **A field that may not be read may not be written**, and a field's
+    permission is given with no scope.
+38. **A field a scope rule reads is not protected until the rule changes**;
+    unprotecting a field needs both of its permissions.

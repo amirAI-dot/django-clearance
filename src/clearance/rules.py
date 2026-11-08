@@ -21,12 +21,12 @@ holds - "the price is at least ten million" - and the password is never read
 at all.
 """
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import reduce
 from operator import and_, or_
 from types import MappingProxyType
-from typing import Any, Final, Self
+from typing import TYPE_CHECKING, Any, Final, Self
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.base_user import AbstractBaseUser
@@ -37,9 +37,8 @@ from django.db.models import Q, Subquery
 from clearance.conf import clearance_settings
 from clearance.protocols import User
 
-#: Answers whether a field of a model may not be read by a rule. The
-#: protected fields add theirs; the password is refused always.
-unreadable_checks: list[Callable[[type[models.Model], str], bool]] = []
+if TYPE_CHECKING:
+    from clearance.fields import Protection
 
 TEXT, NUMBER, DATE, BOOLEAN, RELATION, OTHER = (
     'text',
@@ -108,7 +107,7 @@ class Path:
     field: Any
 
     @classmethod
-    def resolve(cls, model: type[models.Model], path: str) -> Self:
+    def resolve(cls, model: type[models.Model], path: str, protection: 'Protection') -> Self:
         """The field ``path`` names on ``model``, or ``ValidationError`` saying why not."""
         names = tuple(path.split('__')) if path else ()
         depth = rule_depth()
@@ -131,7 +130,7 @@ class Path:
                     f'{path!r}: {current.__name__} has no field {name!r}.'
                 ) from None
 
-            if not readable(current, name):
+            if not readable(current, name, protection):
                 raise ValidationError(f'{path!r}: {current.__name__}.{name} may not be read.')
 
         return cls(model, names, field)
@@ -190,11 +189,23 @@ class Rule:
         self.conditions = tuple(conditions)
 
     @classmethod
-    def parse(cls, model: type[models.Model], match: str, raw: object) -> 'Rule':
+    def parse(
+        cls,
+        model: type[models.Model],
+        match: str,
+        raw: object,
+        *,
+        protection: 'Protection | None' = None,
+    ) -> 'Rule':
         """
         The rule ``raw`` describes on ``model``, every condition checked, or a
         ``ValidationError`` naming each condition that is wrong, and how.
+
+        ``protection`` is what is protected; it is read when not given.
         """
+        from clearance.fields import Protection
+
+        protection = Protection.load() if protection is None else protection
         problems: list[str] = []
 
         if match not in MATCHES:
@@ -208,7 +219,7 @@ class Rule:
 
         for number, item in enumerate(raw, start=1):
             try:
-                conditions.append(parse_condition(model, item))
+                conditions.append(parse_condition(model, item, protection))
             except ValidationError as error:
                 problems += [f'Condition {number}: {message}' for message in error.messages]
 
@@ -222,11 +233,11 @@ class Rule:
         return reduce(join, (condition.q(user) for condition in self.conditions))
 
 
-def parse_condition(model: type[models.Model], item: object) -> Condition:
+def parse_condition(model: type[models.Model], item: object, protection: 'Protection') -> Condition:
     if not isinstance(item, Mapping):
         raise ValidationError('A condition is a field, an operator and a value.')
 
-    field = Path.resolve(model, str(item.get('field', '')))
+    field = Path.resolve(model, str(item.get('field', '')), protection)
 
     if field.field is None:
         raise ValidationError('A condition names a field.')
@@ -252,13 +263,14 @@ def parse_condition(model: type[models.Model], item: object) -> Condition:
         raise ValidationError('The value is {"constant": ...} or {"person": "<field>"}.')
 
     if 'person' in value:
-        return Condition(field, operator, person=_person_path(field, str(value['person'])))
+        person = _person_path(field, str(value['person']), protection)
+        return Condition(field, operator, person=person)
 
     return Condition(field, operator, constant=_constant(field, operator, value['constant']))
 
 
-def _person_path(field: Path, path: str) -> Path:
-    person = Path.resolve(get_user_model(), path)
+def _person_path(field: Path, path: str, protection: 'Protection') -> Path:
+    person = Path.resolve(get_user_model(), path, protection)
 
     if field.kind == RELATION:
         if person.target is None or person.target is not field.target:
@@ -300,11 +312,11 @@ def _one_constant(field: Path, value: object) -> object:
     return cleaned
 
 
-def readable(model: type[models.Model], name: str) -> bool:
+def readable(model: type[models.Model], name: str, protection: 'Protection') -> bool:
     """Whether a rule may read ``model.name``: never a password, never a protected field."""
     if issubclass(model, AbstractBaseUser) and name == 'password':
         return False
-    return not any(check(model, name) for check in unreadable_checks)
+    return not protection.protects(model, name)
 
 
 def rule_depth() -> int:

@@ -14,6 +14,8 @@ things from the running project.
 ``clearance.E009``  a ``PolicyRequiredMixin`` view cannot ask a policy
 ``clearance.E011``  ``CLEARANCE`` is not a dictionary, has an unknown key, or a
                     value it cannot use
+``clearance.E012``  a field protected in code is not a field of its model, or
+                    cannot be protected
 ``clearance.E014``  a model declares its own permissions but keeps Django's
 ==================  =========================================================
 """
@@ -29,6 +31,8 @@ from django.db.models import Model
 from django.urls import URLPattern, URLResolver, get_resolver
 
 from clearance.conf import clearance_settings
+from clearance.fields import protection_problem
+from clearance.permissions import declared_protected_fields
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
 from clearance.views import PolicyRequiredMixin
 
@@ -105,8 +109,23 @@ def permission_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
     return errors
 
 
+def field_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
+    """E012: every field a model protects in code can be protected."""
+    return [
+        Error(
+            f'{model._meta.label} protects {name!r} in code, and cannot: {problem}',
+            obj=model,
+            id='clearance.E012',
+        )
+        for model in models
+        for name in declared_protected_fields(model)
+        if (problem := protection_problem(model, name)) is not None
+    ]
+
+
 def check_models(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
-    return permission_errors(apps.get_models())
+    models = apps.get_models()
+    return [*permission_errors(models), *field_errors(models)]
 
 
 def scope_errors(querysets: Iterable[type[ScopedQuerySet[Any]]]) -> list[CheckMessage]:

@@ -1,7 +1,7 @@
 """
 Django's own views, scoped and asking the policy.
 
-Two mixins, for templates and forms as much as for an API:
+Three mixins, for templates and forms as much as for an API:
 
 ``ScopedQuerySetMixin`` narrows the view's queryset to the rows the person
 reaches for the view's action, in ``get_queryset`` - so a list shows only
@@ -24,6 +24,13 @@ The action is ``policy_action`` when named, and otherwise read off the view -
 action on a viewset. The policy is ``policy`` when named, and otherwise the
 model's own. A view neither can be read off is refused as misconfigured,
 never let through.
+
+``ProtectedFieldsViewMixin`` builds the view's form with
+``ProtectedFieldsFormMixin`` - leaving out the protected fields the person may
+not read, and disabling those they may not write - and tells the template
+which fields those are, as ``readable_fields`` and ``writable_fields``::
+
+    {% if 'rate' in readable_fields %}{{ object.rate }}{% endif %}
 """
 
 from collections.abc import Mapping
@@ -38,6 +45,8 @@ from django.views.generic.detail import BaseDetailView
 from django.views.generic.edit import BaseCreateView, BaseDeleteView, BaseUpdateView
 from django.views.generic.list import BaseListView
 
+from clearance.fields import readable_fields, writable_fields
+from clearance.forms import ProtectedFieldsFormMixin
 from clearance.policies import BasePolicy
 from clearance.protocols import user_of
 from clearance.querysets import visible
@@ -193,3 +202,40 @@ class PolicyRequiredMixin(AccessMixin):
         policy = cast(BasePolicy, self.resolved_policy())
         action = cast(str, self.resolved_action())
         return policy.allows(user_of(self.request), action, obj)
+
+
+class ProtectedFieldsViewMixin:
+    """Builds the view's form for the person, and tells its template which fields they may see."""
+
+    request: HttpRequest
+
+    def get_form_class(self) -> type[Any]:
+        form_class: type[Any] = cast(Any, super()).get_form_class()
+
+        if issubclass(form_class, ProtectedFieldsFormMixin):
+            return form_class
+
+        # Built by the form's own metaclass, as Django builds a ModelForm.
+        metaclass: Any = type(form_class)
+        protected: type[Any] = metaclass(
+            form_class.__name__,
+            (ProtectedFieldsFormMixin, form_class),
+            {'__module__': form_class.__module__},
+        )
+        return protected
+
+    def get_form_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = cast(Any, super()).get_form_kwargs()
+        return {**kwargs, 'user': user_of(self.request)}
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context: dict[str, Any] = cast(Any, super()).get_context_data(**kwargs)
+        found = getattr(self, 'object', None)
+        model = model_of(self) or (type(found) if isinstance(found, Model) else None)
+
+        if model is not None:
+            user = user_of(self.request)
+            context.setdefault('readable_fields', readable_fields(user, model))
+            context.setdefault('writable_fields', writable_fields(user, model))
+
+        return context

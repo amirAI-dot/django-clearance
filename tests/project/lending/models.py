@@ -3,8 +3,9 @@ A small lending app, the resource the suite guards.
 
 Loans are applied for by customers and approved by officers - enough to give
 a policy something to decide about, with an action beyond the standard four.
-A loan declares its own permissions (``loan_view``); a payment keeps
-Django's (``view_payment``), so the suite holds both styles.
+A loan declares its own permissions (``loan_view``), and protects its
+applicant's credit score in code; a payment keeps Django's
+(``view_payment``), so the suite holds both styles.
 """
 
 from django.conf import settings
@@ -34,6 +35,8 @@ class Loan(models.Model):
         choices=(('pending', 'Pending'), ('approved', 'Approved'), ('declined', 'Declined')),
         default='pending',
     )
+    #: For the officers deciding, not for everybody who reads the loan.
+    credit_score = models.PositiveIntegerField(null=True, blank=True)
 
     objects = LoanQuerySet.as_manager()
 
@@ -44,6 +47,7 @@ class Loan(models.Model):
             _('loans'),
             actions=(*DEFAULT_ACTIONS, 'approve', 'look_up'),
             labels={'approve': _('Can approve or decline %(resource)s')},
+            protected_fields=('credit_score',),
         )
 
     def __str__(self) -> str:
