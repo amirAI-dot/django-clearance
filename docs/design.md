@@ -990,9 +990,12 @@ not know is refused (E011).
 |---|---|---|
 | `clearance` | `ScopeGrant` | `group` or `user` (exactly one), `permission`, `scope` |
 | `clearance` | `PermissionRevocation` | `user`, `permission`, `revoked_by`, `reason`, `revoked_at` |
-| `clearance` | `ScopeRule` | `content_type`, `code`, `name`, `match` (all or any), `conditions` |
+| `clearance` | `ScopeRule` | `content_type`, `code`, `name`, `match` (all or any) |
+| `clearance` | `ScopeCondition` | `rule`, `position`, `field`, `operator`, `source` (a constant, a list, the person's, none), `person` |
+| `clearance` | `ScopeConditionValue` | `condition`, `position`, `value` - a constant, in words |
 | `clearance` | `ProtectedField` | `content_type`, `field` - with the two permissions it made |
-| `clearance` | `StatusAction` | `content_type`, `code`, `name`, `field`, `to_values`, `from_values` - with its permission |
+| `clearance` | `StatusAction` | `content_type`, `code`, `name`, `field` - with its permission |
+| `clearance` | `StatusActionValue` | `action`, `end` (to or from), `position`, `value` |
 | `clearance` | `Declared` | what the `ACCESS` file owns - a bundle, a role, a status action - so a sync knows what it may delete, and the admin site shows it read only |
 | `clearance.roles` | `Role` | `code`, `name`, `limited` |
 | `clearance.roles` | `RoleAssignment` | `user`, `role`, `assigned_by`, `assigned_at` |
@@ -1224,3 +1227,6 @@ Made by the owner.
     names, so the translations app needs no other app.
 58. **A name reads from the reader's language, then its base, then the
     code, then the row.**
+59. **No JSON column.** A rule's conditions and a status action's values are
+    rows of their own, which the database constrains and joins; the rules of
+    a request are still read in one query.

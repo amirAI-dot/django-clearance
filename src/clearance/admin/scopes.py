@@ -200,7 +200,11 @@ def _scope_rows() -> Iterator[dict[str, Any]]:
             count=Count('pk')
         )
     }
-    rules = ScopeRule.objects.select_related('content_type').order_by('content_type', 'code')
+    rules = (
+        ScopeRule.objects.select_related('content_type')
+        .with_conditions()
+        .order_by('content_type', 'code')
+    )
     protection = Protection.load()
 
     for model in sorted(apps.get_models(), key=lambda model: model._meta.label):
