@@ -214,19 +214,17 @@ def rule_scopes(user: User, model: type[models.Model]) -> dict[str, Rule]:
 
     if model not in kept:
         content_type = ContentType.objects.get_for_model(model)
-        stored_rules = list(
-            ScopeRule.objects.filter(content_type=content_type).select_related('content_type')
-        )
+        stored_rules = ScopeRule.objects.filter(content_type=content_type).read()
         protection = protection_of(user) if stored_rules else None
         found: dict[str, Rule] = {}
 
-        for stored in stored_rules:
+        for code, match, conditions in stored_rules:
             try:
-                found[stored.code] = stored.compiled(protection)
+                found[code] = Rule.parse(model, match, conditions, protection=protection)
             except ValidationError as error:
                 logger.warning(
                     'Scope rule %r of %s reaches nothing until it is fixed: %s',
-                    stored.code,
+                    code,
                     model._meta.label,
                     '; '.join(error.messages),
                 )

@@ -28,7 +28,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db.models import Model, Q
 
-from clearance.actions import StatusActions, values_of
+from clearance.actions import StatusActions, clean_value, values_of
 from clearance.discovery import find_actions
 from clearance.fields import Protection, field_permissions
 from clearance.models import ScopeGrant, ScopeRule, StatusAction
@@ -67,7 +67,7 @@ def findings() -> list[Finding]:
 def _broken_rules() -> Iterator[Finding]:
     protection = Protection.load()
 
-    for rule in ScopeRule.objects.select_related('content_type').order_by('code'):
+    for rule in ScopeRule.objects.select_related('content_type').with_conditions().order_by('code'):
         try:
             rule.compiled(protection)
         except ValidationError as error:
@@ -80,7 +80,7 @@ def _broken_rules() -> Iterator[Finding]:
 
 
 def _broken_status_actions() -> Iterator[Finding]:
-    for row in StatusAction.objects.select_related('content_type').order_by('code'):
+    for row in StatusAction.objects.select_related('content_type').with_values().order_by('code'):
         model = row.content_type.model_class()
         where = f'The status action {row.code!r} of {row.content_type}'
 
@@ -89,13 +89,16 @@ def _broken_status_actions() -> Iterator[Finding]:
         except FieldDoesNotExist:
             values = None
 
-        if values is None:
+        if model is None or values is None:
             yield Finding(
                 ERROR, 'broken_status_action', f'{where} writes {row.field!r}, which is gone.'
             )
             continue
 
-        lost = sorted(map(str, {*row.to_values, *row.from_values} - values))
+        named = {
+            clean_value(model, row.field, value) for value in (*row.to_values, *row.from_values)
+        }
+        lost = sorted(map(str, named - values))
 
         if lost:
             yield Finding(
