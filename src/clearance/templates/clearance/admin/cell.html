@@ -1,0 +1,5 @@
+{% load i18n %}<label class="clearance-cell" title="{{ cell.label }}"><input type="checkbox" name="grant" value="{{ cell.name }}"{% if cell.ticked %} checked{% endif %}>{% if labelled %} {{ cell.label }}{% endif %}</label>{% if cell.scopes %}
+<select name="scope:{{ cell.name }}" aria-label="{% translate 'Scope' %}">
+  <option value="">{% translate "The model's default" %}</option>
+  {% for code, label in cell.scopes.items %}<option value="{{ code }}"{% if cell.scope == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+</select>{% endif %}

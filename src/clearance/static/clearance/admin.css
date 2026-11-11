@@ -1,0 +1,8 @@
+/* The access pages: Django's admin, with a grid. Colours are the admin's own variables. */
+.clearance table { width: 100%; margin-bottom: 1.5em; }
+.clearance-grid th[scope="row"] { white-space: nowrap; }
+.clearance-grid td { vertical-align: top; }
+.clearance-grid select { display: block; max-width: 12em; margin-top: 0.25em; }
+.clearance-other { margin-bottom: 0.5em; }
+.clearance-inline { display: inline; margin-inline-start: 0.5em; }
+.clearance-note { color: var(--body-quiet-color); }

@@ -1,0 +1,20 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'Permissions' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <p>{% if nobody %}<a href="{% url 'admin:clearance_permissions' %}">{% translate 'Every permission' %}</a>{% else %}<a href="?held=nobody">{% translate 'Only those nobody holds' %}</a>{% endif %}</p>
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Permission' %}</th><th>{% translate 'In bundles' %}</th><th>{% translate 'Given to people' %}</th><th>{% translate 'Taken away' %}</th></tr></thead>
+    <tbody>
+    {% for permission in permissions %}
+      <tr><td>{{ permission.name }} <code>{{ permission.content_type.app_label }}.{{ permission.codename }}</code></td>
+        <td>{% for bundle in permission.group_set.all %}<a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ permission.people }}</td><td>{{ permission.taken }}</td></tr>
+    {% empty %}<tr><td colspan="4">{% translate 'None.' %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -183,7 +183,15 @@ src/clearance/
     views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
     decorators.py          policy_required
     labels.py              label_of()
-    admin/                 the admin site's pages, templates, styles and scripts
+    admin/                 'clearance.admin.apps.ClearanceAdminConfig', for 'django.contrib.admin'
+        apps.py            ClearanceAdminConfig - the library's site as the default one
+        sites.py           ClearanceAdminSite - every ModelAdmin given the hooks, the pages added
+        options.py         the hooks: policies, rows, fields, values, actions
+        views.py           the access pages
+        standing.py        Standing, PermissionGrid
+        discovery.py       AdminActionFinder
+        checks.py          E016
+    templates/, static/    the access pages' templates and stylesheet - no build step
     checks.py              the system checks
     signals.py             every signal the library sends
     management/commands/   clearance_sync, clearance_check
@@ -483,7 +491,7 @@ Most actions change a value: approving an order sets its status to
 
 Saving it makes `shop.order_approve`. Whoever lacks it cannot write those
 values: a form offers the choice without them and refuses one sent anyway,
-naming the field; the admin site does the same (stage 8), and an API refuses
+naming the field; the admin site does the same, and an API refuses
 them, naming the field and the value. A status action is scoped
 like any permission - "approve, in their branch" - and is asked of the
 model's policy with the row, so a hook such as "never your own loan" holds
@@ -531,7 +539,7 @@ permission:
 | a DRF `@action` on a viewset asking a policy | `<codename>_<action>` |
 | `policy_action = '...'` on an `APIView` or a Django view | the same |
 | `@policy_required(policy, '...')` on a function view | the same |
-| an entry in a `ModelAdmin`'s `actions` (stage 8) | the same, and the admin action is offered only to whoever holds it |
+| an entry in a `ModelAdmin`'s `actions` with no `permissions=` | the same; the admin action is offered only to whoever holds it, and runs over the rows its scope reaches |
 
 A found action is held by nobody until it is given; a misspelled one is
 therefore refused to everybody, and shows in the admin site under the name it
@@ -656,7 +664,7 @@ refused.
 |---|---|
 | a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows disabled what may not be written - Django then keeps the value the row holds, whatever is sent |
 | a Django view | `ProtectedFieldsViewMixin` builds the form that way, and gives the template `readable_fields` and `writable_fields` |
-| the admin site | every `ModelAdmin`, without a mixin: the library's admin hooks hide and lock (stage 8) |
+| the admin site | every `ModelAdmin` on `ClearanceAdminSite`, with no mixin: left out of the form, the list, the search, the filters and the ordering; read only, in the form and in `list_editable`, where it may not be written |
 | a DRF serializer | `ProtectedFieldsSerializerMixin` leaves out, locks and refuses; on every serializer, `ModelPolicyPermission` and `PolicyPermission` refuse what may not be written |
 | a template | `{% if perms.shop.view_order_price %}` |
 | code | `readable_fields(user, Order)`, `writable_fields(user, Order)` |
@@ -800,6 +808,51 @@ read only: changed in the admin site, it would come back on the next sync.
 Without `django.contrib.admin`, none of these pages exist and nothing else
 changes.
 
+### 14.1 Every page of the admin site
+
+A project uses the library's site by naming its admin app in place of
+Django's - and nothing else in the project changes:
+
+```python
+INSTALLED_APPS = [
+    'clearance.admin.apps.ClearanceAdminConfig',   # instead of 'django.contrib.admin'
+    ...
+]
+```
+
+`ClearanceAdminSite` gives every `ModelAdmin` it registers, and every inline
+of one, the library's hooks, so a project's admin classes stay exactly as
+Django documents them:
+
+* **who** - `has_view_permission` and the rest ask the model's policy, with
+  the object when there is one;
+* **which rows** - the change list, and every object opened, come from the
+  rows the person reaches;
+* **which fields** - a protected field the person may not read is left out of
+  the form, the list, the search, the filters and the ordering - searching
+  or sorting by it would tell what it holds; one they may read but not write
+  is read only, in the form and in `list_editable`; a field a status action
+  writes offers only the values they may set;
+* **which actions** - an admin action the project wrote is offered only to
+  whoever holds its permission, and runs only over the selected rows its
+  scope reaches; one naming Django's `permissions=` is Django's to decide,
+  and `delete_selected` runs over the rows the person may delete.
+
+On the user model, a person's groups and permissions are read only - they are
+changed on the people page, under the safety rules - and only the superuser
+makes somebody a superuser. Django's own group page is taken away: a bundle
+is a group, and that page wrote round every rule. An admin site that is not
+the library's is refused at start-up (E016); a project with a site of its own
+subclasses `ClearanceAdminSite`.
+
+### 14.2 In this release and the next
+
+The overview, bundles, people and permissions pages come first, with every
+`ModelAdmin` asking the library. The pages for rule scopes, protected fields
+and actions come with the admin site's second part, and the roles pages with
+`clearance.roles`. Until then those are made in code, through
+`AccessService`, and shown on the pages that exist.
+
 ---
 
 ## 15. Settings
@@ -854,6 +907,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E013` | an action found in the code cannot make a permission - its policy has no model, or the name is too long |
 | `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 | `clearance.E015` | a status action declared in code names a field or a value its model does not have |
+| `clearance.E016` | an admin site is not the library's: its pages would not ask the policies, and would show every protected field |
 
 E004 and E005 are retired. E004 refused a scoped view over a plain manager,
 and every queryset can be scoped now; E005 checked ceilings written in code,
@@ -1019,3 +1073,12 @@ Made by the owner.
     every model - a field can be protected later, in the admin site.
 43. **`custom_actions` is read everywhere a policy is asked**, not only by
     DRF; an action it maps is the hook's, and no permission is made for it.
+44. **The admin site is the library's**, named in `INSTALLED_APPS` in place of
+    Django's, and gives every `ModelAdmin` its hooks with no mixin written;
+    any other admin site is refused (E016).
+45. **On the user page, a person's groups and permissions are read only**,
+    changed on the people page under the safety rules; only the superuser
+    makes a superuser.
+46. **An admin action naming Django's `permissions=` is Django's**; any other
+    is found, needs its own permission, and runs over the rows its scope
+    reaches.

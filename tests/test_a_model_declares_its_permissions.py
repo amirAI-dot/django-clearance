@@ -118,6 +118,7 @@ def test_migrate_creates_exactly_the_declared_permissions() -> None:
         'loan_export': 'Can export loans',  # found on a function view, made by migrate
         'loan_remind': 'Can remind loans',  # found on a viewset's @action
         'loan_report': 'Can report loans',  # found on an APIView's policy_action
+        'loan_mark_reviewed': 'Can mark reviewed loans',  # found on an admin action
     }
 
 

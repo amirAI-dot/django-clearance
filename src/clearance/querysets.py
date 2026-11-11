@@ -181,12 +181,17 @@ def rows_in(queryset: models.QuerySet[Any], scope: str, user: User) -> Rows:
     return rule.q(user) if rule is not None else None
 
 
-def offered_scopes(model: type[models.Model]) -> dict[str, str | Promise]:
-    """Every scope an administrator may choose for ``model``: ``all``, code, rules."""
+def code_scopes(model: type[models.Model]) -> dict[str, str | Promise]:
+    """``all`` and the scopes ``model`` offers in code - read with no query."""
     rows = model._default_manager.all()
-    offered: dict[str, str | Promise] = (
+    return (
         rows.offered_scopes() if isinstance(rows, ScopedQuerySet) else {EVERY_ROW: _('Every row')}
     )
+
+
+def offered_scopes(model: type[models.Model]) -> dict[str, str | Promise]:
+    """Every scope an administrator may choose for ``model``: ``all``, code, rules."""
+    offered = code_scopes(model)
     content_type = ContentType.objects.get_for_model(model)
 
     for code, name in ScopeRule.objects.filter(content_type=content_type).values_list(
