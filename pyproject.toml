@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-clearance"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Role, policy and row-level access control for Django. Denied by default."
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -14,7 +14,7 @@ requires-python = ">=3.11"
 dependencies = ["Django>=5.2"]
 keywords = ["django", "permissions", "authorization", "rbac", "abac", "row-level security"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 5.2",
@@ -38,6 +38,7 @@ drf = ["djangorestframework>=3.16"]
 
 [project.urls]
 Repository = "https://github.com/amirAI-dot/django-clearance"
+Changelog = "https://github.com/amirAI-dot/django-clearance/blob/main/CHANGELOG.md"
 Guide = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md"
 Design = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md"
 
@@ -66,7 +67,7 @@ dev = [
 packages = ["src/clearance"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "docs", "example", "LICENSE", "README.md", "README.fa.md"]
+include = ["src", "tests", "docs", "example", "LICENSE", "README.md", "README.fa.md", "CHANGELOG.md", "CHANGELOG.fa.md"]
 
 # ---------------------------------------------------------------- tests
 
