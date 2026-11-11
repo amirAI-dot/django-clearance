@@ -6,3 +6,4 @@
 .clearance-other { margin-bottom: 0.5em; }
 .clearance-inline { display: inline; margin-inline-start: 0.5em; }
 .clearance-note { color: var(--body-quiet-color); }
+.clearance-grid label.clearance-other { display: inline-block; margin-inline-end: 1.5em; white-space: nowrap; }

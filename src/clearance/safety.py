@@ -31,6 +31,7 @@ from django.db.models import Q, QuerySet
 
 from clearance.backends import groups_lookup
 from clearance.grants import Scope, grants_of
+from clearance.limits import limits
 from clearance.models import PermissionRevocation
 from clearance.protocols import User
 from clearance.querysets import EVERY_ROW
@@ -41,6 +42,17 @@ MANAGE: Mapping[str, str] = {
     'create': 'clearance.permission_create',
     'edit': 'clearance.permission_edit',
     'delete': 'clearance.permission_delete',
+    'ceiling': 'clearance.role_ceiling_edit',
+}
+
+
+#: What each permission to manage access lets a person do, in words.
+_CHANGES: Mapping[str, str] = {
+    'view': 'view access',
+    'create': 'create access',
+    'edit': 'edit access',
+    'delete': 'delete access',
+    'ceiling': "change a role's ceiling",
 }
 
 
@@ -72,7 +84,7 @@ class SafetyRules:
         assert actor is not None
 
         if not (actor.is_authenticated and actor.is_active and actor.has_perm(MANAGE[change])):
-            raise AccessRefused('may_not_manage', f'You may not {change} access.')
+            raise AccessRefused('may_not_manage', f'You may not {_CHANGES[change]}.')
 
     def require_not_own(self, person: object) -> None:
         if self.unbound:
@@ -122,11 +134,11 @@ class SafetyRules:
     @contextmanager
     def keeping_somebody_managing(self) -> Iterator[None]:
         """Refuses the change, inside its transaction, if it leaves nobody to manage access."""
-        somebody_could = holders_of(MANAGE['edit']).exists()
+        somebody_could = somebody_holds(MANAGE['edit'])
 
         yield
 
-        if somebody_could and not holders_of(MANAGE['edit']).exists():
+        if somebody_could and not somebody_holds(MANAGE['edit']):
             raise AccessRefused(
                 'nobody_left',
                 'After this nobody but the superuser could manage access. '
@@ -134,11 +146,20 @@ class SafetyRules:
             )
 
 
+def somebody_holds(permission: str) -> bool:
+    """
+    Whether any working account but the superuser holds ``permission`` -
+    each one found asked as the backend would, so a ceiling counts.
+    """
+    return any(person.has_perm(permission) for person in holders_of(permission).iterator())
+
+
 def holders_of(permission: str) -> 'QuerySet[Any]':
     """
-    The working accounts holding ``permission`` - directly, or through a
-    bundle and not taken away. The superuser is left out: they hold
-    everything by the flag.
+    The working accounts given ``permission`` - directly, or through a bundle
+    they were given or start with, and not taken away. The superuser is left
+    out: they hold everything by the flag. A ceiling is the backend's to
+    apply: ``somebody_holds`` asks it.
     """
     app_label, codename = permission.split('.', 1)
     row = Permission.objects.filter(content_type__app_label=app_label, codename=codename)
@@ -147,6 +168,9 @@ def holders_of(permission: str) -> 'QuerySet[Any]':
     people = get_user_model().objects.filter(is_active=True, is_superuser=False)
     group_field = groups_lookup().removeprefix('group__')
 
+    starting = limits().people_starting_with(groups).values('pk')
+    through_bundles = Q(pk__in=groups.values(group_field)) | Q(pk__in=starting)
+
     return people.filter(
-        Q(user_permissions__in=row) | (Q(pk__in=groups.values(group_field)) & ~Q(pk__in=revoked))
+        Q(user_permissions__in=row) | (through_bundles & ~Q(pk__in=revoked))
     ).distinct()
