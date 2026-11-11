@@ -78,8 +78,9 @@ nox -s tests
 
 `tests` runs every supported Python and Django; one combination is
 `nox -s "tests(3.13-django6.1)"`, and `nox -l` lists them all. `browser`
-runs the pages in a real browser, and `messages` - with gettext installed -
-checks that the catalogues hold every string the library marks.
+runs the pages in a real browser, `messages` - with gettext installed -
+checks that the catalogues hold every string the library marks, and
+`package` builds the wheel and runs the example project on it.
 
 The suite uses SQLite unless told otherwise. To run it on PostgreSQL, as CI
 does, set `CLEARANCE_TEST_DATABASE=postgres`; the connection is read from the

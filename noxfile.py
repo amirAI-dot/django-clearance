@@ -8,6 +8,7 @@ Every check the project runs, defined once - locally and in CI alike.
     nox -s "tests(3.13-django6.1)"           one combination
     nox -s browser                           the pages in a real browser
     nox -s messages                          the catalogues hold every marked string
+    nox -s package                           the built wheel installs, and the example runs on it
 
 CI runs these same sessions, built from the same table, so a check that
 passes here passes there and a supported version cannot be left out of one.
@@ -142,3 +143,23 @@ def messages(session: nox.Session) -> None:
         '*.po',
         external=True,
     )
+
+
+@nox.session(python=NEWEST_PYTHON)
+def package(session: nox.Session) -> None:
+    """
+    What is published works: the wheel is built, installed alone - not the
+    source tree - and the example project's tests run against it, so a
+    template, a script or a catalogue left out of the package fails here.
+    """
+    session.install('build')
+    out = session.create_tmp()
+    session.run('python', '-m', 'build', '--outdir', out)
+    wheel = next(name for name in os.listdir(out) if name.endswith('.whl'))
+    session.install(f'{os.path.join(out, wheel)}[drf]', django_release(NEWEST_DJANGO))
+
+    with session.chdir('example'):
+        # The package installed, not the source tree beside it.
+        installed = 'import clearance, sys; sys.exit("site-packages" not in clearance.__file__)'
+        session.run('python', '-c', installed)
+        session.run('python', 'manage.py', 'test', '--noinput')
