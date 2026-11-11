@@ -27,7 +27,7 @@ from django.db.models import Model
 
 from clearance.fields import ModelKey, model_key, writable_fields
 from clearance.grants import KEPT_PREFIX
-from clearance.models import StatusAction
+from clearance.models import StatusAction, StatusActionValue
 from clearance.permissions import (
     DEFAULT_ACTIONS,
     declared_status_actions,
@@ -124,16 +124,29 @@ class StatusActions:
 
     @classmethod
     def load(cls) -> 'StatusActions':
-        """What the database holds, read in one query."""
+        """
+        What the database holds, read in one query - of the values, each with its
+        action: an action that writes no value has nothing to claim.
+        """
+        values: dict[StatusAction, dict[str, list[str]]] = {}
+
+        for value in StatusActionValue.objects.select_related('action__content_type'):
+            ends = values.setdefault(
+                value.action, {StatusActionValue.TO: [], StatusActionValue.FROM: []}
+            )
+            ends[value.end].append(value.value)
+
         stored: dict[ModelKey, list[Transition]] = {}
 
-        for row in StatusAction.objects.select_related('content_type'):
+        for row, ends in values.items():
             model = row.content_type.model_class()
 
             if model is None or _missing(model, row.field):
                 continue  # nothing left to write - clearance_check lists it
 
-            found = transition(model, row.code, row.field, row.to_values, row.from_values)
+            found = transition(
+                model, row.code, row.field, ends[StatusActionValue.TO], ends[StatusActionValue.FROM]
+            )
             stored.setdefault(model_key(model), []).append(found)
 
         return cls({key: tuple(found) for key, found in stored.items()})

@@ -993,9 +993,12 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 |---|---|---|
 | `clearance` | `ScopeGrant` | `group` یا `user` (دقیقاً یکی)، `permission`، `scope` |
 | `clearance` | `PermissionRevocation` | `user`، `permission`، `revoked_by`، `reason`، `revoked_at` |
-| `clearance` | `ScopeRule` | `content_type`، `code`، `name`، `match` (همه یا هر کدام)، `conditions` |
+| `clearance` | `ScopeRule` | `content_type`، `code`، `name`، `match` (همه یا هر کدام) |
+| `clearance` | `ScopeCondition` | `rule`، `position`، `field`، `operator`، `source` (یک ثابت، یک فهرست، چیزی از آن شخص، هیچ)، `person` |
+| `clearance` | `ScopeConditionValue` | `condition`، `position`، `value` - یک ثابت، به صورت متن |
 | `clearance` | `ProtectedField` | `content_type`، `field` - همراه دو مجوزی که ساخته |
-| `clearance` | `StatusAction` | `content_type`، `code`، `name`، `field`، `to_values`، `from_values` - همراه مجوزش |
+| `clearance` | `StatusAction` | `content_type`، `code`، `name`، `field` - همراه مجوزش |
+| `clearance` | `StatusActionValue` | `action`، `end` (به یا از)، `position`، `value` |
 | `clearance` | `Declared` | چیزی که فایل `ACCESS` صاحبش است - یک بسته، یک نقش، یک اکشن وضعیت - تا sync بداند چه چیزی را می‌تواند حذف کند، و پنل ادمین آن را فقط‌خواندنی نشان دهد |
 | `clearance.roles` | `Role` | `code`، `name`، `limited` |
 | `clearance.roles` | `RoleAssignment` | `user`، `role`، `assigned_by`، `assigned_at` |
@@ -1222,3 +1225,6 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 57. **یک جدول، مجوزها، بسته‌ها و نقش‌ها را نام می‌برد**، که بر اساس چیزی که نام می‌برد
     کلید خورده، پس اپ ترجمه‌ها به هیچ اپ دیگری نیاز ندارد.
 58. **یک اسم از زبان خواننده خوانده می‌شود، بعد زبان پایه‌اش، بعد کد، بعد ردیف.**
+59. **هیچ ستون JSON‌ای در کار نیست.** شرط‌های یک قانون و مقدارهای یک اکشن وضعیت ردیف‌های
+    خودشان را دارند، که پایگاه داده محدودشان می‌کند و join می‌زند؛ قانون‌های یک درخواست
+    هنوز با یک کوئری خوانده می‌شوند.

@@ -267,9 +267,8 @@ class AccessService:
         """
         self.rules.require_may('create')
         content_type = ContentType.objects.get_for_model(model)
-        rule = ScopeRule(
-            content_type=content_type, code=code, name=name, match=match, conditions=conditions
-        )
+        rule = ScopeRule(content_type=content_type, code=code, name=name, match=match)
+        rule.conditions = conditions
         self._check_rule(rule)
         rule.save()
         self._announce(signals.scope_rule_saved, rule=rule, created=True)
@@ -289,9 +288,9 @@ class AccessService:
         change their own access.
         """
         self.rules.require_may('edit')
-        reaching = (conditions is not None and conditions != rule.conditions) or (
-            match is not None and match != rule.match
-        )
+        reaching = (
+            conditions is not None and ScopeRule.stored_form(conditions) != rule.conditions
+        ) or (match is not None and match != rule.match)
 
         if reaching:
             self._require_not_holding_rule(rule)
@@ -451,7 +450,9 @@ class AccessService:
         after = protection.adding(model, field)
         reading = []
 
-        for rule in ScopeRule.objects.select_related('content_type').order_by('code'):
+        for rule in (
+            ScopeRule.objects.select_related('content_type').with_conditions().order_by('code')
+        ):
             try:
                 rule.compiled(protection)
             except ValidationError:
@@ -500,14 +501,9 @@ class AccessService:
             raise ValidationError(problems)
 
         with transaction.atomic():
-            action = StatusAction.objects.create(
-                content_type=content_type,
-                code=code,
-                name=name,
-                field=field,
-                to_values=list(to),
-                from_values=start,
-            )
+            action = StatusAction(content_type=content_type, code=code, name=name, field=field)
+            action.to_values, action.from_values = to, start
+            action.save()
             Permission.objects.create(
                 content_type=content_type, codename=codename, name=action_label(model, code)
             )

@@ -56,7 +56,11 @@ class ActionPages(PageSet):
 
     def actions(self, request: HttpRequest) -> HttpResponse:
         self.require(request, 'view')
-        made = StatusAction.objects.select_related('content_type').order_by('content_type', 'code')
+        made = (
+            StatusAction.objects.select_related('content_type')
+            .with_values()
+            .order_by('content_type', 'code')
+        )
         declared = Declared.keys('status_action')
         in_code = [
             (model._meta.label, code, spec)
