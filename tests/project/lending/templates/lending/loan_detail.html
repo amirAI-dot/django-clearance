@@ -1,1 +1,1 @@
-loan:{{ object.pk }}
+loan:{{ object.pk }}{% if 'credit_score' in readable_fields %} score:{{ object.credit_score }}{% endif %}{% if perms.lending.loan_edit_credit_score %} may-edit-score{% endif %}

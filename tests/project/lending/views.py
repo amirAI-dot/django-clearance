@@ -4,7 +4,7 @@ from django.http import HttpRequest, HttpResponse
 from django.views.generic import DetailView, ListView, UpdateView
 
 from clearance.decorators import policy_required
-from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
+from clearance.views import PolicyRequiredMixin, ProtectedFieldsViewMixin, ScopedQuerySetMixin
 from tests.project.lending.models import Loan, Payment
 from tests.project.lending.policies import loan_access
 
@@ -14,9 +14,26 @@ class LoanListView(PolicyRequiredMixin, ScopedQuerySetMixin, ListView):  # type:
     queryset = Loan.objects.all()
 
 
-class LoanDetailView(PolicyRequiredMixin, ScopedQuerySetMixin, DetailView):  # type: ignore[type-arg]
+class LoanDetailView(  # type: ignore[misc]
+    ProtectedFieldsViewMixin,
+    PolicyRequiredMixin,
+    ScopedQuerySetMixin,
+    DetailView,  # type: ignore[type-arg]
+):
     policy = loan_access.policy
     queryset = Loan.objects.all()
+
+
+class LoanEditView(  # type: ignore[misc]
+    ProtectedFieldsViewMixin,
+    PolicyRequiredMixin,
+    ScopedQuerySetMixin,
+    UpdateView,  # type: ignore[type-arg]
+):
+    policy = loan_access.policy
+    queryset = Loan.objects.all()
+    fields = ('amount', 'region', 'credit_score')
+    success_url = '/loans/'
 
 
 class LoanApproveView(PolicyRequiredMixin, ScopedQuerySetMixin, UpdateView):  # type: ignore[type-arg]

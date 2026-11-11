@@ -4,8 +4,8 @@ What the library adds to Django's own permission tables.
 A bundle is Django's ``Group``, a person's bundles are ``user.groups``, and a
 permission is an ``auth_permission`` row; none of that is copied here. These
 tables hold only what Django has no place for: the scope a permission is
-given with, a permission taken away from one person, and the scopes an
-administrator builds from rules.
+given with, a permission taken away from one person, the scopes an
+administrator builds from rules, and the fields they protect.
 """
 
 from typing import TYPE_CHECKING
@@ -20,6 +20,7 @@ from django.utils.translation import gettext_lazy as _
 from clearance.permissions import DEFAULT_ACTIONS, build_permissions
 
 if TYPE_CHECKING:
+    from clearance.fields import Protection
     from clearance.rules import Rule
 
 
@@ -169,8 +170,8 @@ class ScopeRule(models.Model):
     def __str__(self) -> str:
         return f'{self.content_type.model}: {self.name}'
 
-    def compiled(self) -> 'Rule':
-        """The rule, checked against its model as the model is now."""
+    def compiled(self, protection: 'Protection | None' = None) -> 'Rule':
+        """The rule, checked against its model - and what is protected - as they are now."""
         from clearance.rules import Rule
 
         model = self.content_type.model_class()
@@ -180,4 +181,32 @@ class ScopeRule(models.Model):
 
             raise ValidationError('The model of this rule no longer exists.')
 
-        return Rule.parse(model, self.match, self.conditions)
+        return Rule.parse(model, self.match, self.conditions, protection=protection)
+
+
+class ProtectedField(models.Model):
+    """
+    A field an administrator protected: read with one permission, written
+    with another, both made when it was protected and deleted with it.
+
+    A field protected in code (``build_permissions(protected_fields=...)``) has
+    no row here; ``clearance.fields`` reads both.
+    """
+
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name='+', verbose_name=_('model')
+    )
+    field = models.CharField(_('field'), max_length=64)
+
+    class Meta:
+        default_permissions = ()
+        verbose_name = _('protected field')
+        verbose_name_plural = _('protected fields')
+        constraints = (
+            models.UniqueConstraint(
+                fields=['content_type', 'field'], name='clearance_protectedfield_once_per_model'
+            ),
+        )
+
+    def __str__(self) -> str:
+        return f'{self.content_type.model}.{self.field}'
