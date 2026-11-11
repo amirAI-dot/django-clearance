@@ -12,7 +12,8 @@
 > بخش ۲۲ می‌گوید چه چیزی در آن‌ها عوض می‌شود.
 >
 > انگلیسی: [`design.md`](design.md). این سند ترجمه‌ی آن است و هر دو با هم
-> به‌روز می‌شوند.
+> به‌روز می‌شوند. اینکه کتابخانه را چطور به کار ببرید، نه اینکه چرا این‌طور ساخته
+> شده: [`guide.fa.md`](guide.fa.md).
 
 **django-clearance** - کنترل دسترسی مبتنی بر نقش، سیاست (policy) و سطح ردیف
 برای جنگو. پیش‌فرض: رد.
@@ -178,7 +179,8 @@ src/clearance/
     permissions.py         build_permissions; which permission an action of a model needs
     registry.py            one policy per resource, and the default policy for every other model
     policies.py            BasePolicy, ModelPolicy, SignedInReadPolicy
-    models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
+    models.py              ScopeGrant, PermissionRevocation, ScopeRule and its conditions,
+                           ProtectedField, StatusAction and its values, Declared
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
     limits.py              what a layer above bundles adds: starting bundles, a ceiling
@@ -213,7 +215,7 @@ src/clearance/
     signals.py             every signal the library sends
     management/commands/   clearance_sync, clearance_check
     migrations/
-    locale/fa/LC_MESSAGES/
+    locale/fa/LC_MESSAGES/ the Persian catalogue, compiled - each optional app has its own
 
     drf/                   pip install django-clearance[drf]
         permissions.py     PolicyPermission, ModelPolicyPermission - writes guarded
@@ -231,6 +233,7 @@ src/clearance/
         checks.py          E008, E010
         declared.py        the roles section of the ACCESS file
         signals.py
+        locale/fa/LC_MESSAGES/
 
     translations/          INSTALLED_APPS += ['clearance.translations']
         models.py          Translation - a name and a description per language, of anything named
@@ -239,6 +242,7 @@ src/clearance/
         pages.py, admin.py the names page, linked from each bundle, role and permission
         checks.py          E008
         signals.py
+        locale/fa/LC_MESSAGES/
 ```
 
 همه‌ی فایل‌های `__init__.py` خالی‌اند؛ هر چیزی از همان ماژولی import می‌شود که
@@ -1228,3 +1232,14 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 59. **هیچ ستون JSON‌ای در کار نیست.** شرط‌های یک قانون و مقدارهای یک اکشن وضعیت ردیف‌های
     خودشان را دارند، که پایگاه داده محدودشان می‌کند و join می‌زند؛ قانون‌های یک درخواست
     هنوز با یک کوئری خوانده می‌شوند.
+60. **هر اپ کاتالوگ فارسی خودش را دارد، کامپایل‌شده و commitشده**، تا نصب کتابخانه
+    به gettext نیازی نداشته باشد؛ `nox -s messages` وقتی رشته‌ی علامت‌خورده‌ای در یکی
+    از آن‌ها نباشد fail می‌شود، و یک تست وقتی ترجمه‌ای خالی یا fuzzy باشد، placeholder
+    گم کند، یا کامپایل نشده باشد.
+61. **پروژه‌ی نمونه را تست‌های کتابخانه اجرا می‌کنند**، روی همه‌ی نسخه‌های Python و
+    Django که پشتیبانی می‌شوند: نمونه‌ای که دیگر کار نکند چیزی یاد می‌دهد که
+    کتابخانه انجام نمی‌دهد.
+62. **هیچ چیزی که یک `models.py` ممکن است import کند مدل کاربر را نمی‌خواند**، و هیچ
+    چیزی که تنظیمات DRF import می‌کنند viewهای DRF را import نمی‌کند - هر دو را پروژه‌ی
+    نمونه پیدا کرد، با مدل کاربرش در همان اپ سفارش‌ها و مجوز پیش‌فرض DRF همان‌طور که
+    راهنما می‌گوید.

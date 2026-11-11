@@ -19,7 +19,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db.models import F, OuterRef, Q, Subquery
 
-from clearance.backends import groups_lookup
 from clearance.limits import limits
 from clearance.models import PermissionRevocation, ScopeGrant
 from clearance.protocols import User, UserModel
@@ -33,6 +32,12 @@ _CACHE_ATTRIBUTE = f'{KEPT_PREFIX}grants'
 
 #: A scope a permission is given with; ``None`` is "no scope chosen".
 Scope = str | None
+
+
+def groups_lookup() -> str:
+    """The lookup from a permission to the people holding it through a group."""
+    field = get_user_model()._meta.get_field('groups')
+    return f'group__{field.related_query_name()}'
 
 
 class Grants:

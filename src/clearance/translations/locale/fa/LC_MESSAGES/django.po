@@ -1,0 +1,54 @@
+# Persian translation of django-clearance.
+# This file is distributed under the same licence as django-clearance.
+msgid ""
+msgstr ""
+"Project-Id-Version: django-clearance\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"Last-Translator: amir mohammad kashanchian\n"
+"Language-Team: Persian\n"
+"Language: fa\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "object"
+msgstr "شیء"
+
+msgid "language"
+msgstr "زبان"
+
+msgid "name"
+msgstr "اسم"
+
+msgid "description"
+msgstr "توضیح"
+
+msgid "name in a language"
+msgstr "اسم در یک زبان"
+
+msgid "names in languages"
+msgstr "اسم‌ها در زبان‌ها"
+
+msgid "The names were saved."
+msgstr "اسم‌ها ذخیره شدند."
+
+#, python-format
+msgid "Names of %(thing)s"
+msgstr "اسم‌های %(thing)s"
+
+msgid "As the code or its row says it"
+msgstr "همان‌طور که کد یا ردیفش می‌گوید"
+
+msgid "Language"
+msgstr "زبان"
+
+msgid "Name"
+msgstr "اسم"
+
+msgid "What it is for"
+msgstr "برای چیست"
+
+msgid "Save"
+msgstr "ذخیره"

@@ -20,25 +20,32 @@ first, and again with it once DRF has found it.
 - a protected field, a value a status action claims - is refused with a 400
 naming the field, before the serializer runs: a serializer that never heard
 of this library cannot write what it should not.
+
+DRF imports this module while it is still importing its own views - when
+``DEFAULT_PERMISSION_CLASSES`` names a class here - so nothing here imports
+``rest_framework.views`` or ``rest_framework.generics`` before it is asked.
 """
+
+from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from types import MappingProxyType
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
-from rest_framework.generics import GenericAPIView
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import BasePermission
-from rest_framework.request import Request
-from rest_framework.serializers import ValidationError
-from rest_framework.views import APIView
 
 from clearance.policies import BasePolicy
 from clearance.protocols import user_of
 from clearance.registry import registry
 from clearance.views import ScopedQuerySetMixin, action_of, model_of
 from clearance.writes import refused_writes
+
+if TYPE_CHECKING:
+    from rest_framework.request import Request
+    from rest_framework.views import APIView
 
 #: An ``APIView``'s action, read off its HTTP method when it names none.
 METHOD_ACTIONS: Final[Mapping[str, str]] = MappingProxyType(
@@ -147,6 +154,8 @@ def finds_model_by_queryset(view: type[APIView]) -> bool:
     ``queryset``.
     """
     definer = next((klass for klass in view.__mro__ if 'get_queryset' in vars(klass)), None)
+    from rest_framework.generics import GenericAPIView
+
     return definer not in (None, GenericAPIView, ScopedQuerySetMixin)
 
 

@@ -17,23 +17,21 @@ caching is kept, so asking costs exactly what it did.
 It replaces ``ModelBackend`` rather than sitting beside it: Django grants a
 permission when *any* backend does, so ``ModelBackend`` beside it would hand
 back every revoked permission (E007).
+
+Django's ``ModelBackend`` reads the user model when it is imported, so nothing
+a ``models.py`` may import - ``clearance.querysets`` and what it needs -
+imports this module.
 """
 
 from typing import Any, cast
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth.models import Permission
 from django.db.models import Q, QuerySet
 
+from clearance.grants import groups_lookup
 from clearance.limits import limits
 from clearance.models import PermissionRevocation
-
-
-def groups_lookup() -> str:
-    """The lookup from a permission to the people holding it through a group."""
-    field = get_user_model()._meta.get_field('groups')
-    return f'group__{field.related_query_name()}'
 
 
 class ClearanceBackend(ModelBackend):

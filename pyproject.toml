@@ -38,6 +38,7 @@ drf = ["djangorestframework>=3.16"]
 
 [project.urls]
 Repository = "https://github.com/amirAI-dot/django-clearance"
+Guide = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md"
 Design = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md"
 
 [dependency-groups]
@@ -65,7 +66,7 @@ dev = [
 packages = ["src/clearance"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "docs", "LICENSE", "README.md", "README.fa.md"]
+include = ["src", "tests", "docs", "example", "LICENSE", "README.md", "README.fa.md"]
 
 # ---------------------------------------------------------------- tests
 
@@ -91,7 +92,7 @@ skip_covered = true
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "example"]
 # The documents' examples are prose, laid out for reading rather than formatted.
 extend-exclude = ["docs"]
 
@@ -115,6 +116,8 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 # Written by makemigrations, not by hand: plain lists, and lines as long as they come.
 "**/migrations/*.py" = ["RUF012", "E501"]
+# The example project is tested the way most Django projects are: with Django's TestCase.
+"example/**/tests.py" = ["PT009"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["clearance", "tests"]

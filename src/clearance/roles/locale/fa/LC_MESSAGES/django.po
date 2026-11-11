@@ -1,0 +1,188 @@
+# Persian translation of django-clearance.
+# This file is distributed under the same licence as django-clearance.
+msgid ""
+msgstr ""
+"Project-Id-Version: django-clearance\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"Last-Translator: amir mohammad kashanchian\n"
+"Language-Team: Persian\n"
+"Language: fa\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "code"
+msgstr "کد"
+
+msgid "name"
+msgstr "اسم"
+
+msgid "limited"
+msgstr "محدود"
+
+msgid "role"
+msgstr "نقش"
+
+msgid "roles"
+msgstr "نقش‌ها"
+
+msgid "Roles"
+msgstr "نقش‌ها"
+
+#, python-format
+msgid "The role %(name)s was made."
+msgstr "نقش %(name)s ساخته شد."
+
+msgid "Add a role"
+msgstr "افزودن نقش"
+
+#, python-format
+msgid "The role %(name)s was deleted."
+msgstr "نقش %(name)s حذف شد."
+
+#, python-format
+msgid "Delete %(name)s"
+msgstr "حذف %(name)s"
+
+msgid "The role was renamed."
+msgstr "اسم نقش عوض شد."
+
+msgid "The ceiling was changed."
+msgstr "سقف تغییر کرد."
+
+msgid "Everybody with the role now starts with the bundle."
+msgstr "حالا هر کسی این نقش را دارد، از اول این بسته را دارد."
+
+msgid "Nobody with the role starts with the bundle any more."
+msgstr "دیگر هیچ کسی با این نقش از اول این بسته را ندارد."
+
+msgid "The role was given."
+msgstr "نقش داده شد."
+
+msgid "The role was taken away."
+msgstr "نقش گرفته شد."
+
+msgid "Nothing was asked for."
+msgstr "چیزی خواسته نشد."
+
+#, python-format
+msgid "There is nobody called %(name)s."
+msgstr "کسی به اسم %(name)s نیست."
+
+msgid ""
+"Declared in code: it is changed in the ACCESS file, and shown here read "
+"only. Who has it is given here."
+msgstr ""
+"در کد تعریف شده: در فایل ACCESS تغییر می‌کند و این‌جا فقط‌خواندنی نمایش داده "
+"می‌شود. اینکه چه کسی آن را دارد این‌جا داده می‌شود."
+
+msgid "Name"
+msgstr "اسم"
+
+msgid "Rename"
+msgstr "تغییر اسم"
+
+msgid "Its names in other languages"
+msgstr "اسم‌هایش در زبان‌های دیگر"
+
+msgid "Ceiling"
+msgstr "سقف"
+
+msgid ""
+"Whoever has this role may have only what its ceiling permits, whatever a "
+"bundle or a grant gives them."
+msgstr ""
+"هر کسی این نقش را دارد، هر چه بسته‌ها یا مجوزها به او بدهند، فقط چیزی را دارد "
+"که سقف این نقش اجازه می‌دهد."
+
+msgid "Limited"
+msgstr "محدود"
+
+msgid "Save the ceiling"
+msgstr "ذخیره‌ی سقف"
+
+msgid "Starting bundles"
+msgstr "بسته‌های آغازین"
+
+msgid "Take back"
+msgstr "پس گرفتن"
+
+msgid "None."
+msgstr "هیچ."
+
+msgid "Bundle"
+msgstr "بسته"
+
+msgid "Give"
+msgstr "دادن"
+
+msgid "People with this role"
+msgstr "افراد دارای این نقش"
+
+msgid "Take away"
+msgstr "گرفتن"
+
+msgid "Nobody."
+msgstr "هیچ کس."
+
+msgid "username"
+msgstr "نام کاربری"
+
+msgid "Person"
+msgstr "شخص"
+
+msgid "Give the role"
+msgstr "دادن نقش"
+
+msgid "Roles are read from each person, not given here."
+msgstr "نقش‌ها از خود هر شخص خوانده می‌شوند، نه این‌که این‌جا داده شوند."
+
+msgid "Delete"
+msgstr "حذف"
+
+msgid "A new role may hold nothing until its ceiling is set."
+msgstr "یک نقش تازه تا وقتی سقفش تعیین نشده هیچ چیزی نمی‌تواند داشته باشد."
+
+msgid "Code"
+msgstr "کد"
+
+msgid "Save"
+msgstr "ذخیره"
+
+#, python-format
+msgid ""
+"Everybody with %(name)s loses the bundles it starts them with, and its "
+"ceiling."
+msgstr ""
+"هر کسی %(name)s را دارد، بسته‌های آغازین آن را از دست می‌دهد، و سقف آن هم دیگر "
+"محدودش نمی‌کند."
+
+#, python-format
+msgid "Everybody with %(name)s loses the bundles it starts them with."
+msgstr "هر کسی %(name)s را دارد، بسته‌های آغازین آن را از دست می‌دهد."
+
+msgid "Yes, delete it"
+msgstr "بله، حذفش کن"
+
+msgid "Role"
+msgstr "نقش"
+
+msgid "People"
+msgstr "افراد"
+
+msgid "declared in code"
+msgstr "تعریف‌شده در کد"
+
+#, python-format
+msgid "%(permitted)s permission"
+msgid_plural "%(permitted)s permissions"
+msgstr[0] "%(permitted)s مجوز"
+msgstr[1] "%(permitted)s مجوز"
+
+msgid "none"
+msgstr "هیچ"
+
+msgid "There are no roles yet."
+msgstr "هنوز هیچ نقشی نیست."

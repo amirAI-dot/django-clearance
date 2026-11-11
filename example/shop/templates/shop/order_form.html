@@ -1,0 +1,9 @@
+{% extends 'shop/base.html' %}{% load i18n %}
+{% block content %}
+<h1>{{ object.item }}</h1>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <p><button type="submit">{% translate 'Save' %}</button></p>
+</form>
+<p><a href="{% url 'orders' %}">{% translate 'Back to the orders' %}</a></p>
+{% endblock %}

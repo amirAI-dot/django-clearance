@@ -1,0 +1,8 @@
+{% load i18n %}{% get_current_language_bidi as rtl %}<!doctype html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}" dir="{% if rtl %}rtl{% else %}ltr{% endif %}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}{% translate 'Orders' %}{% endblock %}</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem;max-width:60rem}table{border-collapse:collapse;width:100%}th,td{padding:.4rem .6rem;border-bottom:1px solid #ddd;text-align:start}</style></head>
+<body>
+<p>{{ user.get_username }} &middot; <a href="/admin/">{% translate 'Admin site' %}</a> &middot; <a href="/api/orders/">API</a></p>
+{% block content %}{% endblock %}
+</body></html>
