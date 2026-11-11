@@ -11,4 +11,6 @@ urlpatterns = [
     path('<int:pk>/approve/', views.LoanApproveView.as_view(), name='loan-approve'),
     path('apply/', views.apply, name='loan-apply'),
     path('payments/', views.PaymentListView.as_view(), name='payment-list'),
+    path('statements/<int:pk>/print/', views.StatementPrintView.as_view(), name='statement-print'),
+    path('export/', views.export, name='loan-export'),
 ]

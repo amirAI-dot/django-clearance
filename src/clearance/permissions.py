@@ -20,6 +20,11 @@ database (``clearance.fields``). ``field_permission`` names them the way
 ``permission_for`` names a model's: ``shop.order_view_price`` for a model
 declaring its own, ``shop.view_order_price`` for one keeping Django's.
 
+**A status action is an action that writes values** - ``approve`` sets
+``status`` to ``approved`` or ``rejected``, from ``pending`` - declared here
+(``status_actions={...}``) or made in the database (``clearance.actions``).
+Its permission is the action's, like any other.
+
 **A model that declares nothing keeps Django's own permissions** -
 ``view_order``, ``add_order``, ``change_order``, ``delete_order`` - and
 ``permission_for`` answers in that style for it, so nothing anywhere spells a
@@ -37,7 +42,7 @@ worked out with translation switched off, and the reader's language is
 import re
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Final, Self
+from typing import Any, Final, Self
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
@@ -73,6 +78,10 @@ FIELD_LABELS: Final[Mapping[str, str | Promise]] = MappingProxyType(
     }
 )
 
+#: What a status action declared in code says: the field, the values it
+#: writes (``to``), and the values it may write them from (``from``, optional).
+StatusDeclaration = Mapping[str, Any]
+
 #: The two things a protected field's permissions allow.
 FIELD_ACTIONS: Final = tuple(FIELD_LABELS)
 
@@ -91,13 +100,19 @@ class DeclaredPermissions(tuple[tuple[str, str], ...]):
 
     codename: str
     protected_fields: tuple[str, ...]
+    status_actions: Mapping[str, StatusDeclaration]
 
     def __new__(
-        cls, entries: Iterable[tuple[str, str]], codename: str, protected_fields: Iterable[str]
+        cls,
+        entries: Iterable[tuple[str, str]],
+        codename: str,
+        protected_fields: Iterable[str] = (),
+        status_actions: Mapping[str, StatusDeclaration] | None = None,
     ) -> Self:
         declared = super().__new__(cls, entries)
         declared.codename = codename
         declared.protected_fields = tuple(protected_fields)
+        declared.status_actions = MappingProxyType(dict(status_actions or {}))
         return declared
 
 
@@ -118,10 +133,18 @@ class PermissionSet:
         actions: Iterable[str] = DEFAULT_ACTIONS,
         labels: Mapping[str, str | Promise] | None = None,
         protected_fields: Iterable[str] = (),
+        status_actions: Mapping[str, StatusDeclaration] | None = None,
     ) -> None:
         self.codename = codename
         self.resource = resource
-        self.actions = tuple(actions)
+        self.status_actions: Mapping[str, StatusDeclaration] = MappingProxyType(
+            {
+                code: _status_declaration(codename, code, raw)
+                for code, raw in (status_actions or {}).items()
+            }
+        )
+        declared = tuple(actions)
+        self.actions = (*declared, *(code for code in self.status_actions if code not in declared))
         self.protected_fields = tuple(protected_fields)
         self.labels: Mapping[str, str | Promise] = MappingProxyType(
             {**ACTION_LABELS, **(labels or {})}
@@ -155,7 +178,9 @@ class PermissionSet:
             for field in self.protected_fields
             for action in FIELD_ACTIONS
         ]
-        return DeclaredPermissions([*actions, *fields], self.codename, self.protected_fields)
+        return DeclaredPermissions(
+            [*actions, *fields], self.codename, self.protected_fields, self.status_actions
+        )
 
     def _validate(self) -> None:
         if not _NAME.fullmatch(self.codename):
@@ -223,6 +248,7 @@ def build_permissions(
     actions: Iterable[str] = DEFAULT_ACTIONS,
     labels: Mapping[str, str | Promise] | None = None,
     protected_fields: Iterable[str] = (),
+    status_actions: Mapping[str, StatusDeclaration] | None = None,
 ) -> DeclaredPermissions:
     """
     ``Meta.permissions`` for one resource.
@@ -231,9 +257,16 @@ def build_permissions(
     ``loan_edit`` and ``loan_delete``. ``labels`` names an action in words of
     its own - ``{'approve': _('Can approve or decline %(resource)s')}``.
     ``protected_fields=('rate',)`` adds ``loan_view_rate`` and ``loan_edit_rate``.
+    ``status_actions={'approve': {'field': 'status', 'to': ['approved']}}``
+    adds the action ``approve``, which alone writes ``approved``.
     """
     return PermissionSet(
-        codename, resource, actions=actions, labels=labels, protected_fields=protected_fields
+        codename,
+        resource,
+        actions=actions,
+        labels=labels,
+        protected_fields=protected_fields,
+        status_actions=status_actions,
     ).entries()
 
 
@@ -242,6 +275,11 @@ def field_label(action: str, field: str | Promise, resource: str | Promise) -> s
     with translation.override(None):
         words = str(field).replace('_', ' ')
         return str(FIELD_LABELS[action]) % {'field': words, 'resource': str(resource)}
+
+
+def is_action_name(name: object) -> bool:
+    """Whether ``name`` can end a permission's codename: lowercase words joined by underscores."""
+    return isinstance(name, str) and _NAME.fullmatch(name) is not None
 
 
 #: Django's own verb for each of the four actions every model has.
@@ -295,6 +333,33 @@ def resource_codename(model: type[Model] | Model) -> str:
     declared = model._meta.permissions
     codename = declared.codename if isinstance(declared, DeclaredPermissions) else None
     return codename or str(model._meta.model_name)
+
+
+def declared_status_actions(model: type[Model] | Model) -> Mapping[str, StatusDeclaration]:
+    """The status actions ``model`` declares in code, through ``build_permissions``."""
+    declared = model._meta.permissions
+    return declared.status_actions if isinstance(declared, DeclaredPermissions) else {}
+
+
+def _status_declaration(codename: str, code: str, raw: object) -> StatusDeclaration:
+    """``raw``, checked for shape - the model checks its field and values at start-up (E015)."""
+    where = f'{codename!r} declares the status action {code!r}'
+
+    if not isinstance(raw, Mapping) or set(raw) - {'field', 'to', 'from'}:
+        raise ImproperlyConfigured(f"{where}: give it 'field', 'to' and optionally 'from'.")
+
+    field, to, start = raw.get('field'), raw.get('to'), raw.get('from', ())
+
+    if not isinstance(field, str) or not field:
+        raise ImproperlyConfigured(f'{where}: name its field.')
+
+    if not isinstance(to, list | tuple) or not to:
+        raise ImproperlyConfigured(f"{where}: 'to' is a list of the values it writes.")
+
+    if not isinstance(start, list | tuple):
+        raise ImproperlyConfigured(f"{where}: 'from' is a list of values.")
+
+    return MappingProxyType({'field': field, 'to': tuple(to), 'from': tuple(start)})
 
 
 def declared_protected_fields(model: type[Model] | Model) -> tuple[str, ...]:

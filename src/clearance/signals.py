@@ -34,3 +34,9 @@ scope_rule_deleted = Signal()
 field_protected = Signal()
 #: ``model``, ``field``, ``permissions`` - the two deleted with it.
 field_unprotected = Signal()
+#: ``action``, ``created`` - whether it is new.
+status_action_saved = Signal()
+#: ``model``, ``code``, ``name``.
+status_action_deleted = Signal()
+#: ``permissions`` - those ``migrate`` just made for actions found in the code.
+actions_found = Signal()

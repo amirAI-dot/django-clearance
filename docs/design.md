@@ -171,12 +171,13 @@ src/clearance/
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
     rules.py               a ScopeRule's conditions, checked and turned into a Q
-    actions.py             status actions, and the actions found in the code
+    actions.py             status actions, and writable_values()
+    discovery.py           the actions found in the code, and their permissions on migrate
     services.py            AccessService: every change, under the safety rules, with signals
     safety.py              the safety rules
     declared.py            the ACCESS file: read, compared with the database, applied
     querysets.py           ScopedQuerySet: named scopes, visible_to(user, action)
-    fields.py              readable_fields(), writable_fields(), writable_values()
+    fields.py              readable_fields(), writable_fields()
     forms.py               ProtectedFieldsFormMixin
     views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
     decorators.py          policy_required
@@ -476,11 +477,26 @@ Most actions change a value: approving an order sets its status to
 | from | *pending* - optional |
 
 Saving it makes `shop.order_approve`. Whoever lacks it cannot write those
-values: a form offers the choice without them, the admin site the same, and
-an API refuses them, naming the field and the value. A status action is
-scoped like any permission - "approve, in their branch". Several actions may
-share a field, and a value no action claims is written with the row's own
-`edit`.
+values: a form offers the choice without them and refuses one sent anyway,
+naming the field; the admin site does the same (stage 8), and an API refuses
+them, naming the field and the value (stage 7). A status action is scoped
+like any permission - "approve, in their branch" - and is asked of the
+model's policy with the row, so a hook such as "never your own loan" holds
+too. Several actions may share a field, and a value no action claims is
+written with the row's own `edit`.
+
+`from` is read off the row as it stands: a new row starts from the field's
+default. The value a row holds already is always writable - keeping it is no
+change.
+
+Made in the admin site, through `AccessService`, a status action is refused
+when its field has no choices and is not yes or no, when a value is not one
+of the field's, or when its code is an action the model has already. Two
+more refusals hold, because a change can give somebody what nobody gave them:
+
+* **releasing a value, or deleting the action, needs the action on every
+  row** - the value is then written by whoever may edit the row;
+* **nobody lets an action they hold write from more values** (`own_action`).
 
 The same, in code - in `build_permissions`, or in the `ACCESS` file for a
 model that keeps Django's permissions - and shown read only in the admin
@@ -499,18 +515,28 @@ permissions = build_permissions(
 ### 8.2 Actions found in the code
 
 An action that does something new - prints an invoice, exports a sheet,
-refunds a payment - needs code, but no permission code. `migrate` (and
-`clearance_sync`) finds every one and makes its permission:
+refunds a payment - needs code, but no permission code. A policy decides an
+action with no hook by its permission and its scope, as it does the standard
+four, so `policy_action = 'print_invoice'` needs nothing written for it.
+`migrate` (and `clearance_sync`) finds every one in the URLconf and makes its
+permission:
 
 | in the code | becomes |
 |---|---|
-| a DRF `@action` on a viewset of a model | `<codename>_<action>` |
+| a DRF `@action` on a viewset of a model (stage 7) | `<codename>_<action>` |
 | `policy_action = '...'` on an `APIView` or a Django view | the same |
 | `@policy_required(policy, '...')` on a function view | the same |
-| an entry in a `ModelAdmin`'s `actions` | the same, and the admin action is offered only to whoever holds it |
+| an entry in a `ModelAdmin`'s `actions` (stage 8) | the same, and the admin action is offered only to whoever holds it |
 
-A found action is held by nobody until it is given. One no longer in the code
-is marked as gone in the admin site, and `clearance_check` lists it.
+A found action is held by nobody until it is given; a misspelled one is
+therefore refused to everybody, and shows in the admin site under the name it
+was misspelled with. An action a policy wrote a hook for is not found: the
+hook decides it, and declares its permission with the model if it uses one -
+a permission made for it would be one nothing checks. One no longer in the
+code is marked as gone in the admin site, and `clearance_check` lists it.
+
+Finding is done by `ActionFinder`s, one per kind of code, so the DRF and
+admin site doors add theirs without changing anything else.
 
 ---
 
@@ -696,6 +722,8 @@ goes through `AccessService`, which refuses:
   the last holder of `permission_edit` losing it;
 * **a change to the rows of a rule scope your own grants are in** (9.2);
 * **unprotecting a field you do not hold both permissions of** (10.4);
+* **releasing a status action's value, or deleting it, without holding it on
+  every row; letting one you hold write from more values** (8.1);
 * **a widened ceiling**, without `role_ceiling_edit`.
 
 Every refusal says which rule, and every change is a signal.
@@ -803,8 +831,9 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
 | `clearance.E011` | `CLEARANCE` is not a dictionary, has a key the library does not know, or a value it cannot use - `RULE_DEPTH` below one |
 | `clearance.E012` | a field protected in code is not a field of its model, or cannot be protected - the primary key, the password, a relation of another model |
-| `clearance.E013` | an action name found in the code cannot make a permission |
+| `clearance.E013` | an action found in the code cannot make a permission - its policy has no model, or the name is too long |
 | `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
+| `clearance.E015` | a status action declared in code names a field or a value its model does not have |
 
 E004 and E005 are retired. E004 refused a scoped view over a plain manager,
 and every queryset can be scoped now; E005 checked ceilings written in code,
@@ -865,9 +894,9 @@ changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
 | **3b** | layers 1 and 2 at their core: default and custom permissions, `ModelPolicy`, `ScopeGrant`, `PermissionRevocation`, `ClearanceBackend`, `grants`, `AccessService` with **the safety rules**, the library's own permissions, code scopes and `visible_to(user, action)`, scope-aware hooks; the role code from stage 3 moves to stage 9 | |
 | 4 | the rule builder: `ScopeRule`, its conditions checked and turned into `Q` | |
 | 5 | protected fields: in code and in the database, under the safety rules; forms, views, templates and code - the admin site's door with the admin site, in stage 8 | |
-| 6 | actions: status actions and their enforcement; actions found in every kind of view | |
-| 7 | DRF: `ModelPolicyPermission`, `PolicyPermission`, the viewsets, the serializer mixin, their checks | |
-| 8 | the admin site, part one: overview, bundles as a grid, people, permissions; every `ModelAdmin` asking `permission_for` and hiding and locking protected fields | |
+| 6 | actions: status actions, in code and in the database, under the safety rules, and in forms; actions found in Django's views; a policy deciding an action with no hook by its permission | |
+| 7 | DRF: `ModelPolicyPermission`, `PolicyPermission`, the viewsets, the serializer mixin refusing protected fields and status values, `@action`s found, their checks | |
+| 8 | the admin site, part one: overview, bundles as a grid, people, permissions; every `ModelAdmin` asking `permission_for`, hiding and locking protected fields, narrowing status values, and offering its actions to whoever holds them | |
 | 9 | `clearance.roles`: roles, ceilings, starting bundles, resolvers - and their pages | |
 | 10 | access as code: the `ACCESS` file, `clearance_sync` with `--dry-run` and `--check`, `SYNC_ON_MIGRATE`, read only in the admin site | |
 | 11 | the admin site, part two: the rule builder, protected fields and actions pages; right to left; browser tests | |
@@ -959,3 +988,8 @@ Made by the owner.
     permission is given with no scope.
 38. **A field a scope rule reads is not protected until the rule changes**;
     unprotecting a field needs both of its permissions.
+39. **An action with no hook is decided by its permission and its scope**;
+    only a name that could never be a permission is an error.
+40. **A status action's value is released, or the action deleted, only by
+    somebody holding it on every row**; nobody widens where an action they
+    hold writes from.

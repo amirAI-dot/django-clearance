@@ -33,7 +33,7 @@ which fields those are, as ``readable_fields`` and ``writable_fields``::
     {% if 'rate' in readable_fields %}{{ object.rate }}{% endif %}
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, Final, cast
 
@@ -41,6 +41,7 @@ from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponseBase
+from django.urls import URLPattern, URLResolver, get_resolver
 from django.views.generic.detail import BaseDetailView
 from django.views.generic.edit import BaseCreateView, BaseDeleteView, BaseUpdateView
 from django.views.generic.list import BaseListView
@@ -109,6 +110,17 @@ def model_of(view: object) -> type[Model] | None:
         model = getattr(queryset, 'model', None)
 
     return model if isinstance(model, type) and issubclass(model, Model) else None
+
+
+def urlconf_callbacks(
+    patterns: Iterable[URLPattern | URLResolver] | None = None,
+) -> Iterator[Callable[..., Any]]:
+    """Every view the URLconf routes to, through every ``include``."""
+    for pattern in get_resolver().url_patterns if patterns is None else patterns:
+        if isinstance(pattern, URLResolver):
+            yield from urlconf_callbacks(pattern.url_patterns)
+        else:
+            yield pattern.callback
 
 
 class ScopedQuerySetMixin:

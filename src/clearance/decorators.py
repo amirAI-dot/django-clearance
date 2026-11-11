@@ -51,6 +51,9 @@ def policy_required(policy: BasePolicy, action: str) -> Callable[[ViewT], ViewT]
 
             raise PermissionDenied
 
+        # What the action finder reads, to make the action's permission on migrate.
+        guarded.clearance_policy = policy  # type: ignore[attr-defined]
+        guarded.clearance_action = action  # type: ignore[attr-defined]
         return guarded  # type: ignore[return-value]
 
     return decorator
