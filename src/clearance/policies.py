@@ -56,8 +56,8 @@ class BasePolicy:
     for a resource that is not one model. Each hook then asks for the
     permission ``permissions.permission_for`` names - in Django's style or the
     library's, whichever the model keeps. ``custom_actions`` maps a view's
-    action to the hook that authorises it - read by the bridges from a view to
-    a policy, which refuse an action missing from it.
+    action to the hook that decides it, when the two are named differently -
+    ``{'approve_all': 'can_approve'}``.
     """
 
     #: The model this policy decides about. Its app label and name are the defaults.
@@ -112,11 +112,11 @@ class BasePolicy:
 
     def hook(self, action: str) -> Hook:
         """
-        The hook that decides ``action``: ``can_approve`` for ``approve`` when
-        the policy has one, and otherwise the action's permission within its
-        scope.
+        The hook that decides ``action``: the one ``custom_actions`` maps it
+        to, ``can_approve`` for ``approve`` when the policy has one, and
+        otherwise the action's permission within its scope.
         """
-        method = getattr(self, f'{self.hook_prefix}{action}', None)
+        method = getattr(self, self.hook_name(action), None)
 
         if callable(method):
             return cast(Hook, method)
@@ -131,6 +131,10 @@ class BasePolicy:
             return self.has_within_scope(user, action, obj)
 
         return by_permission
+
+    def hook_name(self, action: str) -> str:
+        """The name of the method that would decide ``action``, whether or not it exists."""
+        return self.custom_actions.get(action, f'{self.hook_prefix}{action}')
 
     def permission_for(self, action: str) -> str:
         """The permission ``action`` requires: ``shop.change_order``, ``loans.loan_approve``."""

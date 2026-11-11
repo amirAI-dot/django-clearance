@@ -173,6 +173,7 @@ src/clearance/
     rules.py               a ScopeRule's conditions, checked and turned into a Q
     actions.py             status actions, and writable_values()
     discovery.py           the actions found in the code, and their permissions on migrate
+    writes.py              refused_writes() - what a person may not write, of what they sent
     services.py            AccessService: every change, under the safety rules, with signals
     safety.py              the safety rules
     declared.py            the ACCESS file: read, compared with the database, applied
@@ -190,10 +191,11 @@ src/clearance/
     locale/fa/LC_MESSAGES/
 
     drf/                   pip install django-clearance[drf]
-        permissions.py     PolicyPermission, ModelPolicyPermission
-        viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet
+        permissions.py     PolicyPermission, ModelPolicyPermission - writes guarded
+        viewsets.py        ScopedModelViewSet, ScopedReadOnlyViewSet, ProtectedSerializerMixin
         serializers.py     ProtectedFieldsSerializerMixin
-        checks.py
+        discovery.py       APIViewFinder - @actions and policy_action
+        checks.py          E003, E009
 
     roles/                 INSTALLED_APPS += ['clearance.roles']
         models.py          Role, RoleAssignment, RoleBundle, RoleCeiling
@@ -330,8 +332,11 @@ class OrderReport(APIView):
         ...
 ```
 
-`ScopedModelViewSet` is only `ScopedQuerySetMixin` on a `ModelViewSet`, kept
-because it is the most common pair.
+`ScopedModelViewSet` is a `ModelViewSet` with three things added, each of
+which works on its own on any other DRF view: `ScopedQuerySetMixin`,
+`ModelPolicyPermission`, and `ProtectedSerializerMixin`, which gives the
+view's serializer `ProtectedFieldsSerializerMixin` whether or not it was
+written to. `ScopedReadOnlyViewSet` is the same on a `ReadOnlyModelViewSet`.
 
 ### 5.5 Actions found in the code
 
@@ -479,7 +484,7 @@ Most actions change a value: approving an order sets its status to
 Saving it makes `shop.order_approve`. Whoever lacks it cannot write those
 values: a form offers the choice without them and refuses one sent anyway,
 naming the field; the admin site does the same (stage 8), and an API refuses
-them, naming the field and the value (stage 7). A status action is scoped
+them, naming the field and the value. A status action is scoped
 like any permission - "approve, in their branch" - and is asked of the
 model's policy with the row, so a hook such as "never your own loan" holds
 too. Several actions may share a field, and a value no action claims is
@@ -523,7 +528,7 @@ permission:
 
 | in the code | becomes |
 |---|---|
-| a DRF `@action` on a viewset of a model (stage 7) | `<codename>_<action>` |
+| a DRF `@action` on a viewset asking a policy | `<codename>_<action>` |
 | `policy_action = '...'` on an `APIView` or a Django view | the same |
 | `@policy_required(policy, '...')` on a function view | the same |
 | an entry in a `ModelAdmin`'s `actions` (stage 8) | the same, and the admin action is offered only to whoever holds it |
@@ -652,7 +657,7 @@ refused.
 | a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows disabled what may not be written - Django then keeps the value the row holds, whatever is sent |
 | a Django view | `ProtectedFieldsViewMixin` builds the form that way, and gives the template `readable_fields` and `writable_fields` |
 | the admin site | every `ModelAdmin`, without a mixin: the library's admin hooks hide and lock (stage 8) |
-| a DRF serializer | `ProtectedFieldsSerializerMixin`, and on every serializer `ModelPolicyPermission` guards |
+| a DRF serializer | `ProtectedFieldsSerializerMixin` leaves out, locks and refuses; on every serializer, `ModelPolicyPermission` and `PolicyPermission` refuse what may not be written |
 | a template | `{% if perms.shop.view_order_price %}` |
 | code | `readable_fields(user, Order)`, `writable_fields(user, Order)` |
 
@@ -734,14 +739,29 @@ Every refusal says which rule, and every change is a signal.
 
 ### 13.1 DRF
 
-`ModelPolicyPermission` finds the view's model - from `queryset`, or
-`get_queryset()` - and asks that model's policy. `PolicyPermission` asks one
-named policy, for a view with no model. Both map `list`/`retrieve` to
-`can_list`/`can_view`, `create` to `can_create`, `update`/`partial_update` to
-`can_edit`, `destroy` to `can_delete`, an `@action` to its found permission
-or the policy's `custom_actions`, and an `APIView` by its HTTP method -
-`policy_action` naming a different one. The object level uses the same
-table, with the object.
+`ModelPolicyPermission` finds the view's model - from `queryset`, or a
+`get_queryset()` written for the view - and asks that model's policy.
+`PolicyPermission` asks the policy the view names in `policy`, for a view
+with no model. Both map `list`/`retrieve` to `can_list`/`can_view`, `create`
+to `can_create`, `update`/`partial_update` to `can_edit`, `destroy` to
+`can_delete`, an `@action` to its found permission or the policy's
+`custom_actions`, and an `APIView` by its HTTP method - `policy_action`
+naming a different one; a method nobody maps is refused. The object level
+uses the same table, with the object.
+
+**On every serializer, a write is guarded.** Before the serializer runs, a
+`create` or an `edit` sending a value the person may not write - a protected
+field, a value a status action claims - is refused with a 400 naming the
+field, so a serializer written without the library cannot write what it
+should not. `ProtectedFieldsSerializerMixin` refuses the same way on its own,
+for a serializer used outside such a view; it reads the person from the
+request, or from `context['user']`, and refuses to be built with neither.
+
+Reading has no such backstop - a permission class cannot change an answer -
+so E003 refuses, at start-up, a view asking a model's policy whose serializer
+would show every field. It holds for every model, not only one protecting
+fields today: a field protected tomorrow in the admin site would otherwise be
+shown by a serializer nobody changed.
 
 ### 13.2 Django views
 
@@ -823,11 +843,11 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 |---|---|
 | `clearance.E001` | `ACCESS` cannot be read, or names a permission, scope or field that does not exist |
 | `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
-| `clearance.E003` | a DRF viewset guarded by a policy has an `@action` with no permission |
+| `clearance.E003` | a DRF view asking a model's policy serializes the model without leaving out its protected fields |
 | `clearance.E006` | `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` |
 | `clearance.E007` | `ModelBackend` is beside `ClearanceBackend` - it would hand back every revocation |
 | `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it |
-| `clearance.E009` | a `PolicyRequiredMixin` view cannot ask a policy |
+| `clearance.E009` | a `PolicyRequiredMixin` view, or a DRF view guarded by a policy, cannot ask one |
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
 | `clearance.E011` | `CLEARANCE` is not a dictionary, has a key the library does not know, or a value it cannot use - `RULE_DEPTH` below one |
 | `clearance.E012` | a field protected in code is not a field of its model, or cannot be protected - the primary key, the password, a relation of another model |
@@ -993,3 +1013,9 @@ Made by the owner.
 40. **A status action's value is released, or the action deleted, only by
     somebody holding it on every row**; nobody widens where an action they
     hold writes from.
+41. **On every DRF serializer, a write is guarded** by the permission class,
+    refused with a 400 naming the field.
+42. **A DRF view asking a model's policy protects its serializer** (E003), for
+    every model - a field can be protected later, in the admin site.
+43. **`custom_actions` is read everywhere a policy is asked**, not only by
+    DRF; an action it maps is the hook's, and no permission is made for it.

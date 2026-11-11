@@ -23,6 +23,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
+from django.apps import apps
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 from django.db import DEFAULT_DB_ALIAS
@@ -84,25 +85,30 @@ class ViewFinder(ActionFinder):
                 yield FoundAction(policy, action, origin)
 
 
-#: Every finder ``find_actions`` asks, in order.
-FINDERS: tuple[ActionFinder, ...] = (ViewFinder(),)
+def default_finders() -> list[ActionFinder]:
+    """Django's views always; DRF's when ``rest_framework`` is installed."""
+    finders: list[ActionFinder] = [ViewFinder()]
+
+    if apps.is_installed('rest_framework'):
+        from clearance.drf.discovery import APIViewFinder  # DRF is optional
+
+        finders.append(APIViewFinder())
+
+    return finders
 
 
-def find_actions(finders: Iterable[ActionFinder] = FINDERS) -> list[FoundAction]:
+def find_actions(finders: Iterable[ActionFinder] | None = None) -> list[FoundAction]:
     """
-    Every action found, once each: not one of the four every model has, not
-    one a policy wrote a hook for, and a name that can end a permission's.
+    Every action found, once each: not one of the four every model has, and
+    not one a policy decides with a hook of its own.
     """
     found: dict[tuple[type, str], FoundAction] = {}
 
-    for finder in finders:
+    for finder in default_finders() if finders is None else finders:
         for action in finder.find():
-            hook = getattr(action.policy, f'{action.policy.hook_prefix}{action.action}', None)
+            hook = getattr(action.policy, action.policy.hook_name(action.action), None)
 
-            if action.action in STANDARD_ACTIONS or callable(hook):
-                continue
-
-            if is_action_name(action.action):
+            if action.action not in STANDARD_ACTIONS and not callable(hook):
                 found.setdefault((type(action.policy), action.action), action)
 
     return list(found.values())
@@ -110,6 +116,12 @@ def find_actions(finders: Iterable[ActionFinder] = FINDERS) -> list[FoundAction]
 
 def action_problems(action: FoundAction) -> str | None:
     """Why ``action``'s permission cannot be made, or ``None``: E013."""
+    if not is_action_name(action.action):
+        return (
+            f"{action.origin} asks for {action.action!r}, which cannot end a permission's "
+            f'name: use lowercase words joined by underscores.'
+        )
+
     if action.model is None:
         return (
             f'{action.origin} asks for {action.action!r}, but its policy has no model to keep '
