@@ -12,6 +12,7 @@
     <p><label for="clearance-name">{% translate 'Name' %}</label>
        <input id="clearance-name" type="text" name="name" value="{{ name }}" maxlength="150" required></p>
 
+    <div class="clearance-scroll">
     <table class="clearance-grid">
       <thead>
         <tr><th>{% translate 'Model' %}</th>{% for column in grid.columns %}<th>{{ column }}</th>{% endfor %}<th>{% translate 'Other permissions' %}</th></tr>
@@ -28,6 +29,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
 
     {% if not declared and bundle and may_edit or not bundle and may_create %}
     <div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}">

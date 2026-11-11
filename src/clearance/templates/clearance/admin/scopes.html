@@ -1,0 +1,28 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {% translate 'Row scopes' %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  {% if may_create %}
+  <form method="get" action="{% url 'admin:clearance_scope_add' %}" class="clearance-choose">
+    <label for="clearance-model">{% translate 'Build a rule scope for' %}</label>
+    <select id="clearance-model" name="model">{% for label, words in models %}<option value="{{ label }}">{{ words }}</option>{% endfor %}</select>
+    <input type="submit" value="{% translate 'Build' %}">
+  </form>
+  {% endif %}
+  <table class="clearance-list">
+    <thead><tr><th>{% translate 'Model' %}</th><th>{% translate 'Code' %}</th><th>{% translate 'Name' %}</th><th>{% translate 'Made' %}</th><th>{% translate 'Grants using it' %}</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr{% if row.broken %} class="clearance-error"{% endif %}><td>{{ row.model }}</td><td><code>{{ row.code }}</code></td>
+        <td>{% if row.rule %}<a href="{% url 'admin:clearance_scope' row.rule.pk %}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}{% if row.broken %} &mdash; {% translate 'reaches nothing' %}{% endif %}</td>
+        <td>{% if row.rule %}{% translate 'as a rule' %}{% else %}{% translate 'in code' %}{% endif %}</td><td>{{ row.grants }}</td></tr>
+    {% empty %}
+      <tr><td colspan="5">{% translate 'No model offers a scope yet.' %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

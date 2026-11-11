@@ -1,0 +1,44 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_actions' %}">{% translate 'Actions' %}</a> &rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <p>{{ model_words|capfirst }} <code>{{ model_label }}</code></p>
+  {% if declared %}<p class="clearance-note">{% translate 'Declared in code: it is changed in the ACCESS file, and shown here read only.' %}</p>{% endif %}
+  {% if errors %}<ul class="errorlist">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+
+  {% if not field %}
+  <form method="get">
+    <input type="hidden" name="model" value="{{ model_label }}">
+    <p><label for="clearance-field">{% translate 'The field it writes' %}</label>
+      <select id="clearance-field" name="field">{% for name in fields %}<option>{{ name }}</option>{% empty %}<option disabled>{% translate 'No field of this model has choices, or is yes or no.' %}</option>{% endfor %}</select>
+      <input type="submit" value="{% translate 'Next' %}"></p>
+  </form>
+  {% else %}
+  <form method="post">{% csrf_token %}
+    {% if not row %}<p><label for="clearance-code">{% translate 'Code' %}</label> <input id="clearance-code" type="text" name="code" maxlength="64" required></p>{% endif %}
+    <p><label for="clearance-name">{% translate 'Name' %}</label> <input id="clearance-name" type="text" name="name" value="{{ row.name }}" maxlength="160"></p>
+    <p>{% translate 'Field' %}: <code>{{ field }}</code></p>
+    <table class="clearance-list">
+      <thead><tr><th>{% translate 'Value' %}</th><th>{% translate 'Only this action writes it' %}</th><th>{% translate 'It may write from it' %}</th></tr></thead>
+      <tbody>
+      {% for value, words in values %}
+        <tr><td>{{ words }} <code>{{ value }}</code></td>
+          <td><input type="checkbox" name="to" value="{{ value }}"{% if value in to %} checked{% endif %} aria-label="{{ words }}"></td>
+          <td><input type="checkbox" name="from" value="{{ value }}"{% if value in start %} checked{% endif %} aria-label="{{ words }}"></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="clearance-note">{% translate 'Writing from no value ticked is writing from any.' %}</p>
+    {% if claimed_elsewhere %}<p class="clearance-note">{% translate 'Other actions on this field' %}: {{ claimed_elsewhere|join:'; ' }}</p>{% endif %}
+    {% if not declared %}{% if row and may_edit or not row and may_create %}
+    <div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}">
+      {% if row and may_delete %}<a class="deletelink" href="{% url 'admin:clearance_action_delete' row.pk %}">{% translate 'Delete' %}</a>{% endif %}
+    </div>
+    {% endif %}{% endif %}
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

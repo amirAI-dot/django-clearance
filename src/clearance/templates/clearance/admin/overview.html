@@ -11,5 +11,14 @@
       <tr><th scope="row"><a href="{% url 'admin:clearance_permissions' %}?held=nobody">{% translate 'Permissions nobody holds' %}</a></th><td>{{ unheld }}</td></tr>
     </tbody>
   </table>
+
+  <h2>{% translate 'What the database says is wrong' %}</h2>
+  <ul class="clearance-findings">
+  {% for finding in findings %}
+    <li class="clearance-{{ finding.level }}">{{ finding.message }}</li>
+  {% empty %}
+    <li>{% translate 'Nothing.' %}</li>
+  {% endfor %}
+  </ul>
 </div>
 {% endblock %}
