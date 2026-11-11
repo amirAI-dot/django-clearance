@@ -34,9 +34,9 @@ from tests.project.lending.models import Loan
 pytestmark = pytest.mark.django_db
 
 #: "Branch managers", in Persian - written as escapes: the code is English only.
-MANAGERS_FA = 'مدیران شعبه'
+MANAGERS_FA = '\u0645\u062f\u06cc\u0631\u0627\u0646 \u0634\u0639\u0628\u0647'
 #: "Approve", in Persian.
-APPROVE_FA = 'تأیید'
+APPROVE_FA = '\u062a\u0623\u06cc\u06cc\u062f'
 
 
 @pytest.fixture
