@@ -224,6 +224,7 @@ src/clearance/
         services.py        RoleService
         pages.py, admin.py the roles pages, mounted beside the access pages
         checks.py          E008, E010
+        declared.py        the roles section of the ACCESS file
         signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
@@ -416,9 +417,15 @@ ACCESS = {
         'Accountants': {'shop.view_order': 'all', 'shop.view_order_price': None},
         'Customers': {'shop.view_order': 'own', 'shop.add_order': None},
     },
-    'roles': {
+    'status_actions': {                  # for a model keeping Django's permissions
+        'shop.Order': {
+            'approve': {'field': 'status', 'to': ['approved', 'rejected'], 'from': ['pending']},
+        },
+    },
+    'roles': {                           # with clearance.roles installed
         'customer': {
-            'ceiling': ['shop.view_order', 'shop.add_order'],
+            'name': 'Customer',
+            'ceiling': ['shop.view_order', 'shop.add_order'],   # None: no ceiling
             'bundles': ['Customers'],
         },
     },
@@ -430,6 +437,24 @@ python manage.py clearance_sync --dry-run    # what would change, writing nothin
 python manage.py clearance_sync --check      # in CI: fail when the database differs from the file
 python manage.py clearance_sync              # apply, and say what changed
 ```
+
+**فایل صاحب چیزی است که نام می‌برد، و نه چیز دیگری.** یک sync چیزی را که فایل
+اضافه می‌کند می‌سازد، چیزی را که تغییر می‌دهد تغییر می‌دهد، و چیزی را که یک بار نام
+برده و دیگر نام نمی‌برد حذف می‌کند. بسته، نقش یا اکشن وضعیتی که در پنل ادمین ساخته
+شده، تا وقتی فایل آن را نام نبرد دست نمی‌خورد - sync این را می‌گوید - و از آن به
+بعد صاحبش فایل است. اینکه چه کسی یک بسته یا نقش را دارد کار فایل نیست: در پنل
+ادمین می‌ماند.
+
+یک sync قبل از نوشتن هر چیزی کامل فهرست می‌شود، و در یک transaction از طریق همان
+سرویس‌هایی که پنل ادمین به کار می‌برد، به عنوان سیستم، اعمال می‌شود: syncی که بعد
+از آن هیچ‌کس نتواند دسترسی‌ها را مدیریت کند، هیچ چیزی را تغییر نمی‌دهد. چیزی که
+صاحبش فایل است برای هر شخصی - superuser هم - رد می‌شود، چون sync بعدی آن را
+برمی‌گرداند؛ پنل ادمین آن را *تعریف‌شده در کد* نشان می‌دهد.
+
+`bundles` و `status_actions` بخش‌های هسته‌اند؛ `clearance.roles` وقتی نصب باشد
+`roles` را اضافه می‌کند. E001 موقع راه‌اندازی چیزی را بررسی می‌کند که بدون دیتابیس
+می‌شود گفت - اینکه فایل خوانده می‌شود، و چیزی نمی‌گوید که نمی‌تواند باشد؛ اینکه هر
+مجوز و scopeی که نام می‌برد وجود دارد، با `--check` گفته می‌شود.
 
 ---
 
@@ -464,8 +489,8 @@ python manage.py clearance_sync              # apply, and say what changed
 می‌کند - کار `clearance_sync` است، یک قدم صریح که پیش از تغییر دادن، نشان
 می‌دهد چه چیزی را تغییر خواهد داد. پروژه‌ای که یک دستور می‌خواهد،
 `SYNC_ON_MIGRATE` را روشن می‌کند: آن وقت sync یک بار، در پایان یک `migrate` رو
-به جلو روی دیتابیس اصلی اجرا می‌شود - هرگز موقع ساختن دیتابیس تست، و هرگز موقع
-یک migration رو به عقب.
+به جلو روی دیتابیس اصلی اجرا می‌شود، بعد از اینکه آخرین اپ مجوزهایش را ساخت -
+هرگز موقع ساختن دیتابیس تست، و هرگز موقع یک migration رو به عقب.
 
 دسترسی خود کتابخانه به خودش هم مجوزهای خودش را دارد:
 `clearance.permission_view`، `permission_create`، `permission_edit`،
@@ -781,6 +806,8 @@ querysetها جواب می‌دهد.
 * **برداشتن محافظت فیلدی که هر دو مجوزش را ندارید** (۱۰.۴)؛
 * **آزاد کردن مقدار یک اکشن وضعیت، یا حذفش، بدون داشتن آن روی همه‌ی ردیف‌ها؛ و
   اینکه بگذارید اکشنی که خودتان دارید از مقدارهای بیشتری بنویسد** (۸.۱)؛
+* **تغییر چیزی که صاحبش فایل `ACCESS` است** - هر کسی، superuser هم؛ فقط sync آن
+  را تغییر می‌دهد (۵.۸)؛
 * **برداشتن سقف از کسی بدون `role_ceiling_edit`، یا تغییر چیزی که نقش خودتان
   دارد** (۱۱.۲)؛
 * **بازتر کردن یک سقف**، بدون `role_ceiling_edit`.
@@ -926,7 +953,7 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 | `clearance` | `ScopeRule` | `content_type`، `code`، `name`، `match` (همه یا هر کدام)، `conditions` |
 | `clearance` | `ProtectedField` | `content_type`، `field` - همراه دو مجوزی که ساخته |
 | `clearance` | `StatusAction` | `content_type`، `code`، `name`، `field`، `to_values`، `from_values` - همراه مجوزش |
-| `clearance` | `Declared` | چیزی که فایل `ACCESS` یا کد صاحبش است - یک بسته، یک نقش، یک سقف، یک اکشن وضعیت - تا پنل ادمین آن را فقط‌خواندنی نشان دهد |
+| `clearance` | `Declared` | چیزی که فایل `ACCESS` صاحبش است - یک بسته، یک نقش، یک اکشن وضعیت - تا sync بداند چه چیزی را می‌تواند حذف کند، و پنل ادمین آن را فقط‌خواندنی نشان دهد |
 | `clearance.roles` | `Role` | `code`، `name`، `limited` |
 | `clearance.roles` | `RoleAssignment` | `user`، `role`، `assigned_by`، `assigned_at` |
 | `clearance.roles` | `RoleCeiling` | `role`، `permission` |
@@ -941,7 +968,7 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 
 | شناسه | چه زمانی |
 |---|---|
-| `clearance.E001` | `ACCESS` قابل خواندن نیست، یا مجوز، scope یا فیلدی را نام برده که وجود ندارد |
+| `clearance.E001` | `ACCESS` قابل خواندن نیست، بخشی دارد که هیچ اپ نصب‌شده‌ای آن را نمی‌خواند، یا چیزی می‌گوید که نمی‌تواند باشد - مجوزی که به شکل `app_label.codename` نیست، مدلی که نصب نیست، فیلد یا مقداری از یک اکشن وضعیت که مدلش ندارد |
 | `clearance.E002` | `scopes` یک `ScopedQuerySet` با متدهای `scope_<x>` آن نمی‌خواند، یا `default_scope` آن ارائه نشده |
 | `clearance.E003` | یک ویوی DRF که از policy یک مدل می‌پرسد، مدل را بدون حذف فیلدهای محافظت‌شده‌اش serialize می‌کند |
 | `clearance.E006` | `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست |
@@ -1137,3 +1164,9 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
     و هسته نقش‌ها را بدون import کردنشان از طریق `clearance.limits` برقرار می‌کند.
 50. **اپ‌های کتابخانه نوع کلید اصلی خودشان را تعیین می‌کنند**، پس
     `DEFAULT_AUTO_FIELD` یک پروژه هرگز از آن نمی‌خواهد برایشان migration بسازد.
+51. **فایل `ACCESS` صاحب چیزی است که نام می‌برد، و نه چیز دیگری**: یک sync فقط چیزی
+    را حذف می‌کند که فایل یک بار نام برده، و چیزی را که پنل ادمین ساخته، وقتی فایل
+    نامش را ببرد، در اختیار می‌گیرد.
+52. **چیزی که صاحبش فایل است فقط با sync تغییر می‌کند** - برای هر شخصی، superuser
+    هم، رد می‌شود.
+53. **اینکه چه کسی یک بسته یا نقش را دارد کار فایل نیست**؛ در پنل ادمین می‌ماند.

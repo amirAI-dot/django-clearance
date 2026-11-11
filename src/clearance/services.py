@@ -89,6 +89,7 @@ class AccessService:
         may do it; changing what it holds is refused to them.
         """
         self.rules.require_may('edit')
+        self.rules.require_not_declared('bundle', bundle.name)
         before = self.bundle_grants(bundle)
         renamed = name is not None and name != bundle.name
         regranted = grants is not None and dict(grants) != before
@@ -123,6 +124,7 @@ class AccessService:
     def delete_bundle(self, bundle: Group) -> None:
         """Delete ``bundle``. Whoever held it stops holding what it gave."""
         self.rules.require_may('delete')
+        self.rules.require_not_declared('bundle', bundle.name)
         self.rules.require_not_held(bundle)
         grants, name = self.bundle_grants(bundle), bundle.name
         holders: Any = bundle.user_set
@@ -531,6 +533,7 @@ class AccessService:
         more, so it is refused to them.
         """
         self.rules.require_may('edit')
+        self.rules.require_not_declared('status_action', _status_key(action))
         model = action.content_type.model_class()
         assert model is not None, 'the model of a status action is never deleted from under it'
         permission = permission_for(model, action.code)
@@ -568,6 +571,7 @@ class AccessService:
         may delete it.
         """
         self.rules.require_may('delete')
+        self.rules.require_not_declared('status_action', _status_key(action))
         model = action.content_type.model_class()
         assert model is not None, 'the model of a status action is never deleted from under it'
         permission = permission_for(model, action.code)
@@ -589,6 +593,10 @@ class AccessService:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def check_grants(self, grants: Grants) -> None:
+        """A ``ValidationError`` naming each permission or scope in ``grants`` that is not there."""
+        self._resolve(grants)
 
     def _resolve(self, grants: Grants, *, scopes: bool = True) -> dict[str, Permission]:
         """The permission rows ``grants`` name, every scope checked against its model."""
@@ -675,3 +683,10 @@ def offered_scopes(permission: Permission) -> set[str]:
     """The scopes ``permission``'s model offers: ``all``, its code scopes, its rule scopes."""
     model = permission.content_type.model_class()
     return set(querysets.offered_scopes(model)) if model is not None else {EVERY_ROW}
+
+
+def _status_key(action: StatusAction) -> str:
+    """How the ``ACCESS`` file names a status action: ``app_label.Model.code``."""
+    model = action.content_type.model_class()
+    label = model._meta.label if model is not None else action.content_type.model
+    return f'{label}.{action.code}'

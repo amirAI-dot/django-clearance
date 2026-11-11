@@ -12,7 +12,7 @@
     <thead><tr><th>{% translate 'Role' %}</th><th>{% translate 'Code' %}</th><th>{% translate 'Ceiling' %}</th><th>{% translate 'Starting bundles' %}</th>{% if assigns %}<th>{% translate 'People' %}</th>{% endif %}</tr></thead>
     <tbody>
     {% for role in roles %}
-      <tr><td><a href="{% url 'admin:clearance_role' role.pk %}">{{ role.name }}</a></td><td><code>{{ role.code }}</code></td>
+      <tr><td><a href="{% url 'admin:clearance_role' role.pk %}">{{ role.name }}</a>{% if role.code in declared %} <span class="clearance-note">{% translate 'declared in code' %}</span>{% endif %}</td><td><code>{{ role.code }}</code></td>
         <td>{% if role.limited %}{% blocktranslate count permitted=role.permitted %}{{ permitted }} permission{% plural %}{{ permitted }} permissions{% endblocktranslate %}{% else %}{% translate 'none' %}{% endif %}</td>
         <td>{{ role.starting }}</td>{% if assigns %}<td>{{ role.people }}</td>{% endif %}</tr>
     {% empty %}
