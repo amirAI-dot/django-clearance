@@ -1,0 +1,601 @@
+# Persian translation of django-clearance.
+# This file is distributed under the same licence as django-clearance.
+msgid ""
+msgstr ""
+"Project-Id-Version: django-clearance\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"Last-Translator: amir mohammad kashanchian\n"
+"Language-Team: Persian\n"
+"Language: fa\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Actions"
+msgstr "اکشن‌ها"
+
+msgid "The status action was saved."
+msgstr "اکشن وضعیت ذخیره شد."
+
+msgid "Add a status action"
+msgstr "افزودن اکشن وضعیت"
+
+msgid "The status action was deleted."
+msgstr "اکشن وضعیت حذف شد."
+
+#, python-format
+msgid "Delete %(name)s"
+msgstr "حذف %(name)s"
+
+msgid "Protected fields"
+msgstr "فیلدهای محافظت‌شده"
+
+#, python-format
+msgid "%(field)s is protected."
+msgstr "%(field)s محافظت شد."
+
+#, python-format
+msgid "%(field)s is no longer protected."
+msgstr "%(field)s دیگر محافظت‌شده نیست."
+
+msgid "Row scopes"
+msgstr "دامنه‌های ردیف"
+
+msgid "The rule scope was saved."
+msgstr "دامنه‌ی قانونی ذخیره شد."
+
+msgid "Add a rule scope"
+msgstr "افزودن دامنه‌ی قانونی"
+
+msgid "The rule scope was deleted."
+msgstr "دامنه‌ی قانونی حذف شد."
+
+msgid "Access"
+msgstr "دسترسی"
+
+msgid "Bundles"
+msgstr "بسته‌ها"
+
+msgid "People"
+msgstr "افراد"
+
+msgid "Permissions"
+msgstr "مجوزها"
+
+#, python-format
+msgid "The bundle %(name)s was saved."
+msgstr "بسته‌ی %(name)s ذخیره شد."
+
+msgid "Add a bundle"
+msgstr "افزودن بسته"
+
+#, python-format
+msgid "The bundle %(name)s was deleted."
+msgstr "بسته‌ی %(name)s حذف شد."
+
+msgid "The bundle was given."
+msgstr "بسته داده شد."
+
+msgid "The bundle was taken back."
+msgstr "بسته پس گرفته شد."
+
+msgid "The permission was given."
+msgstr "مجوز داده شد."
+
+msgid "The permission was taken away."
+msgstr "مجوز گرفته شد."
+
+msgid "The permission was given back."
+msgstr "مجوز پس داده شد."
+
+msgid "Nothing was asked for."
+msgstr "چیزی خواسته نشد."
+
+msgid "A bundle needs a name."
+msgstr "هر بسته یک اسم لازم دارد."
+
+#, python-format
+msgid "There is a bundle called %(name)s already."
+msgstr "بسته‌ای به اسم %(name)s از قبل هست."
+
+#, python-format
+msgid "You may not set %(field)s to %(value)s."
+msgstr "شما نمی‌توانید %(field)s را %(value)s کنید."
+
+msgid "access"
+msgstr "دسترسی"
+
+msgid "scope"
+msgstr "دامنه"
+
+msgid "scope grant"
+msgstr "اعطای دامنه"
+
+msgid "scope grants"
+msgstr "اعطاهای دامنه"
+
+msgid "reason"
+msgstr "دلیل"
+
+msgid "revoked at"
+msgstr "زمان گرفتن"
+
+msgid "revocation"
+msgstr "گرفتن مجوز"
+
+msgid "revocations"
+msgstr "مجوزهای گرفته‌شده"
+
+msgid "all of the conditions"
+msgstr "همه‌ی شرط‌ها"
+
+msgid "any of the conditions"
+msgstr "هر کدام از شرط‌ها"
+
+msgid "model"
+msgstr "مدل"
+
+msgid "code"
+msgstr "کد"
+
+msgid "name"
+msgstr "اسم"
+
+msgid "match"
+msgstr "تطابق"
+
+msgid "scope rule"
+msgstr "دامنه‌ی قانونی"
+
+msgid "scope rules"
+msgstr "دامنه‌های قانونی"
+
+msgid "a constant"
+msgstr "یک مقدار ثابت"
+
+msgid "a list of constants"
+msgstr "فهرستی از مقدارهای ثابت"
+
+msgid "something of the person's"
+msgstr "چیزی از خود شخص"
+
+msgid "no value"
+msgstr "بدون مقدار"
+
+msgid "rule"
+msgstr "قانون"
+
+msgid "position"
+msgstr "جایگاه"
+
+msgid "field"
+msgstr "فیلد"
+
+msgid "operator"
+msgstr "عملگر"
+
+msgid "value from"
+msgstr "منبع مقدار"
+
+msgid "the person's field"
+msgstr "فیلدِ شخص"
+
+msgid "scope condition"
+msgstr "شرط دامنه"
+
+msgid "scope conditions"
+msgstr "شرط‌های دامنه"
+
+msgid "condition"
+msgstr "شرط"
+
+msgid "value"
+msgstr "مقدار"
+
+msgid "scope condition value"
+msgstr "مقدار شرط دامنه"
+
+msgid "scope condition values"
+msgstr "مقدارهای شرط دامنه"
+
+msgid "protected field"
+msgstr "فیلد محافظت‌شده"
+
+msgid "protected fields"
+msgstr "فیلدهای محافظت‌شده"
+
+msgid "status action"
+msgstr "اکشن وضعیت"
+
+msgid "status actions"
+msgstr "اکشن‌های وضعیت"
+
+msgid "writes"
+msgstr "می‌نویسد"
+
+msgid "writes from"
+msgstr "می‌نویسد از"
+
+msgid "end"
+msgstr "سمت"
+
+msgid "status action value"
+msgstr "مقدار اکشن وضعیت"
+
+msgid "status action values"
+msgstr "مقدارهای اکشن وضعیت"
+
+msgid "bundle"
+msgstr "بسته"
+
+msgid "role"
+msgstr "نقش"
+
+msgid "kind"
+msgstr "نوع"
+
+msgid "key"
+msgstr "کلید"
+
+msgid "declared in code"
+msgstr "تعریف‌شده در کد"
+
+#, python-format
+msgid "Can view %(resource)s"
+msgstr "می‌تواند %(resource)s را ببیند"
+
+#, python-format
+msgid "Can create %(resource)s"
+msgstr "می‌تواند %(resource)s بسازد"
+
+#, python-format
+msgid "Can edit %(resource)s"
+msgstr "می‌تواند %(resource)s را ویرایش کند"
+
+#, python-format
+msgid "Can delete %(resource)s"
+msgstr "می‌تواند %(resource)s را حذف کند"
+
+#, python-format
+msgid "Can view %(field)s of %(resource)s"
+msgstr "می‌تواند %(field)s در %(resource)s را ببیند"
+
+#, python-format
+msgid "Can edit %(field)s of %(resource)s"
+msgstr "می‌تواند %(field)s در %(resource)s را ویرایش کند"
+
+msgid "Every row"
+msgstr "همه‌ی ردیف‌ها"
+
+msgid "Their own"
+msgstr "ردیف‌های خودشان"
+
+msgid ""
+"Declared in code: it is changed in the ACCESS file, and shown here read only."
+msgstr ""
+"در کد تعریف شده: در فایل ACCESS تغییر می‌کند و این‌جا فقط‌خواندنی نمایش داده "
+"می‌شود."
+
+msgid "The field it writes"
+msgstr "فیلدی که می‌نویسد"
+
+msgid "No field of this model has choices, or is yes or no."
+msgstr "هیچ فیلدی از این مدل گزینه ندارد و بله/خیر هم نیست."
+
+msgid "Next"
+msgstr "بعدی"
+
+msgid "Code"
+msgstr "کد"
+
+msgid "Name"
+msgstr "اسم"
+
+msgid "Field"
+msgstr "فیلد"
+
+msgid "Value"
+msgstr "مقدار"
+
+msgid "Only this action writes it"
+msgstr "فقط این اکشن آن را می‌نویسد"
+
+msgid "It may write from it"
+msgstr "می‌تواند از آن بنویسد"
+
+msgid "Writing from no value ticked is writing from any."
+msgstr "اگر هیچ مقداری تیک نخورده باشد، از هر مقداری می‌نویسد."
+
+msgid "Other actions on this field"
+msgstr "اکشن‌های دیگر روی این فیلد"
+
+msgid "Save"
+msgstr "ذخیره"
+
+msgid "Delete"
+msgstr "حذف"
+
+#, python-format
+msgid ""
+"Deleting %(name)s takes its permission from everybody holding it, and lets "
+"whoever may edit the row write its values."
+msgstr ""
+"حذف %(name)s مجوزش را از همه‌ی دارندگانش می‌گیرد، و هر کسی که بتواند ردیف را "
+"ویرایش کند مقدارهایش را می‌نویسد."
+
+msgid "Yes, delete it"
+msgstr "بله، حذفش کن"
+
+msgid "Status actions"
+msgstr "اکشن‌های وضعیت"
+
+msgid "Make a status action for"
+msgstr "ساختن اکشن وضعیت برای"
+
+msgid "Model"
+msgstr "مدل"
+
+msgid "Action"
+msgstr "اکشن"
+
+msgid "Writes"
+msgstr "می‌نویسد"
+
+msgid "Made"
+msgstr "ساخته‌شده"
+
+msgid "in the ACCESS file"
+msgstr "در فایل ACCESS"
+
+msgid "here"
+msgstr "این‌جا"
+
+msgid "in code"
+msgstr "در کد"
+
+msgid "None yet."
+msgstr "هنوز هیچ."
+
+msgid "Actions found in the code"
+msgstr "اکشن‌هایی که در کد پیدا شدند"
+
+msgid "Permission"
+msgstr "مجوز"
+
+msgid "Found in"
+msgstr "پیداشده در"
+
+msgid "None."
+msgstr "هیچ."
+
+msgid "Gone from the code"
+msgstr "از کد رفته"
+
+msgid "Nothing."
+msgstr "هیچ چیز."
+
+msgid "Home"
+msgstr "خانه"
+
+msgid "Other permissions"
+msgstr "مجوزهای دیگر"
+
+msgid "Its names in other languages"
+msgstr "اسم‌هایش در زبان‌های دیگر"
+
+msgid "Held by"
+msgstr "دارندگان"
+
+msgid "Nobody holds it."
+msgstr "هیچ کس آن را ندارد."
+
+#, python-format
+msgid "Deleting %(name)s takes what it gives from the one person holding it."
+msgid_plural ""
+"Deleting %(name)s takes what it gives from the %(people)s people holding it."
+msgstr[0] "حذف %(name)s آنچه را می‌دهد از تنها کسی که آن را دارد می‌گیرد."
+msgstr[1] ""
+"حذف %(name)s آنچه را می‌دهد از %(people)s نفری که آن را دارند می‌گیرد."
+
+msgid "Bundle"
+msgstr "بسته"
+
+msgid "There are no bundles yet."
+msgstr "هنوز هیچ بسته‌ای نیست."
+
+msgid "Scope"
+msgstr "دامنه"
+
+msgid "The model's default"
+msgstr "پیش‌فرض مدل"
+
+msgid "Protected"
+msgstr "محافظت‌شده"
+
+msgid "Its permissions"
+msgstr "مجوزهایش"
+
+msgid "yes"
+msgstr "بله"
+
+msgid "no"
+msgstr "خیر"
+
+msgid "Unprotected in code."
+msgstr "در کد از محافظت خارج شده."
+
+msgid "Unprotect"
+msgstr "برداشتن محافظت"
+
+msgid "Protect"
+msgstr "محافظت"
+
+msgid "People with access"
+msgstr "افراد دارای دسترسی"
+
+msgid "Permissions nobody holds"
+msgstr "مجوزهایی که هیچ کس ندارد"
+
+msgid "What the database says is wrong"
+msgstr "آنچه پایگاه داده می‌گوید اشتباه است"
+
+msgid "Find a person"
+msgstr "پیدا کردن یک شخص"
+
+msgid "Find"
+msgstr "پیدا کن"
+
+msgid "Person"
+msgstr "شخص"
+
+msgid "Superuser"
+msgstr "ابرکاربر"
+
+msgid "Nobody found."
+msgstr "کسی پیدا نشد."
+
+msgid "Previous"
+msgstr "قبلی"
+
+msgid "Every permission"
+msgstr "همه‌ی مجوزها"
+
+msgid "Only those nobody holds"
+msgstr "فقط آن‌هایی که هیچ کس ندارد"
+
+msgid "In bundles"
+msgstr "در بسته‌ها"
+
+msgid "Given to people"
+msgstr "داده‌شده به افراد"
+
+msgid "Taken away"
+msgstr "گرفته‌شده"
+
+msgid "names"
+msgstr "اسم‌ها"
+
+msgid ""
+"A superuser holds every permission and reaches every row, whatever is given "
+"here."
+msgstr ""
+"ابرکاربر، هر چه این‌جا داده شود، همه‌ی مجوزها را دارد و به همه‌ی ردیف‌ها می‌رسد."
+
+msgid "Roles"
+msgstr "نقش‌ها"
+
+msgid "Take back"
+msgstr "پس گرفتن"
+
+msgid "No bundles."
+msgstr "بسته‌ای ندارد."
+
+msgid "from their role"
+msgstr "از نقششان"
+
+msgid "Give"
+msgstr "دادن"
+
+msgid "Their own grants"
+msgstr "مجوزهایی که به خودشان داده شده"
+
+msgid "the model's default"
+msgstr "پیش‌فرض مدل"
+
+msgid "Give back"
+msgstr "پس دادن"
+
+msgid "Give or take away one permission"
+msgstr "دادن یا گرفتن یک مجوز"
+
+msgid "why it is taken away"
+msgstr "چرا گرفته می‌شود"
+
+msgid "Reason"
+msgstr "دلیل"
+
+msgid "Take away"
+msgstr "گرفتن"
+
+msgid "What they end up allowed"
+msgstr "آنچه در نهایت اجازه دارند"
+
+msgid "From"
+msgstr "از"
+
+msgid "their own grant"
+msgstr "مجوزی که به خودشان داده شده"
+
+msgid "Given, but stopped by their roles' ceiling"
+msgstr "داده شده، ولی سقف نقش‌هایشان جلویش را گرفته"
+
+#, python-format
+msgid "used by %(grants)s grant"
+msgid_plural "used by %(grants)s grants"
+msgstr[0] "در %(grants)s اعطا به کار رفته"
+msgstr[1] "در %(grants)s اعطا به کار رفته"
+
+msgid "Rows that meet"
+msgstr "ردیف‌هایی مطابق با"
+
+msgid "Operator"
+msgstr "عملگر"
+
+msgid "Compared with"
+msgstr "مقایسه با"
+
+msgid "a value"
+msgstr "یک مقدار"
+
+msgid "the person's"
+msgstr "مال شخص"
+
+msgid "Remove"
+msgstr "برداشتن"
+
+msgid "Add a condition"
+msgstr "افزودن شرط"
+
+msgid ""
+"A value of the person's names a field of theirs - region - or nothing, for "
+"the person themselves. Separate the values of 'is one of' with commas."
+msgstr ""
+"مقداری از خود شخص، یکی از فیلدهای او را نام می‌برد - مثلاً region - یا هیچ، "
+"برای خود شخص. مقدارهای 'is one of' را با ویرگول جدا کنید."
+
+#, python-format
+msgid "%(grants)s grant chooses this scope: choose another for it first."
+msgid_plural ""
+"%(grants)s grants choose this scope: choose another for them first."
+msgstr[0] ""
+"%(grants)s اعطا این دامنه را انتخاب کرده: اول دامنه‌ی دیگری برایش انتخاب کنید."
+msgstr[1] ""
+"%(grants)s اعطا این دامنه را انتخاب کرده‌اند: اول دامنه‌ی دیگری برایشان انتخاب "
+"کنید."
+
+msgid "No grant chooses this scope."
+msgstr "هیچ اعطایی این دامنه را انتخاب نکرده."
+
+msgid "Build a rule scope for"
+msgstr "ساختن دامنه‌ی قانونی برای"
+
+msgid "Build"
+msgstr "بساز"
+
+msgid "Grants using it"
+msgstr "اعطاهایی که از آن استفاده می‌کنند"
+
+msgid "reaches nothing"
+msgstr "به هیچ ردیفی نمی‌رسد"
+
+msgid "as a rule"
+msgstr "به شکل قانون"
+
+msgid "No model offers a scope yet."
+msgstr "هنوز هیچ مدلی دامنه‌ای پیشنهاد نمی‌کند."
+
+#, python-format
+msgid "You may not write %(field)s."
+msgstr "شما نمی‌توانید %(field)s را بنویسید."

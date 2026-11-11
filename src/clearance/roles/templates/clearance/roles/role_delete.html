@@ -5,7 +5,7 @@
 
 {% block content %}
 <div id="content-main" class="clearance">
-  <p>{% blocktranslate with name=role.name %}Everybody with {{ name }} loses the bundles it starts them with{% endblocktranslate %}{% if role.limited %}{% translate ', and its ceiling' %}{% endif %}.</p>
+  <p>{% if role.limited %}{% blocktranslate with name=role.name %}Everybody with {{ name }} loses the bundles it starts them with, and its ceiling.{% endblocktranslate %}{% else %}{% blocktranslate with name=role.name %}Everybody with {{ name }} loses the bundles it starts them with.{% endblocktranslate %}{% endif %}</p>
   <form method="post">{% csrf_token %}<input type="submit" value="{% translate 'Yes, delete it' %}"></form>
 </div>
 {% endblock %}

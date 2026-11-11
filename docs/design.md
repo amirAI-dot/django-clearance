@@ -11,7 +11,8 @@
 > everything. Stages 0 to 3 were built on the first edition; section 22 says
 > what changes in them.
 >
-> Persian: [`design.fa.md`](design.fa.md).
+> Persian: [`design.fa.md`](design.fa.md). How to use the library, rather
+> than why it is built so: [`guide.md`](guide.md).
 
 **django-clearance** - role, policy and row-level access control for Django.
 Denied by default.
@@ -167,7 +168,8 @@ src/clearance/
     permissions.py         build_permissions; which permission an action of a model needs
     registry.py            one policy per resource, and the default policy for every other model
     policies.py            BasePolicy, ModelPolicy, SignedInReadPolicy
-    models.py              ScopeGrant, PermissionRevocation, ScopeRule, ProtectedField, StatusAction
+    models.py              ScopeGrant, PermissionRevocation, ScopeRule and its conditions,
+                           ProtectedField, StatusAction and its values, Declared
     backends.py            ClearanceBackend
     grants.py              what a person holds, and with which scopes - read once per request
     limits.py              what a layer above bundles adds: starting bundles, a ceiling
@@ -202,7 +204,7 @@ src/clearance/
     signals.py             every signal the library sends
     management/commands/   clearance_sync, clearance_check
     migrations/
-    locale/fa/LC_MESSAGES/
+    locale/fa/LC_MESSAGES/ the Persian catalogue, compiled - each optional app has its own
 
     drf/                   pip install django-clearance[drf]
         permissions.py     PolicyPermission, ModelPolicyPermission - writes guarded
@@ -220,6 +222,7 @@ src/clearance/
         checks.py          E008, E010
         declared.py        the roles section of the ACCESS file
         signals.py
+        locale/fa/LC_MESSAGES/
 
     translations/          INSTALLED_APPS += ['clearance.translations']
         models.py          Translation - a name and a description per language, of anything named
@@ -228,6 +231,7 @@ src/clearance/
         pages.py, admin.py the names page, linked from each bundle, role and permission
         checks.py          E008
         signals.py
+        locale/fa/LC_MESSAGES/
 ```
 
 Every `__init__.py` is empty; everything is imported from the module that
@@ -1230,3 +1234,14 @@ Made by the owner.
 59. **No JSON column.** A rule's conditions and a status action's values are
     rows of their own, which the database constrains and joins; the rules of
     a request are still read in one query.
+60. **Each app ships its own Persian catalogue, compiled and committed**, so
+    installing the library needs no gettext; `nox -s messages` fails when a
+    marked string is missing from one, and a test when a translation is
+    empty, fuzzy, loses a placeholder or was not compiled.
+61. **The example project is run by the suite**, on every Python and Django
+    it supports: an example that no longer works teaches something the
+    library does not do.
+62. **Nothing a `models.py` may import reads the user model**, and nothing
+    DRF's settings import imports DRF's views - the example found both, with
+    its user model in the same app as its orders and DRF's default
+    permission set as the guide says.

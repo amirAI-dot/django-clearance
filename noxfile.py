@@ -6,6 +6,8 @@ Every check the project runs, defined once - locally and in CI alike.
     nox -s types                             mypy
     nox -s tests                             every supported Python and Django
     nox -s "tests(3.13-django6.1)"           one combination
+    nox -s browser                           the pages in a real browser
+    nox -s messages                          the catalogues hold every marked string
 
 CI runs these same sessions, built from the same table, so a check that
 passes here passes there and a supported version cannot be left out of one.
@@ -92,4 +94,51 @@ def browser(session: nox.Session) -> None:
     # made between its steps, never while a page is loading.
     session.run(
         'pytest', '-m', 'browser', *session.posargs, env={'DJANGO_ALLOW_ASYNC_UNSAFE': 'true'}
+    )
+
+
+#: Each app with a catalogue, and the apps inside it its own catalogue leaves out.
+CATALOGUES: dict[str, tuple[str, ...]] = {
+    'src/clearance': ('roles', 'translations'),
+    'src/clearance/roles': (),
+    'src/clearance/translations': (),
+}
+
+
+@nox.session(python=NEWEST_PYTHON)
+def messages(session: nox.Session) -> None:
+    """
+    The catalogues hold every string the library marks, and nothing it no
+    longer marks: the strings are extracted again, and git finds no change.
+
+    Needs gettext installed. After marking a string, run this, translate what
+    it added, and compile: ``django-admin compilemessages`` in ``src/clearance``.
+    """
+    session.install('-e', '.[drf]', django_release(NEWEST_DJANGO))
+    root = os.getcwd()
+
+    for folder, inner in CATALOGUES.items():
+        with session.chdir(folder):
+            session.run(
+                'python',
+                '-m',
+                'django',
+                'makemessages',
+                '--locale=fa',
+                '--no-location',
+                '--no-obsolete',
+                '--ignore=__pycache__',
+                *(f'--ignore={name}' for name in inner),
+                '--settings=tests.project.settings',
+                env={'PYTHONPATH': root},
+            )
+
+    session.run(
+        'git',
+        'diff',
+        '--exit-code',
+        '--ignore-matching-lines=POT-Creation-Date',
+        '--',
+        '*.po',
+        external=True,
     )

@@ -4,8 +4,55 @@ Role, policy and row-level access control for Django. Denied by default.
 
 [فارسی](README.fa.md)
 
-> Work in progress. What it will be is in the design:
-> [`docs/design.md`](docs/design.md).
+An administrator decides, in Django's admin site and with no code, who may
+do what - and to which rows, and with which fields:
+
+* **bundles** of permissions, each given with a **scope** - "their branch's
+  orders", "their own", or a rule built in the admin site;
+* **protected fields**, read with one permission and written with another;
+* **status actions** - only whoever may approve sets an order to *approved*;
+* **roles**, optional, with a ceiling nobody with the role goes past.
+
+Every door asks the same rules: Django's views and templates, DRF, the admin
+site, and your own code. A change is refused when it would let somebody give
+themselves more. The pages, messages and permissions come in English and
+Persian, and read right to left in Persian.
+
+## In a project
+
+```bash
+pip install 'django-clearance[drf]'
+```
+
+```python
+INSTALLED_APPS = [
+    'clearance.admin.apps.ClearanceAdminConfig',   # instead of 'django.contrib.admin'
+    ...
+    'clearance',
+]
+
+AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ['clearance.drf.permissions.ModelPolicyPermission'],
+}
+```
+
+```python
+class OrderViewSet(ScopedModelViewSet):  # the rows, the policy, the fields - asked
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+
+
+Order.objects.visible_to(user, 'edit')  # the orders this person may edit
+```
+
+* [The guide](docs/guide.md) - every part, how to use it.
+* [The example shop](example/README.md) - a project using all of it, to run.
+* [The design](docs/design.md) - why it is built the way it is.
+
+Python 3.11 to 3.14; Django 5.2, 6.0 and 6.1; Django REST framework 3.16 and
+later, optional; any database Django supports.
 
 ## Working on it
 
@@ -30,7 +77,9 @@ nox -s tests
 ```
 
 `tests` runs every supported Python and Django; one combination is
-`nox -s "tests(3.13-django6.1)"`, and `nox -l` lists them all.
+`nox -s "tests(3.13-django6.1)"`, and `nox -l` lists them all. `browser`
+runs the pages in a real browser, and `messages` - with gettext installed -
+checks that the catalogues hold every string the library marks.
 
 The suite uses SQLite unless told otherwise. To run it on PostgreSQL, as CI
 does, set `CLEARANCE_TEST_DATABASE=postgres`; the connection is read from the
@@ -40,6 +89,13 @@ variables (defaults: `localhost`, `5432`, `postgres`, `postgres`,
 
 ```bash
 CLEARANCE_TEST_DATABASE=postgres nox -s tests
+```
+
+After marking a string, extract it with `nox -s messages`, translate what it
+added in `locale/fa/LC_MESSAGES/django.po`, and compile:
+
+```bash
+cd src/clearance && django-admin compilemessages
 ```
 
 ## Licence

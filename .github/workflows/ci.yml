@@ -29,10 +29,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        session: [lint, types, browser]
+        session: [lint, types, browser, messages]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+      - if: matrix.session == 'messages'
+        run: sudo apt-get install --yes gettext
       - run: uvx nox --download-python auto -s ${{ matrix.session }}
 
   matrix:

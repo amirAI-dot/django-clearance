@@ -29,8 +29,7 @@ from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
 
-from clearance.backends import groups_lookup
-from clearance.grants import Scope, grants_of
+from clearance.grants import Scope, grants_of, groups_lookup
 from clearance.limits import limits
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import User

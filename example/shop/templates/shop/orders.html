@@ -1,0 +1,14 @@
+{% extends 'shop/base.html' %}{% load i18n %}
+{% block content %}
+<h1>{% translate 'Orders' %}</h1>
+<table>
+  <thead><tr><th>{% translate 'Item' %}</th><th>{% translate 'Branch' %}</th><th>{% translate 'Customer' %}</th><th>{% translate 'Status' %}</th>{% if 'price' in readable_fields %}<th>{% translate 'Price' %}</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for order in object_list %}
+    <tr><td><a href="{% url 'order' order.pk %}">{{ order.item }}</a></td><td>{{ order.branch }}</td><td>{{ order.customer }}</td><td>{{ order.get_status_display }}</td>{% if 'price' in readable_fields %}<td>{{ order.price }}</td>{% endif %}</tr>
+  {% empty %}
+    <tr><td colspan="5">{% translate 'No orders you may see.' %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
