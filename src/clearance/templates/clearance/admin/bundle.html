@@ -1,5 +1,5 @@
 {% extends "clearance/admin/base.html" %}
-{% load i18n %}
+{% load i18n clearance %}
 
 {% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_bundles' %}">{% translate 'Bundles' %}</a> &rsaquo; {{ title }}{% endblock %}
 
@@ -37,6 +37,8 @@
     </div>
     {% endif %}
   </form>
+
+  {% if bundle and translatable %}<p><a href="{% url 'admin:clearance_names' 'auth.group' bundle.pk %}">{% translate 'Its names in other languages' %}</a></p>{% endif %}
 
   {% if bundle %}
   <h2>{% translate 'Held by' %}</h2>

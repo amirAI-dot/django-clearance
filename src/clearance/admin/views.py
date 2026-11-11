@@ -27,6 +27,7 @@ from django.utils.translation import gettext as _
 
 from clearance.admin.standing import PermissionGrid, Standing, name_of
 from clearance.health import findings
+from clearance.labels import labels_in
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import user_of
 from clearance.safety import AccessRefused, SafetyRules
@@ -86,6 +87,8 @@ class PageSet(ABC):
                 'may_create': self.may(request, 'create'),
                 'may_edit': self.may(request, 'edit'),
                 'may_delete': self.may(request, 'delete'),
+                'labels': labels_in(),
+                'translatable': apps.is_installed('clearance.translations'),
                 **context,
             },
         )
@@ -223,7 +226,7 @@ class AccessPages(PageSet):
         return self.render(
             request,
             'bundle',
-            bundle.name if bundle is not None else _('Add a bundle'),
+            labels_in().of(bundle) if bundle is not None else _('Add a bundle'),
             bundle=bundle,
             name=name,
             grid=PermissionGrid.build(grants),

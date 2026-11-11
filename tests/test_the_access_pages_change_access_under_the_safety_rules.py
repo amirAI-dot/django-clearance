@@ -265,7 +265,7 @@ def test_the_grid_lays_out_each_model_with_a_scope_only_where_one_can_be_chosen(
 def test_the_grid_is_read_in_a_fixed_number_of_queries(
     django_assert_num_queries: DjangoAssertNumQueries,
 ) -> None:
-    with django_assert_num_queries(3):
+    with django_assert_num_queries(4):  # permissions, rules, what is protected, the names
         PermissionGrid.build({})
 
 

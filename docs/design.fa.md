@@ -195,7 +195,8 @@ src/clearance/
     forms.py               ProtectedFieldsFormMixin
     views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
     decorators.py          policy_required
-    labels.py              label_of()
+    labels.py              label_of(), labels_in() - how a thing reads in the reader's language
+    templatetags/          {{ thing|label:labels }}
     admin/                 'clearance.admin.apps.ClearanceAdminConfig', for 'django.contrib.admin'
         apps.py            ClearanceAdminConfig - the library's site as the default one
         sites.py           ClearanceAdminSite - every ModelAdmin given the hooks, the pages added
@@ -232,9 +233,12 @@ src/clearance/
         signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
-        models.py          PermissionTranslation, BundleTranslation, RoleTranslation
-        sources.py
-        admin/
+        models.py          Translation - a name and a description per language, of anything named
+        labels.py          TranslatedLabels - installed in clearance.labels when the app starts
+        services.py        TranslationService
+        pages.py, admin.py the names page, linked from each bundle, role and permission
+        checks.py          E008
+        signals.py
 ```
 
 همه‌ی فایل‌های `__init__.py` خالی‌اند؛ هر چیزی از همان ماژولی import می‌شود که
@@ -952,6 +956,20 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 مدلش دیگر ارائه نمی‌دهد. **هشدارها** بدون fail شدن فهرست می‌شوند: مجوزی بدون scope
 روی مدلی که پیش‌فرضش به هیچ ردیفی نمی‌رسد، و مجوزی که هیچ چیزی توضیحش نمی‌دهد -
 اکشنی که از کد حذف شده، یا مجوزی که با دست ساخته شده.
+
+### ۱۴.۴ اسم‌ها در همه‌ی زبان‌ها
+
+یک مجوز، یک بسته یا یک نقش به زبان خواننده خوانده می‌شود: اسمی که یک مدیر به آن
+زبان به آن داده - یا به زبان پایه‌اش، `fa` برای `fa-ir` - وگرنه چیزی که کد به آن
+زبان می‌گوید (برچسب‌های `build_permissions`، که کاتالوگ خود پروژه ترجمه‌شان
+می‌کند)، وگرنه ردیفش. بدون `clearance.translations` فقط دو مورد آخر برقرارند.
+
+اسم‌ها یک جدول‌اند، که بر اساس چیزی که هر کدام نام می‌برد کلید خورده‌اند: یک جدول
+برای هر نوع، این اپ را به هر اپی که چیزهایش را نام می‌برد گره می‌زد، و پروژه‌ای
+بدون نقش‌ها راه‌اندازی نمی‌شد. یک اسم همراه با چیزی که نام می‌برد حذف می‌شود. یک
+صفحه همه‌ی اسم‌های زبانش را با یک کوئری می‌خواند (`labels_in()`)، و هر صفحه‌ی
+دسترسی چیزها را از طریق آن نام می‌برد؛ صفحه‌ی اسم‌ها یک چیز را در همه‌ی زبان‌های
+`LANGUAGES` نام می‌برد، با مجوز `permission_edit`.
 ---
 
 ## ۱۵. تنظیمات
@@ -983,7 +1001,7 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 | `clearance.roles` | `RoleAssignment` | `user`، `role`، `assigned_by`، `assigned_at` |
 | `clearance.roles` | `RoleCeiling` | `role`، `permission` |
 | `clearance.roles` | `RoleBundle` | `role`، `group` |
-| `clearance.translations` | `PermissionTranslation`، `BundleTranslation`، `RoleTranslation` | یک اسم و یک توضیح برای هر زبان |
+| `clearance.translations` | `Translation` | `content_type`، `object_pk`، `language`، `name`، `description` - برای یک مجوز، یک بسته یا یک نقش |
 
 هر کلید خارجی به یک شخص `settings.AUTH_USER_MODEL` است.
 
@@ -1027,7 +1045,8 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 `scope_rule_deleted`، `field_protected`، `field_unprotected`،
 `status_action_saved`، `status_action_deleted`، `actions_found`، و با
 `clearance.roles`، `role_saved`، `role_deleted`، `role_assigned`،
-`role_unassigned` و `ceiling_changed`.
+`role_unassigned` و `ceiling_changed`؛ و با `clearance.translations`،
+`name_changed`.
 
 ---
 
@@ -1200,3 +1219,6 @@ E004 و E005 کنار گذاشته شده‌اند. E004 ویوی scoped روی 
 55. **یک صفحه بدون اسکریپتش هم کار می‌کند**؛ اسکریپت فقط کار را آسان‌تر می‌کند.
 56. **هیچ صفحه‌ای، در هیچ جهتی، از صفحه‌ی نمایش پهن‌تر نیست**، و یک تست مرورگر این را
     تضمین می‌کند.
+57. **یک جدول، مجوزها، بسته‌ها و نقش‌ها را نام می‌برد**، که بر اساس چیزی که نام می‌برد
+    کلید خورده، پس اپ ترجمه‌ها به هیچ اپ دیگری نیاز ندارد.
+58. **یک اسم از زبان خواننده خوانده می‌شود، بعد زبان پایه‌اش، بعد کد، بعد ردیف.**

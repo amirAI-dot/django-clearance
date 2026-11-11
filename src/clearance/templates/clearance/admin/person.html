@@ -1,5 +1,5 @@
 {% extends "clearance/admin/base.html" %}
-{% load i18n %}
+{% load i18n clearance %}
 
 {% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_people' %}">{% translate 'People' %}</a> &rsaquo; {{ person }}{% endblock %}
 
@@ -15,30 +15,30 @@
   <h2>{% translate 'Bundles' %}</h2>
   <ul>
   {% for bundle in standing.bundles %}
-    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a>
+    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle|label:labels }}</a>
       {% if may_edit %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="take"><input type="hidden" name="bundle" value="{{ bundle.pk }}"><input type="submit" value="{% translate 'Take back' %}"></form>{% endif %}</li>
   {% empty %}{% if not standing.starting %}<li>{% translate 'No bundles.' %}</li>{% endif %}{% endfor %}
   {% for bundle in standing.starting %}
-    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a> <span class="clearance-note">{% translate 'from their role' %}</span></li>
+    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle|label:labels }}</a> <span class="clearance-note">{% translate 'from their role' %}</span></li>
   {% endfor %}
   </ul>
   {% if may_edit and other_bundles %}
   <form method="post">{% csrf_token %}<input type="hidden" name="do" value="give">
-    <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle.name }}</option>{% endfor %}</select>
+    <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle|label:labels }}</option>{% endfor %}</select>
     <input type="submit" value="{% translate 'Give' %}"></form>
   {% endif %}
 
   <h2>{% translate 'Their own grants' %}</h2>
   <table class="clearance-list"><tbody>
   {% for permission, scope in standing.direct %}
-    <tr><td>{{ permission.name }}</td><td>{{ scope|default_if_none:_("the model's default") }}</td></tr>
+    <tr><td>{{ permission|label:labels }}</td><td>{{ scope|default_if_none:_("the model's default") }}</td></tr>
   {% empty %}<tr><td>{% translate 'None.' %}</td></tr>{% endfor %}
   </tbody></table>
 
   <h2>{% translate 'Taken away' %}</h2>
   <table class="clearance-list"><tbody>
   {% for revocation in standing.revocations %}
-    <tr><td>{{ revocation.permission.name }}</td><td>{{ revocation.reason }}</td>
+    <tr><td>{{ revocation.permission|label:labels }}</td><td>{{ revocation.reason }}</td>
       <td>{% if may_edit %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="restore"><input type="hidden" name="permission" value="{{ revocation.permission.content_type.app_label }}.{{ revocation.permission.codename }}"><input type="submit" value="{% translate 'Give back' %}"></form>{% endif %}</td></tr>
   {% empty %}<tr><td>{% translate 'Nothing.' %}</td></tr>{% endfor %}
   </tbody></table>
@@ -59,15 +59,15 @@
     <thead><tr><th>{% translate 'Permission' %}</th><th>{% translate 'From' %}</th></tr></thead>
     <tbody>
     {% for held in standing.allowed %}
-      <tr><td>{{ held.permission.name }} <code>{{ held.name }}</code></td>
-        <td>{% for source in held.sources %}<div>{% if source.direct %}{% translate 'their own grant' %}{% else %}{{ source.bundle.name }}{% if source.starting %} ({% translate 'from their role' %}){% endif %}{% endif %} &mdash; {{ source.scope|default_if_none:_("the model's default") }}</div>{% endfor %}</td></tr>
+      <tr><td>{{ held.permission|label:labels }} <code>{{ held.name }}</code></td>
+        <td>{% for source in held.sources %}<div>{% if source.direct %}{% translate 'their own grant' %}{% else %}{{ source.bundle|label:labels }}{% if source.starting %} ({% translate 'from their role' %}){% endif %}{% endif %} &mdash; {{ source.scope|default_if_none:_("the model's default") }}</div>{% endfor %}</td></tr>
     {% empty %}<tr><td colspan="2">{% translate 'Nothing.' %}</td></tr>{% endfor %}
     </tbody>
   </table>
 
   {% if standing.stopped %}
   <h2>{% translate "Given, but stopped by their roles' ceiling" %}</h2>
-  <ul>{% for held in standing.stopped %}<li>{{ held.permission.name }} <code>{{ held.name }}</code></li>{% endfor %}</ul>
+  <ul>{% for held in standing.stopped %}<li>{{ held.permission|label:labels }} <code>{{ held.name }}</code></li>{% endfor %}</ul>
   {% endif %}
 </div>
 {% endblock %}

@@ -184,7 +184,8 @@ src/clearance/
     forms.py               ProtectedFieldsFormMixin
     views.py               ScopedQuerySetMixin, PolicyRequiredMixin, ProtectedFieldsViewMixin
     decorators.py          policy_required
-    labels.py              label_of()
+    labels.py              label_of(), labels_in() - how a thing reads in the reader's language
+    templatetags/          {{ thing|label:labels }}
     admin/                 'clearance.admin.apps.ClearanceAdminConfig', for 'django.contrib.admin'
         apps.py            ClearanceAdminConfig - the library's site as the default one
         sites.py           ClearanceAdminSite - every ModelAdmin given the hooks, the pages added
@@ -221,9 +222,12 @@ src/clearance/
         signals.py
 
     translations/          INSTALLED_APPS += ['clearance.translations']
-        models.py          PermissionTranslation, BundleTranslation, RoleTranslation
-        sources.py
-        admin/
+        models.py          Translation - a name and a description per language, of anything named
+        labels.py          TranslatedLabels - installed in clearance.labels when the app starts
+        services.py        TranslationService
+        pages.py, admin.py the names page, linked from each bundle, role and permission
+        checks.py          E008
+        signals.py
 ```
 
 Every `__init__.py` is empty; everything is imported from the module that
@@ -948,6 +952,21 @@ offers no more. **Warnings** are listed without failing: a grant with no
 scope on a model whose default reaches no rows, and a permission nothing
 accounts for - an action gone from the code, or one made by hand.
 
+### 14.4 Names in every language
+
+A permission, a bundle or a role reads, in the reader's language: the name
+an administrator gave it in that language - or in its base, `fa` for
+`fa-ir` - else what the code says in that language (`build_permissions`'
+labels, which the project's own catalogue translates), else its row. Without
+`clearance.translations` only the last two apply.
+
+The names are one table, keyed by what each names: a table per kind would
+tie the app to every app whose things it names, and a project without roles
+would not start. A name goes when the thing it names is deleted. A page reads
+all the names of its language in one query (`labels_in()`), and every access
+page names things through it; the names page names one thing in every
+language of `LANGUAGES`, under `permission_edit`.
+
 ---
 
 ## 15. Settings
@@ -979,7 +998,7 @@ not know is refused (E011).
 | `clearance.roles` | `RoleAssignment` | `user`, `role`, `assigned_by`, `assigned_at` |
 | `clearance.roles` | `RoleCeiling` | `role`, `permission` |
 | `clearance.roles` | `RoleBundle` | `role`, `group` |
-| `clearance.translations` | `PermissionTranslation`, `BundleTranslation`, `RoleTranslation` | a name and a description per language |
+| `clearance.translations` | `Translation` | `content_type`, `object_pk`, `language`, `name`, `description` - of a permission, a bundle or a role |
 
 Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 
@@ -1023,7 +1042,8 @@ changed and `actor`: `bundle_created`, `bundle_changed`, `bundle_deleted`,
 `scope_rule_deleted`, `field_protected`, `field_unprotected`,
 `status_action_saved`, `status_action_deleted`, `actions_found`, and with
 `clearance.roles`, `role_saved`, `role_deleted`, `role_assigned`,
-`role_unassigned`, `ceiling_changed`.
+`role_unassigned`, `ceiling_changed`; and with `clearance.translations`,
+`name_changed`.
 
 ---
 
@@ -1200,3 +1220,7 @@ Made by the owner.
 55. **A page works without its script**; the script only makes it easier.
 56. **No page is wider than the screen, in either direction**, and a browser
     test holds it.
+57. **One table names permissions, bundles and roles**, keyed by what it
+    names, so the translations app needs no other app.
+58. **A name reads from the reader's language, then its base, then the
+    code, then the row.**
