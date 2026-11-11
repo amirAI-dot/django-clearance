@@ -21,6 +21,7 @@ from django.utils.translation import gettext as _
 
 from clearance.admin.standing import name_of
 from clearance.admin.views import PageSet
+from clearance.labels import labels_in
 from clearance.models import Declared
 from clearance.protocols import user_of
 from clearance.roles.models import Role
@@ -105,7 +106,7 @@ class RolePages(PageSet):
         return self.render(
             request,
             'role',
-            role.name,
+            labels_in().of(role),
             role=role,
             ceiling=ceiling,
             rows=_ceiling_rows(ceiling or frozenset()),
@@ -176,6 +177,7 @@ class RolePages(PageSet):
 def _ceiling_rows(ceiling: frozenset[str]) -> list[tuple[str, list[tuple[str, str, bool]]]]:
     """Every permission, by model: ``(model, [(name, label, permitted)])`` - one query."""
     rows: dict[str, list[tuple[str, str, bool]]] = {}
+    labels = labels_in()
 
     for permission in Permission.objects.select_related('content_type').order_by(
         'content_type__app_label', 'content_type__model', 'codename'
@@ -185,7 +187,7 @@ def _ceiling_rows(ceiling: frozenset[str]) -> list[tuple[str, list[tuple[str, st
         if model is not None:
             label = f'{model._meta.app_config.verbose_name}: {model._meta.verbose_name_plural}'
             name = name_of(permission)
-            rows.setdefault(label, []).append((name, str(permission.name), name in ceiling))
+            rows.setdefault(label, []).append((name, labels.of(permission), name in ceiling))
 
     return list(rows.items())
 

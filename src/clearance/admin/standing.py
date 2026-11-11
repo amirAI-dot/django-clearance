@@ -20,6 +20,7 @@ from django.db.models import Model
 
 from clearance.fields import Protection
 from clearance.grants import Scope
+from clearance.labels import Labels, labels_in
 from clearance.limits import limits
 from clearance.models import PermissionRevocation, ScopeGrant, ScopeRule
 from clearance.permissions import DEFAULT_ACTIONS, permission_for
@@ -163,14 +164,12 @@ class Cell:
     scope: Scope
     #: The scopes it may be given with - ``None`` for a field's, which takes none.
     scopes: Mapping[str, str] | None
+    #: How it reads, in the reader's language.
+    label: str = ''
 
     @property
     def name(self) -> str:
         return name_of(self.permission)
-
-    @property
-    def label(self) -> str:
-        return str(self.permission.name)
 
 
 @dataclass
@@ -195,8 +194,9 @@ class PermissionGrid:
         self.rows = rows
 
     @classmethod
-    def build(cls, grants: Mapping[str, Scope]) -> 'PermissionGrid':
-        """The grid, ticked where ``grants`` holds - read in three queries."""
+    def build(cls, grants: Mapping[str, Scope], labels: Labels | None = None) -> 'PermissionGrid':
+        """The grid, ticked where ``grants`` holds - read in three queries, and the names'."""
+        labels = labels or labels_in()
         permissions = Permission.objects.select_related('content_type').order_by(
             'content_type__app_label', 'content_type__model', 'codename'
         )
@@ -217,7 +217,8 @@ class PermissionGrid:
                 by_model.setdefault(model, []).append(permission)
 
         rows = [
-            cls._row(model, found, grants, rules, protection) for model, found in by_model.items()
+            cls._row(model, found, grants, rules, protection, labels)
+            for model, found in by_model.items()
         ]
         return cls(rows)
 
@@ -233,6 +234,7 @@ class PermissionGrid:
         grants: Mapping[str, Scope],
         rules: Mapping[int, Mapping[str, str]],
         protection: Protection,
+        labels: Labels,
     ) -> Row:
         offered = {
             **{code: str(label) for code, label in code_scopes(model).items()},
@@ -247,6 +249,7 @@ class PermissionGrid:
                 name in grants,
                 grants.get(name),
                 offered if takes_scope else None,
+                labels.of(permission),
             )
 
         by_name = {name_of(permission): permission for permission in found}

@@ -47,7 +47,7 @@ from typing import Any, Final, Self
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
 from django.utils import translation
-from django.utils.functional import Promise
+from django.utils.functional import Promise, lazy
 from django.utils.translation import gettext_lazy as _
 
 #: The actions every guarded resource supports unless it says otherwise.
@@ -101,6 +101,8 @@ class DeclaredPermissions(tuple[tuple[str, str], ...]):
     codename: str
     protected_fields: tuple[str, ...]
     status_actions: Mapping[str, StatusDeclaration]
+    #: How each permission reads, ``{codename: label}``, in whatever language is active.
+    labels: Mapping[str, Promise]
 
     def __new__(
         cls,
@@ -108,11 +110,13 @@ class DeclaredPermissions(tuple[tuple[str, str], ...]):
         codename: str,
         protected_fields: Iterable[str] = (),
         status_actions: Mapping[str, StatusDeclaration] | None = None,
+        labels: Mapping[str, Promise] | None = None,
     ) -> Self:
         declared = super().__new__(cls, entries)
         declared.codename = codename
         declared.protected_fields = tuple(protected_fields)
         declared.status_actions = MappingProxyType(dict(status_actions or {}))
+        declared.labels = MappingProxyType(dict(labels or {}))
         return declared
 
 
@@ -178,8 +182,18 @@ class PermissionSet:
             for field in self.protected_fields
             for action in FIELD_ACTIONS
         ]
+        read = lazy(self.label, str)
+        read_field = lazy(_field_words, str)
+        labels: dict[str, Any] = {  # lazy: each reads in the language active when read
+            **{self.codename_for(action): read(action) for action in self.actions},
+            **{
+                f'{self.codename}_{action}_{field}': read_field(action, field, self.resource)
+                for field in self.protected_fields
+                for action in FIELD_ACTIONS
+            },
+        }
         return DeclaredPermissions(
-            [*actions, *fields], self.codename, self.protected_fields, self.status_actions
+            [*actions, *fields], self.codename, self.protected_fields, self.status_actions, labels
         )
 
     def _validate(self) -> None:
@@ -273,8 +287,20 @@ def build_permissions(
 def field_label(action: str, field: str | Promise, resource: str | Promise) -> str:
     """How a protected field's permission reads in English - what is stored."""
     with translation.override(None):
-        words = str(field).replace('_', ' ')
-        return str(FIELD_LABELS[action]) % {'field': words, 'resource': str(resource)}
+        return _field_words(action, field, resource)
+
+
+def _field_words(action: str, field: str | Promise, resource: str | Promise) -> str:
+    """How a protected field's permission reads in the active language."""
+    words = str(field).replace('_', ' ')
+    return str(FIELD_LABELS[action]) % {'field': words, 'resource': str(resource)}
+
+
+def declared_label(model: type[Model], codename: str) -> str | None:
+    """How ``build_permissions`` says ``codename`` reads, in the active language - or ``None``."""
+    declared = model._meta.permissions
+    label = declared.labels.get(codename) if isinstance(declared, DeclaredPermissions) else None
+    return str(label) if label is not None else None
 
 
 def is_action_name(name: object) -> bool:

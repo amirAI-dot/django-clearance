@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'clearance',
     'clearance.roles',
+    'clearance.translations',
     'tests.project.accounts',
     'tests.project.lending',
 ]
@@ -42,6 +43,8 @@ MIDDLEWARE = [
 ]
 
 STATIC_URL = '/static/'
+
+LANGUAGES = [('en', 'English'), ('fa', 'Persian')]
 
 ROOT_URLCONF = 'tests.project.urls'
 

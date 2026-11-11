@@ -1,0 +1,23 @@
+{% extends "clearance/admin/base.html" %}
+{% load i18n %}
+
+{% block crumbs %}&rsaquo; {{ title }}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="clearance">
+  <p>{% translate 'As the code or its row says it' %}: <strong>{{ stored }}</strong></p>
+  <form method="post">{% csrf_token %}
+    <table class="clearance-list">
+      <thead><tr><th>{% translate 'Language' %}</th><th>{% translate 'Name' %}</th><th>{% translate 'What it is for' %}</th></tr></thead>
+      <tbody>
+      {% for code, words, given in rows %}
+        <tr><th scope="row">{{ words }} <code>{{ code }}</code></th>
+          <td><input type="text" name="name:{{ code }}" value="{{ given.name }}" maxlength="255" aria-label="{{ words }}" dir="auto"></td>
+          <td><textarea name="description:{{ code }}" rows="2" aria-label="{{ words }}" dir="auto">{{ given.description }}</textarea></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if may_edit %}<div class="submit-row"><input type="submit" class="default" value="{% translate 'Save' %}"></div>{% endif %}
+  </form>
+</div>
+{% endblock %}

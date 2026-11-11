@@ -1,5 +1,5 @@
 {% extends "clearance/admin/base.html" %}
-{% load i18n %}
+{% load i18n clearance %}
 
 {% block crumbs %}&rsaquo; <a href="{% url 'admin:clearance_roles' %}">{% translate 'Roles' %}</a> &rsaquo; {{ role.name }}{% endblock %}
 
@@ -11,6 +11,8 @@
   <form method="post">{% csrf_token %}<input type="hidden" name="do" value="rename">
     <input type="text" name="name" value="{{ role.name }}" aria-label="{% translate 'Name' %}"> <input type="submit" value="{% translate 'Rename' %}"></form>
   {% endif %}
+
+  {% if translatable %}<p><a href="{% url 'admin:clearance_names' 'clearance_roles.role' role.pk %}">{% translate 'Its names in other languages' %}</a></p>{% endif %}
 
   <h2>{% translate 'Ceiling' %}</h2>
   <p class="clearance-note">{% translate 'Whoever has this role may have only what its ceiling permits, whatever a bundle or a grant gives them.' %}</p>
@@ -31,13 +33,13 @@
   <h2>{% translate 'Starting bundles' %}</h2>
   <ul>
   {% for bundle in starting %}
-    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle.name }}</a>
+    <li><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle|label:labels }}</a>
       {% if may_edit and not declared %}<form method="post" class="clearance-inline">{% csrf_token %}<input type="hidden" name="do" value="take"><input type="hidden" name="bundle" value="{{ bundle.pk }}"><input type="submit" value="{% translate 'Take back' %}"></form>{% endif %}</li>
   {% empty %}<li>{% translate 'None.' %}</li>{% endfor %}
   </ul>
   {% if may_edit and other_bundles and not declared %}
   <form method="post">{% csrf_token %}<input type="hidden" name="do" value="give">
-    <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle.name }}</option>{% endfor %}</select>
+    <select name="bundle" aria-label="{% translate 'Bundle' %}">{% for bundle in other_bundles %}<option value="{{ bundle.pk }}">{{ bundle|label:labels }}</option>{% endfor %}</select>
     <input type="submit" value="{% translate 'Give' %}"></form>
   {% endif %}
 
