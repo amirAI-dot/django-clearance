@@ -20,7 +20,7 @@ from django.urls import URLPattern, path
 from django.utils.translation import gettext as _
 
 from clearance.admin.standing import name_of
-from clearance.admin.views import PageSet
+from clearance.admin.views import PageSet, bundle_named
 from clearance.labels import labels_in
 from clearance.models import Declared
 from clearance.protocols import user_of
@@ -152,10 +152,10 @@ class RolePages(PageSet):
                     service.set_ceiling(role, data.getlist('permit') if limited else None)
                     done = _('The ceiling was changed.')
                 case 'give':
-                    service.give_bundle(role, get_object_or_404(Group, pk=data.get('bundle')))
+                    service.give_bundle(role, bundle_named(data.get('bundle')))
                     done = _('Everybody with the role now starts with the bundle.')
                 case 'take':
-                    service.take_bundle(role, get_object_or_404(Group, pk=data.get('bundle')))
+                    service.take_bundle(role, bundle_named(data.get('bundle')))
                     done = _('Nobody with the role starts with the bundle any more.')
                 case 'assign':
                     service.assign(_person(data.get('person', '')), role)

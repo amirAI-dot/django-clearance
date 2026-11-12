@@ -663,7 +663,13 @@ library's own permissions, and two more refusals hold:
 1. signed out, or switched off -> no rows; the superuser -> every row;
 2. the person does not hold the action's permission -> no rows;
 3. otherwise the scopes of every grant of it that reaches them are joined
-   with OR into **one** filter; `all` makes it every row.
+   with OR into **one** filter of the queryset asked about; `all` makes it
+   every row. A scope that answers with a queryset joins as `pk__in` it, so
+   whatever the queryset was narrowed by already is kept.
+
+`visible` asks a `ScopedQuerySet` through its `visible_to`, so a queryset
+that answers in a way of its own - `SignedInReadQuerySet`, or a project's -
+gives a view, the admin site and a policy the answer it gives itself.
 
 The person's grants are read once per request, in one query, and a model's
 rules once per request, in one more; a list then costs its own query and
@@ -1072,7 +1078,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E002` | a `ScopedQuerySet`'s `scopes` and its `scope_<x>` methods disagree, or its `default_scope` is not offered |
 | `clearance.E003` | a DRF view asking a model's policy serializes the model without leaving out its protected fields |
 | `clearance.E006` | `ClearanceBackend` is not in `AUTHENTICATION_BACKENDS` |
-| `clearance.E007` | `ModelBackend` is beside `ClearanceBackend` - it would hand back every revocation |
+| `clearance.E007` | `ModelBackend`, or a backend built on it and not on the library's, is beside `ClearanceBackend` - it would hand back every revocation |
 | `clearance.E008` | `clearance.roles` or `clearance.translations` is installed without `'clearance'`, or before it |
 | `clearance.E009` | a `PolicyRequiredMixin` view, or a DRF view guarded by a policy, cannot ask one |
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |

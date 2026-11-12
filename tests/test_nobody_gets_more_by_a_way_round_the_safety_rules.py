@@ -330,7 +330,6 @@ def test_the_superuser_gives_a_role_on_the_user_page(make_user: MakeUser) -> Non
 # ---------------------------------------------------------------------- the backend
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_backend_built_on_model_backend_is_refused_beside_the_librarys() -> None:
     """E007 names ``ModelBackend`` only; its subclasses hand back every revocation the same."""
     backends = [
@@ -341,24 +340,15 @@ def test_a_backend_built_on_model_backend_is_refused_beside_the_librarys() -> No
     assert [error.id for error in backend_errors(backends)] == ['clearance.E007']
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
-@override_settings(
-    AUTHENTICATION_BACKENDS=[
-        'django.contrib.auth.backends.AllowAllUsersModelBackend',
+def test_a_backend_not_built_on_model_backend_is_not_refused() -> None:
+    backends = [
         'clearance.backends.ClearanceBackend',
+        'tests.project.backends.GrantsEverythingBackend',
     ]
-)
-def test_a_backend_built_on_model_backend_hands_back_what_was_taken_away(
-    make_user: MakeUser, make_bundle: MakeBundle
-) -> None:
-    """Why the check above matters - it passes at start-up, and this is what follows."""
-    officer = make_user(bundles=(make_bundle({'lending.loan_approve': 'all'}),))
-    AccessService(actor=None).revoke(officer, 'lending.loan_approve')
 
-    assert not fresh(officer).has_perm('lending.loan_approve')
+    assert backend_errors(backends) == []
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_with_perm_leaves_out_whoever_a_permission_was_taken_from(
     make_user: MakeUser, make_bundle: MakeBundle
 ) -> None:
@@ -366,3 +356,22 @@ def test_with_perm_leaves_out_whoever_a_permission_was_taken_from(
     AccessService(actor=None).revoke(officer, 'lending.loan_approve')
 
     assert officer not in Person.objects.with_perm('lending.loan_approve')
+
+
+def test_with_perm_answers_as_has_perm_does(make_user: MakeUser, make_bundle: MakeBundle) -> None:
+    approvers = make_bundle({'lending.loan_approve': 'all'})
+    officer = make_user(bundles=(approvers,))
+    starter, capped, owner = make_user(), make_user(bundles=(approvers,)), make_user(superuser=True)
+    retired = make_user(bundles=(approvers,), active=False)
+    role = Role.objects.create(code='officer', name='Officer', limited=False)
+    RoleBundle.objects.create(role=role, group=approvers)
+    RoleService(actor=None).assign(starter, role)
+    RoleService(actor=None).assign(capped, Role.objects.create(code='clerk', name='Clerk'))
+
+    def holding(**options: Any) -> set[Person]:
+        return set(Person.objects.with_perm('lending.loan_approve', **options))
+
+    assert holding() == {officer, starter, owner}
+    assert holding(include_superusers=False) == {officer, starter}
+    assert holding(is_active=False) == {retired}
+    assert all(person.has_perm('lending.loan_approve') for person in holding())

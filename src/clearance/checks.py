@@ -12,7 +12,8 @@ things from the running project.
 ``clearance.E002``  a queryset's ``scopes`` and its ``scope_<x>`` methods
                     disagree, or its ``default_scope`` is not offered
 ``clearance.E006``  ``ClearanceBackend`` is not installed
-``clearance.E007``  ``ModelBackend`` is installed beside it
+``clearance.E007``  ``ModelBackend``, or a backend built on it, is installed
+                    beside it
 ``clearance.E009``  a ``PolicyRequiredMixin`` view cannot ask a policy
 ``clearance.E011``  ``CLEARANCE`` is not a dictionary, has an unknown key, or a
                     value it cannot use
@@ -90,17 +91,40 @@ def backend_errors(backends: Sequence[str]) -> list[CheckMessage]:
             )
         ]
 
-    if MODEL_BACKEND in backends:
-        return [
-            Error(
-                f'{MODEL_BACKEND} is beside {BACKEND}. Django grants a permission when any '
-                f'backend does, so it would hand back every permission taken away.',
-                hint=f'Remove {MODEL_BACKEND!r}: {BACKEND} does all it did.',
-                id='clearance.E007',
-            )
-        ]
+    return [
+        Error(
+            f'{path} is beside {BACKEND}, and reads permissions as {MODEL_BACKEND} does. '
+            f'Django grants a permission when any backend does, so it would hand back '
+            f'every permission taken away.',
+            hint=f'Remove {path!r}, or build it on {BACKEND}: that does all {MODEL_BACKEND} did.',
+            id='clearance.E007',
+        )
+        for path in backends
+        if _reads_as_model_backend(path)
+    ]
 
-    return []
+
+def _reads_as_model_backend(path: str) -> bool:
+    """
+    Whether ``path`` is Django's ``ModelBackend`` or built on it - and not on
+    the library's: it would answer from Django's tables alone, knowing nothing
+    of a revocation, a ceiling or a starting bundle.
+    """
+    from django.contrib.auth.backends import ModelBackend
+    from django.utils.module_loading import import_string
+
+    from clearance.backends import ClearanceBackend
+
+    try:
+        backend = import_string(path)
+    except ImportError:
+        return False  # Django says so itself, the first time anybody signs in
+
+    return (
+        isinstance(backend, type)
+        and issubclass(backend, ModelBackend)
+        and not issubclass(backend, ClearanceBackend)
+    )
 
 
 def check_backends(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:

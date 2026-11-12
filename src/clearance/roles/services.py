@@ -38,7 +38,7 @@ from clearance.roles import signals
 from clearance.roles.models import Role, RoleAssignment, RoleBundle, RoleCeiling
 from clearance.roles.resolvers import resolver, roles_of
 from clearance.safety import AccessRefused, SafetyRules
-from clearance.services import AccessService
+from clearance.services import AccessService, too_long
 
 #: A ceiling as given and as announced: permission names, or ``None`` for none at all.
 Ceiling = frozenset[str] | None
@@ -74,6 +74,7 @@ class RoleService:
             self.rules.require_may('ceiling')
 
         self._check_code(code)
+        self._check_length(code=code, name=name)
         found = self._permissions(wanted or ())
 
         for bundle in bundles:
@@ -97,6 +98,7 @@ class RoleService:
         self.rules.require_not_declared('role', role.code)
 
         if name != role.name:
+            self._check_length(name=name)
             role.name = name
             role.save(update_fields=['name'])
             self._announce(signals.role_saved, role=role, created=False)
@@ -268,6 +270,13 @@ class RoleService:
                 f'Roles are read by {type(resolver()).__name__}, not from what is assigned '
                 f'here: give them where it reads them.'
             )
+
+    @staticmethod
+    def _check_length(**values: str) -> None:
+        problems = too_long(Role, **values)
+
+        if problems:
+            raise ValidationError(problems)
 
     @staticmethod
     def _check_code(code: str) -> None:

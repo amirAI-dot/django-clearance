@@ -169,7 +169,7 @@ class BasePolicy:
         model. Otherwise one ``exists()``: the same question ``visible`` answers
         for a list, asked about one row.
         """
-        from clearance.querysets import EVERY_ROW, scopes_reaching, visible
+        from clearance.querysets import EVERY_ROW, answers_for_itself, scopes_reaching, visible
 
         if not isinstance(obj, Model):
             return True
@@ -178,6 +178,10 @@ class BasePolicy:
             return True
 
         rows = type(obj)._default_manager.all()
+
+        if answers_for_itself(rows):  # its own visible_to says, not its grants
+            return bool(visible(rows, user, action).filter(pk=obj.pk).exists())
+
         names = scopes_reaching(rows, user, action)
 
         if names is None:

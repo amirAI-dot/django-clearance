@@ -87,8 +87,14 @@ class ScopedQuerySet(models.QuerySet[ModelT]):
         return {EVERY_ROW: _('Every row'), **cls.scopes}
 
     def visible_to(self, user: User, action: str = 'view') -> Self:
-        """The rows ``user`` may reach for ``action``."""
-        return visible(self, user, action)
+        """
+        The rows ``user`` may reach for ``action``.
+
+        A queryset that answers in a way of its own overrides this - and is
+        asked by ``visible`` too, so a view, the admin site and a policy get
+        the answer the queryset gives.
+        """
+        return rows_reached(self, user, action)
 
     def code_scope(self, code: str, user: User) -> Rows:
         rows: Rows = getattr(self, f'{self.hook_prefix}{code}')(user)
@@ -134,8 +140,26 @@ def visible(queryset: QuerySetT, user: User, action: str = 'view') -> QuerySetT:
     The rows of ``queryset`` ``user`` may reach for ``action`` - for any model.
 
     Signed out or switched off, no rows; the superuser, every row; otherwise
-    the union of the scopes of the action's grants.
+    the union of the scopes of the action's grants. A ``ScopedQuerySet`` is
+    asked through its ``visible_to``, so one that answers in a way of its own
+    - ``SignedInReadQuerySet``, or a project's - answers here as well.
     """
+    if isinstance(queryset, ScopedQuerySet):
+        return queryset.visible_to(user, action)
+
+    return rows_reached(queryset, user, action)
+
+
+def answers_for_itself(queryset: models.QuerySet[Any]) -> bool:
+    """Whether ``queryset`` overrides ``visible_to``: its grants then do not say what it reaches."""
+    return (
+        isinstance(queryset, ScopedQuerySet)
+        and type(queryset).visible_to is not ScopedQuerySet.visible_to
+    )
+
+
+def rows_reached(queryset: QuerySetT, user: User, action: str = 'view') -> QuerySetT:
+    """The rows the grants of ``action`` reach: what ``visible_to`` answers unless overridden."""
     if not (user.is_authenticated and user.is_active):
         return queryset.none()
 
@@ -239,10 +263,11 @@ def _combine(queryset: QuerySetT, scopes: list[Rows]) -> QuerySetT:
     """
     The union of ``scopes``.
 
-    One scope is applied as it is, so a queryset a method built is returned
-    unchanged. Several are joined with OR in a single ``filter``, a queryset
-    joining as ``pk__in`` it - which never meets the limits of combining
-    querysets with ``|``.
+    They are joined with OR in a single ``filter`` of the queryset asked
+    about, a queryset a scope answered with joining as ``pk__in`` it - which
+    never meets the limits of combining querysets with ``|``, and keeps
+    whatever the queryset was narrowed by already: a scope says which rows,
+    never that the rows asked about are other ones.
     """
     reached: list[Q | models.QuerySet[Any]] = []
     name = type(queryset).__name__
@@ -270,10 +295,6 @@ def _combine(queryset: QuerySetT, scopes: list[Rows]) -> QuerySetT:
 
     if not reached:
         return queryset.none()
-
-    if len(reached) == 1:
-        (only,) = reached
-        return only if isinstance(only, models.QuerySet) else queryset.filter(only)  # type: ignore[return-value]
 
     conditions = [
         scope if isinstance(scope, Q) else Q(pk__in=scope.values('pk')) for scope in reached

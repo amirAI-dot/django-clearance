@@ -11,6 +11,9 @@ person, and what their bundles give - except that:
   roles, with ``clearance.roles``) give what any bundle gives;
 * nothing gets past their ceiling.
 
+``with_perm`` - "who holds this?" - answers by the same three, so a list of
+the people to tell about an approval does not name somebody it was taken from.
+
 Each is a condition inside the query Django already makes, and Django's
 caching is kept, so asking costs exactly what it did.
 
@@ -30,8 +33,9 @@ from django.contrib.auth.models import Permission
 from django.db.models import Q, QuerySet
 
 from clearance.grants import groups_lookup
-from clearance.limits import limits
+from clearance.limits import Limits, limits
 from clearance.models import PermissionRevocation
+from clearance.safety import holders_of
 
 
 class ClearanceBackend(ModelBackend):
@@ -49,3 +53,47 @@ class ClearanceBackend(ModelBackend):
             .filter(given.allowed(user_obj, 'pk'))
             .distinct()
         )
+
+    def with_perm(
+        self,
+        perm: Any,
+        is_active: bool | None = True,
+        include_superusers: bool = True,
+        obj: Any = None,
+    ) -> 'QuerySet[Any]':
+        """
+        Everybody holding ``perm``, as ``has_perm`` would answer for each: not
+        whoever it was taken from, whoever starts with it by their role too,
+        and nobody whose ceiling stops it.
+        """
+        asked: Any = is_active  # Django takes None too: everybody, working or not
+        people = super().with_perm(perm, asked, include_superusers, obj)  # checks what is asked
+
+        if obj is not None:
+            return people.none()
+
+        if isinstance(perm, Permission):
+            perm = f'{perm.content_type.app_label}.{perm.codename}'
+
+        app_label, _, codename = perm.partition('.')
+        row = Permission.objects.filter(content_type__app_label=app_label, codename=codename)
+        holders = holders_of(perm, is_active=is_active)
+        given = limits()
+
+        if type(given) is not Limits:
+            # A ceiling is each person's own: asked of each of those the permission was given.
+            holders = people.model._default_manager.filter(
+                pk__in=[
+                    person.pk
+                    for person in holders.iterator()
+                    if row.filter(given.allowed(person, 'pk')).exists()
+                ]
+            )
+
+        found = Q(pk__in=holders.values('pk'))
+
+        if include_superusers:
+            found |= Q(is_superuser=True)
+
+        everybody = people.model._default_manager.filter(found)
+        return everybody if is_active is None else everybody.filter(is_active=is_active)

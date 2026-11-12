@@ -18,6 +18,7 @@ from django.db import transaction
 
 from clearance.protocols import User
 from clearance.safety import SafetyRules
+from clearance.services import too_long
 from clearance.translations import signals
 from clearance.translations.models import Translation
 
@@ -43,6 +44,11 @@ class TranslationService:
         row = Translation.objects.filter(**where).first()
         before = (row.name, row.description) if row is not None else None
         name, description = name.strip(), description.strip()
+        problems = too_long(Translation, name=name)
+
+        if problems:
+            raise ValidationError(problems)
+
         after = (name, description) if name else None
 
         if before == after:

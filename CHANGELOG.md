@@ -59,6 +59,26 @@ Found by a security review of 0.1.0.
   view**, and the one the row holds already. **Changed:** choosing a related
   row there needs `view` on its model.
 
+* **`visible()` asks the queryset.** A view, the admin site and a policy
+  called `visible()`, which never asked a `ScopedQuerySet` its own
+  `visible_to` - so `SignedInReadQuerySet` showed a view nothing, and an
+  override that narrowed was ignored. They get the queryset's answer now.
+* **A scope answering with a queryset keeps the rows it was asked about.**
+  Alone, it replaced the queryset, and whatever the view had filtered by -
+  a tenant, say - was gone.
+* **E007 refuses a backend built on `ModelBackend`**, not that one name
+  only: listed before the library's, it handed back every revocation.
+* **`with_perm` answers as `has_perm` does** - without whoever a permission
+  was taken from or whose ceiling stops it, with whoever starts with it.
+* **The pages answer rather than fail.** A bundle's key that is no number
+  is a 404; a name longer than its column is refused, saying so - SQLite
+  kept it whole and PostgreSQL answered with a server error.
+* **A rule comparing with `None` is refused when saved**: it was kept as
+  `''`, and reached nothing from then on. `is_empty` says it.
+* **Fewer queries.** The overview and the actions page read the database a
+  fixed number of times (about 90 before, and one more for each bundle; 19
+  now), and saving a bundle no longer reads it once for each permission.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with
