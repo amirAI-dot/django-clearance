@@ -167,18 +167,22 @@ def somebody_holds(permission: str) -> bool:
     return any(person.has_perm(permission) for person in holders_of(permission).iterator())
 
 
-def holders_of(permission: str) -> 'QuerySet[Any]':
+def holders_of(permission: str, *, is_active: bool | None = True) -> 'QuerySet[Any]':
     """
     The working accounts given ``permission`` - directly, or through a bundle
     they were given or start with, and not taken away. The superuser is left
     out: they hold everything by the flag. A ceiling is the backend's to
     apply: ``somebody_holds`` asks it.
+
+    ``is_active`` is ``False`` for the accounts switched off instead, and
+    ``None`` for both.
     """
     app_label, codename = permission.split('.', 1)
     row = Permission.objects.filter(content_type__app_label=app_label, codename=codename)
     groups = Group.objects.filter(permissions__in=row)
     revoked = PermissionRevocation.objects.filter(permission__in=row).values('user')
-    people = get_user_model().objects.filter(is_active=True, is_superuser=False)
+    people = get_user_model().objects.filter(is_superuser=False)
+    people = people if is_active is None else people.filter(is_active=is_active)
     group_field = groups_lookup().removeprefix('group__')
 
     starting = limits().people_starting_with(groups).values('pk')

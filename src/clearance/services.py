@@ -70,6 +70,7 @@ class AccessService:
     def create_bundle(self, name: str, grants: Grants) -> Group:
         """A new bundle, holding ``grants``."""
         self.rules.require_may('create')
+        _refuse(too_long(Group, name=name))
         found = self._resolve(grants)
         self.rules.require_holds(grants)
 
@@ -98,6 +99,9 @@ class AccessService:
 
         if not renamed and not regranted:
             return bundle
+
+        if renamed:
+            _refuse(too_long(Group, name=str(name)))
 
         if regranted:
             assert grants is not None
@@ -344,6 +348,8 @@ class AccessService:
         model = rule.content_type.model_class()
         problems = []
 
+        problems += too_long(ScopeRule, code=rule.code, name=rule.name)
+
         if not rule.code.isidentifier():
             problems.append(f'{rule.code!r} is not a code: use letters, digits and underscores.')
 
@@ -511,6 +517,7 @@ class AccessService:
         content_type = ContentType.objects.get_for_model(model)
         codename = permission_for(model, code).partition('.')[2]
         problems = status_action_problems(model, code, field, to, start)
+        problems += too_long(StatusAction, code=code, name=name)
         taken = code in declared_status_actions(model) or (
             Permission.objects.filter(content_type=content_type, codename=codename).exists()
         )
@@ -559,6 +566,7 @@ class AccessService:
         new_to = list(to) if to is not None else list(action.to_values)
         new_start = list(start) if start is not None else list(action.from_values)
         problems = status_action_problems(model, action.code, action.field, new_to, new_start)
+        problems += too_long(StatusAction, name=name if name is not None else action.name)
 
         if problems:
             raise ValidationError(problems)
@@ -621,18 +629,31 @@ class AccessService:
         self._resolve(grants)
 
     def _resolve(self, grants: Grants, *, scopes: bool = True) -> dict[str, Permission]:
-        """The permission rows ``grants`` name, every scope checked against its model."""
+        """
+        The permission rows ``grants`` name, every scope checked against its
+        model - in three queries, however many permissions there are.
+        """
+        wanted = Q()
+
+        for name in grants:
+            app_label, _, codename = name.partition('.')
+            wanted |= Q(content_type__app_label=app_label, codename=codename)
+
+        rows = (
+            {
+                f'{row.content_type.app_label}.{row.codename}': row
+                for row in Permission.objects.filter(wanted).select_related('content_type')
+            }
+            if grants
+            else {}
+        )
         found: dict[str, Permission] = {}
         problems: list[str] = []
         protection: Protection | None = None
+        rules: dict[int, set[str]] | None = None
 
         for name, scope in grants.items():
-            app_label, _, codename = name.partition('.')
-            row = (
-                Permission.objects.filter(content_type__app_label=app_label, codename=codename)
-                .select_related('content_type')
-                .first()
-            )
+            row = rows.get(name)
 
             if row is None:
                 problems.append(f'{name}: no such permission')
@@ -641,13 +662,19 @@ class AccessService:
             if scopes and scope is not None:
                 model = row.content_type.model_class()
                 protection = protection or Protection.load()
+                rules = _rule_codes() if rules is None else rules
+                offered = (
+                    set(querysets.code_scopes(model)) | rules.get(row.content_type_id, set())
+                    if model is not None
+                    else {EVERY_ROW}
+                )
 
                 if model is not None and protection.owns(model, name):
                     problems.append(
                         f"{name}: a field's permission takes no scope - it is the person's, "
                         f"not the row's"
                     )
-                elif scope not in offered_scopes(row):
+                elif scope not in offered:
                     problems.append(f'{name}: its model offers no scope {scope!r}')
 
             found[name] = row
@@ -660,11 +687,14 @@ class AccessService:
     def _set_bundle_grants(
         self, bundle: Group, found: Mapping[str, Permission], grants: Grants
     ) -> None:
+        """What ``bundle`` holds, put in place - in a fixed number of queries."""
         bundle.permissions.set(found.values())
-        ScopeGrant.objects.filter(group=bundle).exclude(permission__in=found.values()).delete()
-
-        for name, permission in found.items():
-            self._set_scope(permission, grants[name], group=bundle)
+        ScopeGrant.objects.filter(group=bundle).delete()
+        ScopeGrant.objects.bulk_create(
+            ScopeGrant(group=bundle, permission=found[name], scope=scope)
+            for name, scope in grants.items()
+            if scope is not None
+        )
 
         holders: Any = bundle.user_set
 
@@ -714,6 +744,40 @@ class AccessService:
             signal.send(sender=AccessService, actor=self.actor, **kwargs)
 
         transaction.on_commit(send)
+
+
+def _refuse(problems: list[str]) -> None:
+    if problems:
+        raise ValidationError(problems)
+
+
+def _rule_codes() -> dict[int, set[str]]:
+    """The codes of every rule scope, by the content type of its model - one query."""
+    codes: dict[int, set[str]] = {}
+
+    for content_type, code in ScopeRule.objects.values_list('content_type', 'code'):
+        codes.setdefault(content_type, set()).add(code)
+
+    return codes
+
+
+def too_long(model: type[Model], **values: str) -> list[str]:
+    """
+    What is wrong with ``values`` - by field of ``model`` - that are longer than
+    their columns: SQLite keeps them whole and PostgreSQL refuses the write, so
+    it is said here, the same on both.
+    """
+    problems = []
+
+    for name, value in values.items():
+        longest = getattr(model._meta.get_field(name), 'max_length', None)
+
+        if longest is not None and len(value) > longest:
+            problems.append(
+                f'{value[:30]!r}... is longer than the {longest} characters a {name} may have.'
+            )
+
+    return problems
 
 
 def offered_scopes(permission: Permission) -> set[str]:

@@ -21,10 +21,10 @@ silently:
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db.models import Model, Q
 
@@ -138,35 +138,56 @@ def _lost_scopes() -> Iterator[Finding]:
 
 
 def _grants_reaching_nothing() -> Iterator[Finding]:
-    """Grants with no scope, of the permissions of models whose default reaches no rows."""
-    models = [model for model in _models() if _defaults_to_nothing(model)]
+    """
+    Grants with no scope, of the permissions of models whose default reaches
+    no rows - read in four queries, however many models, bundles and people.
+    """
     protection = Protection.load()
+    wanted: dict[int, tuple[Permission, type[Model]]] = {}
 
-    for model in models:
-        content_type = ContentType.objects.get_for_model(model)
+    for model, permissions in _permissions_by_model().items():
+        if not _defaults_to_nothing(model):
+            continue
+
         fields = {
-            name.partition('.')[2]
+            name
             for field in protection.fields(model)
             for name in field_permissions(model, field).values()
         }
-        permissions = Permission.objects.filter(content_type=content_type).exclude(
-            codename__in=fields
+        wanted.update({p.pk: (p, model) for p in permissions if _name(p) not in fields})
+
+    if not wanted:
+        return
+
+    scoped: set[tuple[Any, Any, Any]] = set(
+        ScopeGrant.objects.filter(permission__in=list(wanted)).values_list(
+            'group_id', 'user_id', 'permission_id'
         )
-        scoped = ScopeGrant.objects.filter(permission__in=permissions)
-        bundles = Group.objects.filter(permissions__in=permissions).distinct()
-        people = get_user_model().objects.filter(user_permissions__in=permissions).distinct()
+    )
+    in_bundles: Any = Group.permissions.through.objects
+    user_field: Any = get_user_model()._meta.get_field('user_permissions')
+    directly: Any = user_field.remote_field.through.objects
+    person_column = user_field.m2m_field_name()
+    found: list[tuple[str, int, int, str, Permission, type[Model]]] = []
 
-        for bundle in bundles:
-            for permission in bundle.permissions.filter(pk__in=permissions).exclude(
-                pk__in=scoped.filter(group=bundle).values('permission')
-            ):
-                yield _reaching_nothing(f'The bundle {bundle}', permission, model)
+    for row in in_bundles.filter(permission__in=list(wanted)).select_related('group'):
+        if (row.group_id, None, row.permission_id) not in scoped:
+            permission, model = wanted[row.permission_id]
+            holder = f'The bundle {row.group}'
+            found.append((model._meta.label, 0, row.group_id, holder, permission, model))
 
-        for person in people:
-            for permission in person.user_permissions.filter(pk__in=permissions).exclude(
-                pk__in=scoped.filter(user=person).values('permission')
-            ):
-                yield _reaching_nothing(str(person), permission, model)
+    for row in directly.filter(permission__in=list(wanted)).select_related(person_column):
+        person = getattr(row, person_column)
+
+        if (None, person.pk, row.permission_id) not in scoped:
+            permission, model = wanted[row.permission_id]
+            found.append((model._meta.label, 1, person.pk, str(person), permission, model))
+
+    # By model, its bundles and then its people, each one's permissions in order.
+    for _label, _kind, _key, holder, permission, model in sorted(
+        found, key=lambda item: (*item[:3], item[4].codename)
+    ):
+        yield _reaching_nothing(holder, permission, model)
 
 
 def _unaccounted_permissions() -> Iterator[Finding]:
@@ -175,7 +196,7 @@ def _unaccounted_permissions() -> Iterator[Finding]:
     status = StatusActions.load()
     protection = Protection.load()
 
-    for model in _models():
+    for model, permissions in _permissions_by_model().items():
         accounted = (
             _model_permissions(model)
             | {permission_for(model, row.code) for row in status.of(model)}
@@ -186,9 +207,8 @@ def _unaccounted_permissions() -> Iterator[Finding]:
             }
             | found
         )
-        content_type = ContentType.objects.get_for_model(model)
 
-        for permission in Permission.objects.filter(content_type=content_type).order_by('codename'):
+        for permission in permissions:
             if _name(permission) not in accounted:
                 yield Finding(
                     WARNING,
@@ -204,6 +224,19 @@ def _unaccounted_permissions() -> Iterator[Finding]:
 def unheld_permissions() -> int:
     """How many permissions nobody holds - not wrong, but worth a look."""
     return Permission.objects.exclude(Q(group__isnull=False) | Q(user__isnull=False)).count()
+
+
+def _permissions_by_model() -> dict[type[Model], list[Permission]]:
+    """Every permission of every installed model, by model - in one query."""
+    by_model: dict[type[Model], list[Permission]] = {model: [] for model in _models()}
+
+    for permission in Permission.objects.select_related('content_type').order_by('codename'):
+        model = permission.content_type.model_class()
+
+        if model in by_model:
+            by_model[model].append(permission)
+
+    return by_model
 
 
 def _models() -> list[type[Model]]:

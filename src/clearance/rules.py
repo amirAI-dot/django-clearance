@@ -295,6 +295,10 @@ def _constant(field: Path, operator: Operator, value: object) -> object:
 
 
 def _one_constant(field: Path, value: object) -> object:
+    if value is None:
+        # Kept in words, nothing would be read back as '' - a value of its own.
+        raise ValidationError(f"{field.lookup!r} is compared with nothing: use 'is_empty'.")
+
     related = field.target if field.kind == RELATION else None
     target = related._meta.pk if related is not None else field.field
 

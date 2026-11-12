@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import Client
 from django.test.utils import CaptureQueriesContext
@@ -51,7 +52,6 @@ def test_the_page_of_a_user_opens_in_the_admin_site(make_user: MakeUser, page: s
     assert client.get(f'/admin/accounts/person/{page.format(pk=owner.pk)}').status_code == 200
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_bundle_that_is_not_a_number_is_not_a_server_error(make_user: MakeUser) -> None:
     manager, person = make_user(*MANAGE), make_user()
     client = admin_of(manager, raise_request_exception=False)
@@ -78,7 +78,6 @@ def test_a_refusal_is_said_in_the_readers_language(make_user: MakeUser) -> None:
     ]
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 @pytest.mark.parametrize(
     ('page', 'sent'),
     [
@@ -96,23 +95,27 @@ def test_a_name_too_long_is_refused_on_the_page(
     assert client.post(page, sent).status_code == 200  # the page again, saying what is wrong
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
-def test_a_rule_comparing_with_nothing_still_works_once_saved(db: None) -> None:
-    """``None`` is accepted, stored as ``''`` and read back as a value the field cannot hold."""
-    rule = AccessService(actor=None).create_scope_rule(
-        Loan,
-        'unassigned',
-        'With no officer',
-        [{'field': 'officer', 'operator': 'is', 'value': {'constant': None}}],
-    )
+def test_a_rule_comparing_with_nothing_is_refused_when_it_is_saved(db: None) -> None:
+    """Kept in words, ``None`` was read back as ``''``: the rule then reached nothing, unsaid."""
+    with pytest.raises(ValidationError, match='is_empty'):
+        AccessService(actor=None).create_scope_rule(
+            Loan,
+            'unassigned',
+            'With no officer',
+            [{'field': 'officer', 'operator': 'is', 'value': {'constant': None}}],
+        )
 
-    ScopeRule.objects.get(pk=rule.pk).compiled()  # ValidationError: reaches nothing from now on
+    assert not ScopeRule.objects.exists()
+
+
+def test_a_name_too_long_is_refused_in_code_as_on_the_page(db: None) -> None:
+    with pytest.raises(ValidationError, match='longer than the 150'):
+        AccessService(actor=None).create_bundle('x' * 200, {})
 
 
 # ---------------------------------------------------------------------- rows
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_view_scopes_a_signed_in_read_queryset_as_the_queryset_does(
     make_user: MakeUser,
 ) -> None:
@@ -125,7 +128,6 @@ def test_a_view_scopes_a_signed_in_read_queryset_as_the_queryset_does(
     assert visible(reference, anybody).count() == 1
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_scope_answering_with_a_queryset_keeps_the_rows_it_was_asked_about(
     make_user: MakeUser,
 ) -> None:
@@ -156,7 +158,6 @@ def queries(run: Any) -> int:
     return len(captured)
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 @pytest.mark.parametrize('page', ['/admin/access/', '/admin/access/actions/'])
 def test_a_page_reads_the_database_no_more_for_more_bundles(
     make_user: MakeUser, make_bundle: MakeBundle, page: str
@@ -171,7 +172,6 @@ def test_a_page_reads_the_database_no_more_for_more_bundles(
     assert queries(lambda: client.get(page)) == few
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_saving_a_bundle_reads_the_database_no_more_for_more_permissions(db: None) -> None:
     names = [
         'lending.loan_view',

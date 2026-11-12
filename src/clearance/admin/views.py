@@ -326,10 +326,10 @@ class AccessPages(PageSet):
         try:
             match data.get('do'):
                 case 'give':
-                    access.give_bundle(person, get_object_or_404(Group, pk=data.get('bundle')))
+                    access.give_bundle(person, bundle_named(data.get('bundle')))
                     done = _('The bundle was given.')
                 case 'take':
-                    access.take_bundle(person, get_object_or_404(Group, pk=data.get('bundle')))
+                    access.take_bundle(person, bundle_named(data.get('bundle')))
                     done = _('The bundle was taken back.')
                 case 'grant':
                     access.grant(person, data.get('permission', ''), data.get('scope') or None)
@@ -358,6 +358,14 @@ class AccessPages(PageSet):
         own: Any = getattr(bundle, 'pk', None)
         taken = Group.objects.filter(name=name).exclude(pk=own)
         return [_('There is a bundle called %(name)s already.') % {'name': name}] if taken else []
+
+
+def bundle_named(key: object) -> Group:
+    """The bundle a form names by its key - or a 404, also for a key that is no number."""
+    try:
+        return get_object_or_404(Group, pk=key)
+    except (TypeError, ValueError, ValidationError):
+        raise Http404(str(key)) from None
 
 
 def _with_access(people: Any) -> Any:

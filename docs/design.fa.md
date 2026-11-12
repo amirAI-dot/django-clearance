@@ -672,8 +672,14 @@ scopeهایی است که به او می‌رسند. کد یک قانون اسم
 
 1. وارد نشده، یا غیرفعال -> هیچ ردیفی؛ superuser -> همه‌ی ردیف‌ها؛
 2. شخص مجوز آن action را ندارد -> هیچ ردیفی؛
-3. وگرنه scopeهای هر مجوزی از آن نوع که به او می‌رسد با OR در **یک** filter
-   ترکیب می‌شوند؛ `all` آن را همه‌ی ردیف‌ها می‌کند.
+3. وگرنه scopeهای هر مجوزی از آن نوع که به او می‌رسد با OR در **یک** filter روی
+   همان querysetی که درباره‌اش پرسیده شده ترکیب می‌شوند؛ `all` آن را همه‌ی ردیف‌ها
+   می‌کند. scopeای که با queryset جواب می‌دهد به شکل `pk__in` وصل می‌شود، پس هر چه
+   queryset از قبل با آن تنگ شده نگه داشته می‌شود.
+
+`visible` از `ScopedQuerySet` از راه `visible_to` خودش می‌پرسد، پس querysetی که به
+شیوه‌ی خودش جواب می‌دهد - `SignedInReadQuerySet`، یا مال خود پروژه - به ویو، پنل
+ادمین و policy همان جوابی را می‌دهد که خودش می‌دهد.
 
 مجوزهای شخص یک بار در هر درخواست، با یک کوئری، خوانده می‌شوند، و قانون‌های یک مدل
 یک بار در هر درخواست، با یک کوئری دیگر؛ بعد از آن یک لیست فقط کوئری خودش را
@@ -1071,7 +1077,7 @@ hookهای کتابخانه را می‌دهد، پس کلاس‌های ادمی
 | `clearance.E002` | `scopes` یک `ScopedQuerySet` با متدهای `scope_<x>` آن نمی‌خواند، یا `default_scope` آن ارائه نشده |
 | `clearance.E003` | یک ویوی DRF که از policy یک مدل می‌پرسد، مدل را بدون حذف فیلدهای محافظت‌شده‌اش serialize می‌کند |
 | `clearance.E006` | `ClearanceBackend` در `AUTHENTICATION_BACKENDS` نیست |
-| `clearance.E007` | `ModelBackend` کنار `ClearanceBackend` است - همه‌ی سلب‌ها را برمی‌گرداند |
+| `clearance.E007` | `ModelBackend`، یا backendی که روی آن ساخته شده و نه روی backend کتابخانه، کنار `ClearanceBackend` است - همه‌ی سلب‌ها را برمی‌گرداند |
 | `clearance.E008` | `clearance.roles` یا `clearance.translations` بدون `'clearance'`، یا قبل از آن، نصب شده |
 | `clearance.E009` | یک ویوی `PolicyRequiredMixin`، یا یک ویوی DRF که با policy محافظت شده، نمی‌تواند از هیچ policyای بپرسد |
 | `clearance.E010` | `ROLE_RESOLVER` یا `ROLE_ATTRIBUTE` قابل استفاده نیست |
