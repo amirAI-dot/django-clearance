@@ -419,7 +419,10 @@ Every change - in the admin site, in code, from the `ACCESS` file - is
 refused when it would let somebody give themselves more:
 
 * nobody changes their own access, or a bundle or role they hold;
-* nobody gives a permission or a scope they do not hold themselves;
+* nobody gives a permission or a scope they do not hold themselves - nor
+  gives back one that was taken away, widens the rows of a rule scope others
+  hold it in, or lets a status action write from more values;
+* a second role that would widen somebody's ceiling needs `role_ceiling_edit`;
 * a change after which nobody could manage access is refused;
 * what the `ACCESS` file owns is changed only in the file.
 

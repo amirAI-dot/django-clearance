@@ -20,7 +20,7 @@ from django.test import Client, RequestFactory, override_settings
 
 from clearance.admin.options import protected_admin
 from clearance.checks import backend_errors
-from clearance.roles.models import Role, RoleBundle, RoleCeiling
+from clearance.roles.models import Role, RoleAssignment, RoleBundle, RoleCeiling
 from clearance.roles.services import RoleService
 from clearance.safety import AccessRefused
 from clearance.services import AccessService
@@ -72,7 +72,6 @@ def posted(form: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------- AccessService
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_the_rows_of_a_rule_scope_are_widened_only_by_somebody_holding_every_row(
     make_user: MakeUser, make_bundle: MakeBundle
 ) -> None:
@@ -96,7 +95,6 @@ def test_the_rows_of_a_rule_scope_are_widened_only_by_somebody_holding_every_row
     assert not Loan.objects.visible_to(fresh(officer), 'edit').filter(region='south').exists()
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_permission_taken_away_is_given_back_only_by_somebody_holding_it(
     make_user: MakeUser, make_bundle: MakeBundle
 ) -> None:
@@ -111,7 +109,6 @@ def test_a_permission_taken_away_is_given_back_only_by_somebody_holding_it(
     assert not fresh(officer).has_perm('lending.loan_approve')
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_status_action_writes_from_more_values_only_by_somebody_holding_it(
     make_user: MakeUser,
 ) -> None:
@@ -124,7 +121,6 @@ def test_a_status_action_writes_from_more_values_only_by_somebody_holding_it(
         AccessService(actor=manager).change_status_action(action, start=[])
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_bundle_a_person_starts_with_is_one_they_hold(
     make_user: MakeUser, make_bundle: MakeBundle
 ) -> None:
@@ -155,10 +151,31 @@ def test_a_bundle_a_person_starts_with_is_one_they_hold(
         )
 
 
+def test_whoever_holds_it_on_every_row_does_what_the_others_are_refused(
+    make_user: MakeUser, make_bundle: MakeBundle
+) -> None:
+    access = AccessService(actor=None)
+    rule = access.create_scope_rule(
+        Loan,
+        'north',
+        'The north',
+        [{'field': 'region', 'operator': 'is', 'value': {'constant': 'north'}}],
+    )
+    officer = make_user(bundles=(make_bundle({'lending.loan_approve': 'north'}),))
+    access.revoke(officer, 'lending.loan_approve')
+    senior = make_user(*MANAGE, ('lending.loan_approve', 'all'))
+
+    AccessService(actor=senior).change_scope_rule(
+        rule, conditions=[{'field': 'region', 'operator': 'is', 'value': {'constant': 'south'}}]
+    )
+    AccessService(actor=senior).restore(fresh(officer), 'lending.loan_approve')
+
+    assert fresh(officer).has_perm('lending.loan_approve')
+
+
 # ---------------------------------------------------------------------- RoleService
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_second_role_does_not_lift_a_ceiling_without_role_ceiling_edit(
     make_user: MakeUser, make_bundle: MakeBundle
 ) -> None:
@@ -176,6 +193,22 @@ def test_a_second_role_does_not_lift_a_ceiling_without_role_ceiling_edit(
         RoleService(actor=manager).assign(fresh(clerk), free)
 
     assert not fresh(clerk).has_perm('lending.loan_edit')
+
+
+def test_a_role_that_widens_no_ceiling_is_given_without_role_ceiling_edit(
+    make_user: MakeUser,
+) -> None:
+    narrow = Role.objects.create(code='clerk', name='Clerk', limited=True)
+    free = Role.objects.create(code='guest', name='Guest', limited=False)
+    manager, keeper = make_user(*MANAGE), make_user(*MANAGE, 'clearance.role_ceiling_edit')
+    newcomer, clerk = make_user(), make_user()
+
+    RoleService(actor=manager).assign(newcomer, free)  # no ceiling to lift
+    RoleService(actor=manager).assign(newcomer, narrow)  # still none: one role is not limited
+    RoleService(actor=manager).assign(clerk, narrow)  # a first role: its ceiling comes down
+    RoleService(actor=keeper).assign(fresh(clerk), free)  # lifting it, by whoever may
+
+    assert RoleAssignment.objects.count() == 4
 
 
 # ---------------------------------------------------------------------- Django's user pages

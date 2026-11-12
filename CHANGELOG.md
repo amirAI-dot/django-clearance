@@ -30,6 +30,19 @@ Found by a security review of 0.1.0.
 * **An admin action naming Django's `permissions=`** runs over the rows
   those permissions reach, not every row the person can see.
 
+* **The safety rules hold round four more ways.** Each was open to somebody
+  managing access who held nothing of what they changed:
+  * changing the rows of a rule scope needs every permission granted in it,
+    on every row;
+  * giving back a permission that was taken away needs holding it, with the
+    scopes the person's bundles give it in;
+  * letting a status action write from more values is the superuser's and
+    the `ACCESS` file's - **changed:** somebody not holding it could;
+  * giving a person under a ceiling a second role that widens or lifts it
+    needs `role_ceiling_edit`.
+* **A bundle a person starts with by their role is one they hold**: they do
+  not change it.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

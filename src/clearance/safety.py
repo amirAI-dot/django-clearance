@@ -104,12 +104,15 @@ class SafetyRules:
             )
 
     def require_not_held(self, bundle: Group) -> None:
+        """A bundle the actor was given, or starts with by what they are, is not theirs."""
         if self.unbound:
             return
 
+        assert self.actor is not None
         holders: Any = bundle.user_set
+        given = holders.filter(pk=getattr(self.actor, 'pk', None)).exists()
 
-        if holders.filter(pk=getattr(self.actor, 'pk', None)).exists():
+        if given or limits().starting_bundles(self.actor).filter(pk=bundle.pk).exists():
             raise AccessRefused('own_bundle', 'Nobody changes a bundle they hold themselves.')
 
     def require_holds(self, grants: Mapping[str, Scope]) -> None:
