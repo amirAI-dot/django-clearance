@@ -423,8 +423,8 @@ python manage.py clearance_sync              # apply it, and say what changed
 
 نقش‌ها در پنل ادمین یا با `RoleService(actor).assign(person, role)` داده می‌شوند،
 و resolverای که `ROLE_RESOLVER` نام می‌برد آن‌ها را می‌خواند. `AttributeResolver`
-به جایش آن‌ها را از خود کاربر می‌خواند - از فیلدی که `ROLE_ATTRIBUTE` نام می‌برد.
-در کد:
+به جایش آن‌ها را از خود کاربر می‌خواند - از فیلدی که `ROLE_ATTRIBUTE` نام می‌برد،
+و در سایت ادمین فقط superuser آن را می‌نویسد: نوشتنش یعنی دادن نقش. در کد:
 
 ```python
 from clearance.roles.resolvers import has_role

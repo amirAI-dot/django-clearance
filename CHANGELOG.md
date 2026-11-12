@@ -2,6 +2,21 @@
 
 [فارسی](CHANGELOG.fa.md)
 
+## Unreleased
+
+Found by a security review of 0.1.0.
+
+* **The page of a user opens in the admin site.** Adding or changing one was
+  a server error with Django's `UserAdmin`, for everybody.
+* **A superuser's account is the superuser's alone** to change or delete in
+  the admin site - its password too. Before, anybody who could change users
+  could set a superuser's password and sign in as them.
+* **A field roles are read from is written by the superuser only** in the
+  admin site, so nobody gives themselves a role with `AttributeResolver`. A
+  resolver of the project's own names its fields with `RoleResolver.fields()`.
+* **The last person able to manage access is not switched off or deleted** on
+  the user page.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

@@ -18,27 +18,35 @@ project's admin classes stay exactly as Django documents them:
   ``permissions=`` is Django's to decide.
 
 On the user model, a person's groups and permissions are read only - they are
-changed on the library's people page, under the safety rules - and only the
-superuser makes somebody a superuser.
+changed on the library's people page, under the safety rules - and so is a
+field that says what role they have. Only the superuser makes somebody a
+superuser, and only the superuser changes or deletes a superuser's account:
+whoever sets its password signs in as them. A change there that would leave
+nobody able to manage access - the last manager switched off, or deleted - is
+refused, as everywhere else.
 """
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import replace
 from functools import cache, partial, wraps
 from typing import Any
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Model, QuerySet
 from django.forms.models import modelformset_factory
 from django.http import HttpRequest
 
 from clearance.fields import path_readable, protection_of, readable_fields, writable_fields
 from clearance.forms import ProtectedFieldsFormMixin
+from clearance.limits import limits
 from clearance.permissions import is_action_name
 from clearance.policies import BasePolicy
 from clearance.protocols import User, user_of
 from clearance.querysets import visible
 from clearance.registry import registry
+from clearance.safety import SafetyRules
 
 #: What a person's own access is made of, on the user model: changed on the people page only.
 _ACCESS_FIELDS = ('groups', 'user_permissions')
@@ -92,7 +100,12 @@ class ProtectedFieldsAdminMixin:
             locked |= {name for name in _ACCESS_FIELDS if _has_field(self.model, name)}
 
             if not getattr(user, 'is_superuser', False):
-                locked |= {'is_superuser'} if _has_field(self.model, 'is_superuser') else set()
+                # What they are - a superuser, their role - gives them access too.
+                locked |= {
+                    name
+                    for name in ('is_superuser', *limits().person_fields())
+                    if _has_field(self.model, name)
+                }
 
         return locked
 
@@ -108,16 +121,46 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
         return self.policy.allows(user_of(request), 'create')
 
     def has_change_permission(self, request: HttpRequest, obj: Model | None = None) -> bool:
-        return self.policy.allows(user_of(request), 'edit', obj)
+        user = user_of(request)
+        return self.policy.allows(user, 'edit', obj) and not _above(user, obj)
 
     def has_delete_permission(self, request: HttpRequest, obj: Model | None = None) -> bool:
-        return self.policy.allows(user_of(request), 'delete', obj)
+        user = user_of(request)
+        return self.policy.allows(user, 'delete', obj) and not _above(user, obj)
 
     def get_form(
         self, request: HttpRequest, obj: Model | None = None, change: bool = False, **kwargs: Any
     ) -> type[Any]:
-        form = super().get_form(request, obj, change, **kwargs)  # type: ignore[misc]
+        # By name: an admin of the project's own - Django's UserAdmin - need not take it.
+        form = super().get_form(request, obj, change=change, **kwargs)  # type: ignore[misc]
         return form_for(form, user_of(request))
+
+    # ------------------------------------------------------------------ people
+
+    def save_model(self, request: HttpRequest, obj: Model, form: Any, change: bool) -> None:
+        with self._keeping_somebody_managing(request):
+            super().save_model(request, obj, form, change)  # type: ignore[misc]
+
+    def delete_model(self, request: HttpRequest, obj: Model) -> None:
+        with self._keeping_somebody_managing(request):
+            super().delete_model(request, obj)  # type: ignore[misc]
+
+    def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Any]) -> None:
+        with self._keeping_somebody_managing(request):
+            super().delete_queryset(request, queryset)  # type: ignore[misc]
+
+    @contextmanager
+    def _keeping_somebody_managing(self, request: HttpRequest) -> Iterator[None]:
+        """
+        On the user model, a change that leaves nobody able to manage access is
+        refused and undone - switching the last manager off, or deleting them.
+        """
+        if self.model is not get_user_model():
+            yield
+            return
+
+        with transaction.atomic(), SafetyRules(user_of(request)).keeping_somebody_managing():
+            yield
 
     def get_inlines(self, request: HttpRequest, obj: Model | None) -> list[type[Any]]:
         inlines = super().get_inlines(request, obj)  # type: ignore[misc]
@@ -194,7 +237,7 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
             func = action_func(action)
 
             if name == 'delete_selected':
-                offered[name] = _with_func(action, _scoped(func, 'delete'))
+                offered[name] = _with_func(action, _scoped(func, 'delete', _below(user)))
             elif getattr(func, 'allowed_permissions', None):
                 offered[name] = action  # Django's to decide
             elif is_action_name(name) and self.policy.allows(user, name):
@@ -293,14 +336,50 @@ def _with_func(action: Any, func: Callable[..., Any]) -> Any:
     return (func, *action[1:]) if isinstance(action, tuple) else replace(action, func=func)
 
 
-def _scoped(func: Callable[..., Any], action: str) -> Callable[..., Any]:
-    """An admin action run only over the selected rows the person reaches for ``action``."""
+def _scoped(
+    func: Callable[..., Any],
+    action: str,
+    narrowed: Callable[[QuerySet[Any]], QuerySet[Any]] | None = None,
+) -> Callable[..., Any]:
+    """
+    An admin action run only over the selected rows the person reaches for
+    ``action`` - ``narrowed`` further, when the action may not touch them all.
+    """
 
     @wraps(func)
     def scoped(modeladmin: Any, request: HttpRequest, queryset: QuerySet[Any]) -> Any:
-        return func(modeladmin, request, visible(queryset, user_of(request), action))
+        rows = visible(queryset, user_of(request), action)
+        return func(modeladmin, request, narrowed(rows) if narrowed is not None else rows)
 
     return scoped
+
+
+def _above(user: User, obj: object | None) -> bool:
+    """
+    Whether ``obj`` is the account of a superuser, and ``user`` is not one.
+
+    Changing an account is holding it: whoever sets its password signs in
+    with it. So a superuser's is the superuser's alone to change or delete.
+    """
+    return (
+        isinstance(obj, get_user_model())
+        and bool(getattr(obj, 'is_superuser', False))
+        and not getattr(user, 'is_superuser', False)
+    )
+
+
+def _below(user: User) -> Callable[[QuerySet[Any]], QuerySet[Any]]:
+    """The rows that are not accounts above ``user``: a list's way of asking ``_above``."""
+
+    def below(rows: QuerySet[Any]) -> QuerySet[Any]:
+        above = rows.model is get_user_model() and not getattr(user, 'is_superuser', False)
+        return (
+            rows.exclude(is_superuser=True)
+            if above and _has_field(rows.model, 'is_superuser')
+            else rows
+        )
+
+    return below
 
 
 def _without(fields: Sequence[Any], names: frozenset[str]) -> list[Any]:
