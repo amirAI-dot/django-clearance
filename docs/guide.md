@@ -166,6 +166,25 @@ visible(Order.objects.all(), user, 'view')   # the same, for any queryset
 A person's grants and rules are read once per request, in a fixed number of
 queries, however many lists the page shows.
 
+### 5.4 Writing rows
+
+A scope holds for what is written too. The library's views, serializers and
+admin pages refuse - with a 403, the write undone - a row created outside the
+scope `create` was given in, or edited out of the rows the person reaches.
+Give `create` a scope as you give `view` one: with none, it reaches the
+model's `default_scope`, which is no rows on a `ScopedQuerySet` naming none.
+
+A view of your own that saves by hand asks the same, after saving and inside
+the transaction:
+
+```python
+from clearance.writes import require_within_scope
+
+with transaction.atomic():
+    order = form.save()
+    require_within_scope(request.user, 'create', order)
+```
+
 ---
 
 ## 6. Protected fields

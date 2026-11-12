@@ -58,7 +58,7 @@ def signed_in(api: APIClient, person: Person) -> APIClient:
 @pytest.fixture
 def ana(make_user: MakeUser) -> Person:
     """A customer: reads her own loans, and applies."""
-    return make_user(('lending.loan_view', 'own'), 'lending.loan_create')
+    return make_user(('lending.loan_view', 'own'), ('lending.loan_create', 'own'))
 
 
 @pytest.fixture

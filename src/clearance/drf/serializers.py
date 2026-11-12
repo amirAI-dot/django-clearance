@@ -13,6 +13,11 @@ for either, or a value a status action claims that they are not allowed, is
 **refused**, naming the field - never silently dropped, so a client that
 thinks it saved something is told it did not.
 
+**What it saves stays among the rows the person reaches**: a row made outside
+the scope ``create`` was given in, or edited out of the scope it was reached
+in, is refused with a 403 and the write undone - whatever ``perform_create``
+the view wrote, because it is ``save`` that asks.
+
 The person is the request's (``context['request'].user``), or
 ``context['user']`` for a serializer used outside a view. A serializer with
 neither refuses to be built: one that forgot whose it is would show every
@@ -27,12 +32,13 @@ from functools import cache
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db import transaction
 from django.db.models import Model
 from rest_framework import serializers
 
 from clearance.fields import protection_of, readable_fields, writable_fields
 from clearance.protocols import User
-from clearance.writes import refused_writes
+from clearance.writes import refused_writes, require_within_scope, write_action
 
 
 class ProtectedFieldsSerializerMixin:
@@ -98,6 +104,18 @@ class ProtectedFieldsSerializerMixin:
                 raise serializers.ValidationError({name: [why] for name, why in refused.items()})
 
         return super().to_internal_value(data)  # type: ignore[misc]
+
+    def save(self, **kwargs: Any) -> Any:
+        creating = self.instance is None
+
+        with transaction.atomic():
+            saved = super().save(**kwargs)  # type: ignore[misc]
+
+            if isinstance(saved, Model):
+                action = write_action(self.context.get('view'), creating=creating)
+                require_within_scope(self.protected_for, action, saved)
+
+        return saved
 
 
 @cache

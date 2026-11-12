@@ -8,7 +8,10 @@ reaches for the view's action, in ``get_queryset`` - so a list shows only
 those, and a page for anybody else's row is a 404, exactly as if it did not
 exist. It works with Django's generic views and DRF's alike, and with any
 model: one with no scopes in code is scoped by the rules an administrator
-builds for it.
+builds for it. And it keeps what the view writes among those rows: a row
+created outside the scope ``create`` was given in, or edited out of the scope
+it was reached in, is refused and the write undone - in a Django view's
+``form_valid`` and in a DRF view's ``perform_create`` and ``perform_update``.
 
 ``PolicyRequiredMixin`` asks the policy, the way DRF's bridge does: first
 with no object, in ``dispatch``, before anything runs; then, for a view with
@@ -39,6 +42,7 @@ from typing import Any, Final, cast
 
 from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.db import transaction
 from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponseBase
 from django.urls import URLPattern, URLResolver, get_resolver
@@ -52,6 +56,7 @@ from clearance.policies import BasePolicy
 from clearance.protocols import user_of
 from clearance.querysets import visible
 from clearance.registry import registry
+from clearance.writes import require_within_scope, write_action
 
 #: How an action is read off a Django generic view, most specific first:
 #: a ``DeleteView`` is a ``BaseDetailView`` too.
@@ -137,6 +142,35 @@ class ScopedQuerySetMixin:
     def get_queryset(self) -> QuerySet[Any]:
         queryset: QuerySet[Any] = cast(Any, super()).get_queryset()
         return visible(queryset, user_of(self.request), self.get_scope_action())
+
+    # ------------------------------------------------------------------ writes
+
+    def form_valid(self, form: Any) -> HttpResponseBase:
+        """Django's ``CreateView`` and ``UpdateView``: the row saved stays within the scope."""
+        creating = getattr(self, 'object', None) is None
+
+        with transaction.atomic():
+            response: HttpResponseBase = cast(Any, super()).form_valid(form)
+            self.require_written_within_scope(getattr(self, 'object', None), creating=creating)
+
+        return response
+
+    def perform_create(self, serializer: Any) -> None:
+        """DRF's ``CreateModelMixin``: the row made is one the person may make."""
+        with transaction.atomic():
+            cast(Any, super()).perform_create(serializer)
+            self.require_written_within_scope(serializer.instance, creating=True)
+
+    def perform_update(self, serializer: Any) -> None:
+        """DRF's ``UpdateModelMixin``: the row is not edited out of the rows the person reaches."""
+        with transaction.atomic():
+            cast(Any, super()).perform_update(serializer)
+            self.require_written_within_scope(serializer.instance, creating=False)
+
+    def require_written_within_scope(self, obj: object, *, creating: bool) -> None:
+        if isinstance(obj, Model):
+            action = write_action(self, creating=creating)
+            require_within_scope(user_of(self.request), action, obj)
 
 
 class PolicyRequiredMixin(AccessMixin):
