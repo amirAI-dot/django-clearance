@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"POT-Creation-Date: 2026-11-12 08:26-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -12,6 +12,31 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#, python-format
+msgid "%(code)r is not an action: use lowercase words joined by underscores."
+msgstr ""
+"%(code)r اکشن نیست: از کلمه‌های با حروف کوچک استفاده کنید که با زیرخط به هم "
+"وصل شده‌اند."
+
+#, python-format
+msgid "%(code)r is an action every model has already."
+msgstr "%(code)r اکشنی است که هر مدلی از قبل دارد."
+
+#, python-format
+msgid "%(model)s has no field %(field)r."
+msgstr "%(model)s فیلدی به اسم %(field)r ندارد."
+
+#, python-format
+msgid "%(field)s has no choices, and is not yes or no."
+msgstr "%(field)s گزینه ندارد، و بله یا نه هم نیست."
+
+msgid "It writes no value."
+msgstr "هیچ مقداری نمی‌نویسد."
+
+#, python-format
+msgid "%(value)r is not one of the values of %(field)s."
+msgstr "%(value)r یکی از مقدارهای %(field)s نیست."
 
 msgid "Actions"
 msgstr "اکشن‌ها"
@@ -99,6 +124,18 @@ msgstr "هر بسته یک اسم لازم دارد."
 #, python-format
 msgid "There is a bundle called %(name)s already."
 msgstr "بسته‌ای به اسم %(name)s از قبل هست."
+
+#, python-format
+msgid "%(field)s is a relation of another model, not a field of its own."
+msgstr "%(field)s رابطه‌ی یک مدل دیگر است، نه فیلدی از خود این مدل."
+
+#, python-format
+msgid "%(field)s is the primary key, how a row is found."
+msgstr "%(field)s کلید اصلی است، که ردیف با آن پیدا می‌شود."
+
+#, python-format
+msgid "%(field)s is the password, which is never shown at all."
+msgstr "%(field)s رمز عبور است، که هرگز نشان داده نمی‌شود."
 
 #, python-format
 msgid "You may not set %(field)s to %(value)s."
@@ -271,6 +308,184 @@ msgstr "همه‌ی ردیف‌ها"
 
 msgid "Their own"
 msgstr "ردیف‌های خودشان"
+
+#, python-format
+msgid "%(path)r crosses more than %(depth)s relations."
+msgstr "%(path)r از بیش از %(depth)s رابطه می‌گذرد."
+
+#, python-format
+msgid "%(path)r: %(name)r leads nowhere."
+msgstr "%(path)r: %(name)r به جایی نمی‌رسد."
+
+#, python-format
+msgid "%(path)r: %(model)s has no field %(name)r."
+msgstr "%(path)r: %(model)s فیلدی به اسم %(name)r ندارد."
+
+#, python-format
+msgid "%(path)r: %(field)s may not be read."
+msgstr "%(path)r: خواندن %(field)s مجاز نیست."
+
+#, python-format
+msgid "match must be one of %(matches)s, not %(match)r."
+msgstr "match باید یکی از %(matches)s باشد، نه %(match)r."
+
+msgid "A rule needs at least one condition; every row is the scope \"all\"."
+msgstr "یک قانون دست‌کم یک شرط می‌خواهد؛ همه‌ی ردیف‌ها همان دامنه‌ی «all» است."
+
+#, python-format
+msgid "Condition %(number)s: %(message)s"
+msgstr "شرط %(number)s: %(message)s"
+
+msgid "A condition is a field, an operator and a value."
+msgstr "یک شرط یک فیلد، یک عملگر و یک مقدار است."
+
+msgid "A condition names a field."
+msgstr "شرط باید یک فیلد را نام ببرد."
+
+#, python-format
+msgid "%(operator)r is not an operator. Choose one of %(operators)s."
+msgstr "%(operator)r عملگر نیست. یکی از این‌ها را انتخاب کنید: %(operators)s."
+
+#, python-format
+msgid "%(operator)r does not suit %(field)r, a %(kind)s field."
+msgstr "%(operator)r به %(field)r نمی‌خورد، که فیلدی از نوع %(kind)s است."
+
+msgid "The value is {\"constant\": ...} or {\"person\": \"<field>\"}."
+msgstr "مقدار یا {\"constant\": ...} است یا {\"person\": \"<field>\"}."
+
+#, python-format
+msgid "%(field)r reaches %(model)s; the person's %(path)r is not one."
+msgstr "%(field)r به %(model)s می‌رسد؛ %(path)r شخص از آن نوع نیست."
+
+#, python-format
+msgid "%(field)r holds %(kind)s; the person's %(path)r holds %(other)s."
+msgstr "%(field)r از نوع %(kind)s است؛ %(path)r شخص از نوع %(other)s است."
+
+#, python-format
+msgid "%(operator)r takes a list of values."
+msgstr "%(operator)r فهرستی از مقدارها می‌گیرد."
+
+#, python-format
+msgid "%(field)r is compared with nothing: use 'is_empty'."
+msgstr "%(field)r با هیچ‌چیز مقایسه شده: از 'is_empty' استفاده کنید."
+
+#, python-format
+msgid "%(value)r is not a value %(field)r can hold."
+msgstr "%(value)r مقداری نیست که %(field)r بتواند نگه دارد."
+
+#, python-format
+msgid "%(value)r is not one of the choices of %(field)r."
+msgstr "%(value)r یکی از گزینه‌های %(field)r نیست."
+
+msgid "You may not view access."
+msgstr "شما اجازه‌ی دیدن دسترسی‌ها را ندارید."
+
+msgid "You may not create access."
+msgstr "شما اجازه‌ی ساختن دسترسی را ندارید."
+
+msgid "You may not edit access."
+msgstr "شما اجازه‌ی ویرایش دسترسی را ندارید."
+
+msgid "You may not delete access."
+msgstr "شما اجازه‌ی حذف دسترسی را ندارید."
+
+msgid "You may not change a role's ceiling."
+msgstr "شما اجازه‌ی تغییر سقف یک نقش را ندارید."
+
+msgid "Nobody changes their own access."
+msgstr "هیچ‌کس دسترسی خودش را تغییر نمی‌دهد."
+
+#, python-format
+msgid "The %(kind)s %(key)r is declared in code: change it there."
+msgstr "%(kind)s %(key)r در کد اعلام شده: همان‌جا تغییرش دهید."
+
+msgid "Nobody changes a bundle they hold themselves."
+msgstr "هیچ‌کس بسته‌ای را که خودش دارد تغییر نمی‌دهد."
+
+msgid "no scope"
+msgstr "بدون دامنه"
+
+#, python-format
+msgid "You cannot give a permission you do not hold: %(permissions)s."
+msgstr "نمی‌توانید مجوزی را بدهید که خودتان ندارید: %(permissions)s."
+
+#, python-format
+msgid ""
+"You cannot give a permission with a scope you do not hold it with: "
+"%(permissions)s."
+msgstr ""
+"نمی‌توانید مجوزی را با دامنه‌ای بدهید که خودتان آن را با آن دامنه ندارید: "
+"%(permissions)s."
+
+msgid ""
+"After this nobody but the superuser could manage access. Give somebody else "
+"permission_edit first."
+msgstr ""
+"بعد از این، جز superuser هیچ‌کس نمی‌تواند دسترسی را مدیریت کند. اول "
+"permission_edit را به کس دیگری بدهید."
+
+#, python-format
+msgid ""
+"%(name)r is the scope of %(count)s grant(s). Choose another scope for them "
+"first."
+msgstr ""
+"%(name)r دامنه‌ی %(count)s اعطا است. اول برای آن‌ها دامنه‌ی دیگری انتخاب کنید."
+
+#, python-format
+msgid "%(code)r is not a code: use letters, digits and underscores."
+msgstr "%(code)r کد نیست: از حرف، رقم و زیرخط استفاده کنید."
+
+#, python-format
+msgid "%(code)r is already a scope of this model."
+msgstr "%(code)r از قبل یکی از دامنه‌های این مدل است."
+
+msgid "Nobody changes the rows of a scope their own grants are in."
+msgstr "هیچ‌کس ردیف‌های دامنه‌ای را که اعطاهای خودش در آن است تغییر نمی‌دهد."
+
+#, python-format
+msgid "%(field)s is already protected."
+msgstr "%(field)s از قبل محافظت‌شده است."
+
+#, python-format
+msgid "%(field)s is read by the scope rules %(rules)s. Change them first."
+msgstr ""
+"دامنه‌های قانونی %(rules)s فیلد %(field)s را می‌خوانند. اول آن‌ها را تغییر دهید."
+
+#, python-format
+msgid ""
+"%(field)s is protected in code, by build_permissions; it is unprotected "
+"there."
+msgstr ""
+"%(field)s در کد، با build_permissions، محافظت شده؛ محافظتش همان‌جا برداشته "
+"می‌شود."
+
+#, python-format
+msgid "%(code)r is an action %(model)s has already."
+msgstr "%(code)r اکشنی است که %(model)s از قبل دارد."
+
+msgid "Nobody lets an action they hold write from more values."
+msgstr "هیچ‌کس نمی‌گذارد اکشنی که خودش دارد از مقدارهای بیشتری بنویسد."
+
+#, python-format
+msgid "%(name)s: no such permission"
+msgstr "%(name)s: چنین مجوزی وجود ندارد"
+
+#, python-format
+msgid ""
+"%(name)s: a field's permission takes no scope - it is the person's, not the "
+"row's"
+msgstr "%(name)s: مجوز یک فیلد دامنه نمی‌گیرد - مال شخص است، نه مال ردیف"
+
+#, python-format
+msgid "%(name)s: its model offers no scope %(scope)r"
+msgstr "%(name)s: مدل آن دامنه‌ای به اسم %(scope)r ندارد"
+
+#, python-format
+msgid ""
+"%(value)r... is longer than the %(longest)s characters a %(field)s may have."
+msgstr ""
+"%(value)r... از %(longest)s نویسه‌ای که %(field)s می‌تواند داشته باشد بلندتر "
+"است."
 
 msgid ""
 "Declared in code: it is changed in the ACCESS file, and shown here read only."

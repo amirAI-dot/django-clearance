@@ -6,8 +6,7 @@ creates a row for anybody else, moves a row out of the rows they reach, and -
 in the admin site - edits rows they may only look at, through an inline, the
 editable list, or an action Django's own permissions decide.
 
-Each of these is a finding of the 0.1.0 review. One not yet fixed is marked
-``xfail`` - strictly, so the mark is taken off by whoever fixes it.
+Each of these was a finding of the 0.1.0 review.
 """
 
 from typing import Any

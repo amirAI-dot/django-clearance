@@ -30,6 +30,7 @@ from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Model
+from django.utils.translation import gettext
 
 from clearance.grants import forget_grants
 from clearance.permissions import is_action_name
@@ -261,14 +262,17 @@ class RoleService:
 
     def _require_not_own_role(self, role: Role) -> None:
         if not self.rules.unbound and role.code in roles_of(self.actor):  # type: ignore[arg-type]
-            raise AccessRefused('own_role', 'Nobody changes what their own role holds.')
+            raise AccessRefused('own_role', gettext('Nobody changes what their own role holds.'))
 
     @staticmethod
     def _require_assigning() -> None:
         if not resolver().assigns:
             raise ValidationError(
-                f'Roles are read by {type(resolver()).__name__}, not from what is assigned '
-                f'here: give them where it reads them.'
+                gettext(
+                    'Roles are read by %(resolver)s, not from what is assigned here: '
+                    'give them where it reads them.'
+                )
+                % {'resolver': type(resolver()).__name__}
             )
 
     @staticmethod
@@ -281,10 +285,12 @@ class RoleService:
     @staticmethod
     def _check_code(code: str) -> None:
         if not is_action_name(code):
-            raise ValidationError(f'{code!r} is not a code: use lowercase words joined by _.')
+            raise ValidationError(
+                gettext('%(code)r is not a code: use lowercase words joined by _.') % {'code': code}
+            )
 
         if Role.objects.filter(code=code).exists():
-            raise ValidationError(f'There is a role {code!r} already.')
+            raise ValidationError(gettext('There is a role %(code)r already.') % {'code': code})
 
     @staticmethod
     def _permissions(names: Iterable[str]) -> list[Permission]:
@@ -303,7 +309,9 @@ class RoleService:
                 found.append(row)
 
         if missing:
-            raise ValidationError([f'{name}: no such permission' for name in missing])
+            raise ValidationError(
+                [gettext('%(name)s: no such permission') % {'name': name} for name in missing]
+            )
 
         return found
 

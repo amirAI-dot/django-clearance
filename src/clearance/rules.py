@@ -33,6 +33,7 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models
 from django.db.models import Q, Subquery
+from django.utils.translation import gettext
 
 from clearance.conf import clearance_settings
 from clearance.protocols import User
@@ -113,25 +114,35 @@ class Path:
         depth = rule_depth()
 
         if len(names) - 1 > depth:
-            raise ValidationError(f'{path!r} crosses more than {depth} relations.')
+            raise ValidationError(
+                gettext('%(path)r crosses more than %(depth)s relations.')
+                % {'path': path, 'depth': depth}
+            )
 
         current, field = model, None
 
         for position, name in enumerate(names):
             if field is not None:
                 if not field.is_relation or field.related_model is None:
-                    raise ValidationError(f'{path!r}: {names[position - 1]!r} leads nowhere.')
+                    raise ValidationError(
+                        gettext('%(path)r: %(name)r leads nowhere.')
+                        % {'path': path, 'name': names[position - 1]}
+                    )
                 current = field.related_model
 
             try:
                 field = current._meta.get_field(name)
             except FieldDoesNotExist:
                 raise ValidationError(
-                    f'{path!r}: {current.__name__} has no field {name!r}.'
+                    gettext('%(path)r: %(model)s has no field %(name)r.')
+                    % {'path': path, 'model': current.__name__, 'name': name}
                 ) from None
 
             if not readable(current, name, protection):
-                raise ValidationError(f'{path!r}: {current.__name__}.{name} may not be read.')
+                raise ValidationError(
+                    gettext('%(path)r: %(field)s may not be read.')
+                    % {'path': path, 'field': f'{current.__name__}.{name}'}
+                )
 
         return cls(model, names, field)
 
@@ -209,10 +220,15 @@ class Rule:
         problems: list[str] = []
 
         if match not in MATCHES:
-            problems.append(f'match must be one of {", ".join(MATCHES)}, not {match!r}.')
+            problems.append(
+                gettext('match must be one of %(matches)s, not %(match)r.')
+                % {'matches': ', '.join(MATCHES), 'match': match}
+            )
 
         if not isinstance(raw, list) or not raw:
-            problems.append('A rule needs at least one condition; every row is the scope "all".')
+            problems.append(
+                gettext('A rule needs at least one condition; every row is the scope "all".')
+            )
             raise ValidationError(problems)
 
         conditions = []
@@ -221,7 +237,11 @@ class Rule:
             try:
                 conditions.append(parse_condition(model, item, protection))
             except ValidationError as error:
-                problems += [f'Condition {number}: {message}' for message in error.messages]
+                problems += [
+                    gettext('Condition %(number)s: %(message)s')
+                    % {'number': number, 'message': message}
+                    for message in error.messages
+                ]
 
         if problems:
             raise ValidationError(problems)
@@ -235,23 +255,25 @@ class Rule:
 
 def parse_condition(model: type[models.Model], item: object, protection: 'Protection') -> Condition:
     if not isinstance(item, Mapping):
-        raise ValidationError('A condition is a field, an operator and a value.')
+        raise ValidationError(gettext('A condition is a field, an operator and a value.'))
 
     field = Path.resolve(model, str(item.get('field', '')), protection)
 
     if field.field is None:
-        raise ValidationError('A condition names a field.')
+        raise ValidationError(gettext('A condition names a field.'))
 
     operator = OPERATORS.get(str(item.get('operator')))
 
     if operator is None:
         raise ValidationError(
-            f'{item.get("operator")!r} is not an operator. Choose one of {", ".join(OPERATORS)}.'
+            gettext('%(operator)r is not an operator. Choose one of %(operators)s.')
+            % {'operator': item.get('operator'), 'operators': ', '.join(OPERATORS)}
         )
 
     if field.kind not in operator.kinds:
         raise ValidationError(
-            f'{operator.code!r} does not suit {field.lookup!r}, a {field.kind} field.'
+            gettext('%(operator)r does not suit %(field)r, a %(kind)s field.')
+            % {'operator': operator.code, 'field': field.lookup, 'kind': field.kind}
         )
 
     value = item.get('value')
@@ -260,7 +282,7 @@ def parse_condition(model: type[models.Model], item: object, protection: 'Protec
         return Condition(field, operator)
 
     if not isinstance(value, Mapping) or len(value) != 1 or not {'constant', 'person'} & set(value):
-        raise ValidationError('The value is {"constant": ...} or {"person": "<field>"}.')
+        raise ValidationError(gettext('The value is {"constant": ...} or {"person": "<field>"}.'))
 
     if 'person' in value:
         person = _person_path(field, str(value['person']), protection)
@@ -275,12 +297,13 @@ def _person_path(field: Path, path: str, protection: 'Protection') -> Path:
     if field.kind == RELATION:
         if person.target is None or person.target is not field.target:
             raise ValidationError(
-                f"{field.lookup!r} reaches {_name(field.target)}; the person's {path or 'self'!r} "
-                f'is not one.'
+                gettext("%(field)r reaches %(model)s; the person's %(path)r is not one.")
+                % {'field': field.lookup, 'model': _name(field.target), 'path': path or 'self'}
             )
     elif person.kind != field.kind:
         raise ValidationError(
-            f"{field.lookup!r} holds {field.kind}; the person's {path!r} holds {person.kind}."
+            gettext("%(field)r holds %(kind)s; the person's %(path)r holds %(other)s.")
+            % {'field': field.lookup, 'kind': field.kind, 'path': path, 'other': person.kind}
         )
 
     return person
@@ -289,7 +312,9 @@ def _person_path(field: Path, path: str, protection: 'Protection') -> Path:
 def _constant(field: Path, operator: Operator, value: object) -> object:
     if operator.takes == 'many':
         if not isinstance(value, list) or not value:
-            raise ValidationError(f'{operator.code!r} takes a list of values.')
+            raise ValidationError(
+                gettext('%(operator)r takes a list of values.') % {'operator': operator.code}
+            )
         return [_one_constant(field, item) for item in value]
     return _one_constant(field, value)
 
@@ -297,7 +322,9 @@ def _constant(field: Path, operator: Operator, value: object) -> object:
 def _one_constant(field: Path, value: object) -> object:
     if value is None:
         # Kept in words, nothing would be read back as '' - a value of its own.
-        raise ValidationError(f"{field.lookup!r} is compared with nothing: use 'is_empty'.")
+        raise ValidationError(
+            gettext("%(field)r is compared with nothing: use 'is_empty'.") % {'field': field.lookup}
+        )
 
     related = field.target if field.kind == RELATION else None
     target = related._meta.pk if related is not None else field.field
@@ -305,13 +332,19 @@ def _one_constant(field: Path, value: object) -> object:
     try:
         cleaned = target.to_python(value)
     except ValidationError:
-        raise ValidationError(f'{value!r} is not a value {field.lookup!r} can hold.') from None
+        raise ValidationError(
+            gettext('%(value)r is not a value %(field)r can hold.')
+            % {'value': value, 'field': field.lookup}
+        ) from None
 
     has_choices = related is None and getattr(field.field, 'choices', None)
     choices = {choice for choice, _ in field.field.flatchoices} if has_choices else None
 
     if choices is not None and cleaned not in choices:
-        raise ValidationError(f'{value!r} is not one of the choices of {field.lookup!r}.')
+        raise ValidationError(
+            gettext('%(value)r is not one of the choices of %(field)r.')
+            % {'value': value, 'field': field.lookup}
+        )
 
     return cleaned
 

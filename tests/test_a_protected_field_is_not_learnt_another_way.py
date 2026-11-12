@@ -6,8 +6,7 @@ score: by filtering the admin list from the address bar, through a related
 row's serializer, by searching an API, or through a proxy of the model - and
 a value a status action claims is written under another name.
 
-Each of these is a finding of the 0.1.0 review. One not yet fixed is marked
-``xfail`` - strictly, so the mark is taken off by whoever fixes it.
+Each of these was a finding of the 0.1.0 review.
 """
 
 from typing import Any

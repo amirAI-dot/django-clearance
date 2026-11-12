@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"POT-Creation-Date: 2026-11-12 08:25-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -70,6 +70,31 @@ msgstr "چیزی خواسته نشد."
 #, python-format
 msgid "There is nobody called %(name)s."
 msgstr "کسی به اسم %(name)s نیست."
+
+msgid "Nobody changes what their own role holds."
+msgstr "هیچ‌کس چیزی را که نقش خودش دارد تغییر نمی‌دهد."
+
+#, python-format
+msgid ""
+"Roles are read by %(resolver)s, not from what is assigned here: give them "
+"where it reads them."
+msgstr ""
+"نقش‌ها را %(resolver)s می‌خواند، نه از آنچه این‌جا داده می‌شود: آن‌ها را همان‌جایی "
+"بدهید که از آن می‌خواند."
+
+#, python-format
+msgid "%(code)r is not a code: use lowercase words joined by _."
+msgstr ""
+"%(code)r کد نیست: از کلمه‌های با حروف کوچک استفاده کنید که با _ به هم وصل "
+"شده‌اند."
+
+#, python-format
+msgid "There is a role %(code)r already."
+msgstr "نقشی با کد %(code)r از قبل هست."
+
+#, python-format
+msgid "%(name)s: no such permission"
+msgstr "%(name)s: چنین مجوزی وجود ندارد"
 
 msgid ""
 "Declared in code: it is changed in the ACCESS file, and shown here read "

@@ -28,6 +28,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
+from django.utils.translation import gettext_lazy as _
 
 from clearance.grants import Scope, grants_of, groups_lookup
 from clearance.limits import limits
@@ -45,21 +46,24 @@ MANAGE: Mapping[str, str] = {
 }
 
 
-#: What each permission to manage access lets a person do, in words.
-_CHANGES: Mapping[str, str] = {
-    'view': 'view access',
-    'create': 'create access',
-    'edit': 'edit access',
-    'delete': 'delete access',
-    'ceiling': "change a role's ceiling",
+#: What somebody without a permission to manage access is told.
+_REFUSALS: Mapping[str, Any] = {
+    'view': _('You may not view access.'),
+    'create': _('You may not create access.'),
+    'edit': _('You may not edit access.'),
+    'delete': _('You may not delete access.'),
+    'ceiling': _("You may not change a role's ceiling."),
 }
 
 
 class AccessRefused(PermissionDenied):
-    """A change to access the safety rules refuse, saying which rule."""
+    """
+    A change to access the safety rules refuse, saying which rule - ``rule``,
+    for code - and why, in the language of whoever is refused.
+    """
 
-    def __init__(self, rule: str, message: str) -> None:
-        super().__init__(message)
+    def __init__(self, rule: str, message: object) -> None:
+        super().__init__(str(message))
         self.rule = rule
 
 
@@ -83,14 +87,14 @@ class SafetyRules:
         assert actor is not None
 
         if not (actor.is_authenticated and actor.is_active and actor.has_perm(MANAGE[change])):
-            raise AccessRefused('may_not_manage', f'You may not {_CHANGES[change]}.')
+            raise AccessRefused('may_not_manage', _REFUSALS[change])
 
     def require_not_own(self, person: object) -> None:
         if self.unbound:
             return
 
         if getattr(person, 'pk', None) == getattr(self.actor, 'pk', None):
-            raise AccessRefused('own_access', 'Nobody changes their own access.')
+            raise AccessRefused('own_access', _('Nobody changes their own access.'))
 
     def require_not_declared(self, kind: str, key: str) -> None:
         """
@@ -100,7 +104,8 @@ class SafetyRules:
         if self.actor is not None and Declared.holds(kind, key):
             raise AccessRefused(
                 'declared',
-                f'The {kind.replace("_", " ")} {key!r} is declared in code: change it there.',
+                _('The %(kind)s %(key)r is declared in code: change it there.')
+                % {'kind': dict(Declared.KIND_CHOICES).get(kind, kind), 'key': key},
             )
 
     def require_not_held(self, bundle: Group) -> None:
@@ -113,7 +118,7 @@ class SafetyRules:
         given = holders.filter(pk=getattr(self.actor, 'pk', None)).exists()
 
         if given or limits().starting_bundles(self.actor).filter(pk=bundle.pk).exists():
-            raise AccessRefused('own_bundle', 'Nobody changes a bundle they hold themselves.')
+            raise AccessRefused('own_bundle', _('Nobody changes a bundle they hold themselves.'))
 
     def require_holds(self, grants: Mapping[str, Scope]) -> None:
         """The actor holds every permission in ``grants``, each with that scope or ``all``."""
@@ -123,6 +128,7 @@ class SafetyRules:
         assert self.actor is not None
         held = grants_of(self.actor)
         missing, wider = [], []
+        no_scope = _('no scope')
 
         for permission, scope in sorted(grants.items()):
             scopes = held.scopes(permission)
@@ -130,18 +136,23 @@ class SafetyRules:
             if scopes is None:
                 missing.append(permission)
             elif EVERY_ROW not in scopes and scope not in scopes:
-                wider.append(f'{permission} ({scope or "no scope"})')
+                wider.append(f'{permission} ({scope or no_scope})')
 
         if missing:
             raise AccessRefused(
-                'not_held', f'You cannot give a permission you do not hold: {", ".join(missing)}.'
+                'not_held',
+                _('You cannot give a permission you do not hold: %(permissions)s.')
+                % {'permissions': ', '.join(missing)},
             )
 
         if wider:
             raise AccessRefused(
                 'scope_not_held',
-                f'You cannot give a permission with a scope you do not hold it with: '
-                f'{", ".join(wider)}.',
+                _(
+                    'You cannot give a permission with a scope you do not hold it with: '
+                    '%(permissions)s.'
+                )
+                % {'permissions': ', '.join(wider)},
             )
 
     @contextmanager
@@ -154,8 +165,10 @@ class SafetyRules:
         if somebody_could and not somebody_holds(MANAGE['edit']):
             raise AccessRefused(
                 'nobody_left',
-                'After this nobody but the superuser could manage access. '
-                'Give somebody else permission_edit first.',
+                _(
+                    'After this nobody but the superuser could manage access. '
+                    'Give somebody else permission_edit first.'
+                ),
             )
 
 
