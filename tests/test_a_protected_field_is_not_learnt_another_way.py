@@ -13,13 +13,18 @@ Each of these is a finding of the 0.1.0 review. One not yet fixed is marked
 from typing import Any
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.test import Client
 from rest_framework import filters, serializers
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from clearance.actions import writable_values
 from clearance.drf.serializers import protected_serializer
 from clearance.drf.viewsets import ScopedModelViewSet
 from clearance.fields import readable_fields
+from clearance.models import ProtectedField
+from clearance.permissions import field_permission
+from clearance.writes import refused_writes
 from tests.conftest import MakeUser
 from tests.project.accounts.models import Person
 from tests.project.lending.api import LoanViewSet
@@ -28,6 +33,7 @@ from tests.project.lending.models import Loan, Payment
 pytestmark = pytest.mark.django_db
 
 READER = ('lending.loan_view', 'all')
+SCORE_VIEW = 'lending.loan_view_credit_score'
 EDITOR = (READER, ('lending.loan_edit', 'all'))
 
 
@@ -37,7 +43,6 @@ def call(view: Any, method: str, person: Person, data: Any = None, **kwargs: Any
     return view(request, **kwargs)
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_the_admin_list_is_not_filtered_by_a_protected_field_from_the_address_bar(
     make_user: MakeUser,
 ) -> None:
@@ -55,7 +60,6 @@ def test_the_admin_list_is_not_filtered_by_a_protected_field_from_the_address_ba
     assert shown('credit_score__gte=500') == shown('credit_score__gte=700')
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_related_rows_protected_field_is_left_out_of_a_nested_serializer(
     make_user: MakeUser,
 ) -> None:
@@ -74,7 +78,6 @@ def test_a_related_rows_protected_field_is_left_out_of_a_nested_serializer(
     assert 'credit_score' not in shown['loan']
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_an_api_is_not_searched_by_a_protected_field(make_user: MakeUser) -> None:
     class SearchedLoans(LoanViewSet):
         filter_backends = (filters.SearchFilter,)
@@ -92,7 +95,43 @@ def test_an_api_is_not_searched_by_a_protected_field(make_user: MakeUser) -> Non
     assert found('600') == found('601') == 0
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
+def test_an_api_is_not_sorted_by_a_protected_field(make_user: MakeUser) -> None:
+    class SortedLoans(LoanViewSet):
+        filter_backends = (filters.OrderingFilter,)
+        ordering_fields = ('amount', 'credit_score')
+        ordering = ('-credit_score',)
+
+    owner = make_user()
+    low = Loan.objects.create(applicant=owner, amount=1, credit_score=300)
+    high = Loan.objects.create(applicant=owner, amount=2, credit_score=800)
+    view = SortedLoans.as_view({'get': 'list'})
+
+    def listed(person: Person, **query: str) -> list[int]:
+        request = APIRequestFactory().get('/', query)
+        force_authenticate(request, person)
+        return [row['id'] for row in view(request).data]
+
+    clerk = make_user(READER)  # may not read the credit score
+    officer = make_user(READER, 'lending.loan_view_credit_score')
+
+    assert listed(officer) == [high.pk, low.pk]
+    assert listed(officer, ordering='credit_score') == [low.pk, high.pk]
+    assert listed(clerk) == listed(clerk, ordering='-credit_score') == [low.pk, high.pk]
+    assert listed(clerk, ordering='-amount') == [high.pk, low.pk]
+
+
+def test_a_related_row_is_not_written_under_the_name_of_its_column(make_user: MakeUser) -> None:
+    """``officer_id`` is ``officer``: a field is protected under either name."""
+    ProtectedField.objects.create(
+        content_type=ContentType.objects.get_for_model(Loan), field='officer'
+    )
+    clerk = make_user(*EDITOR)
+
+    assert refused_writes(clerk, Loan, {'officer_id': clerk.pk}) == {
+        'officer': 'You may not write officer.'
+    }
+
+
 def test_a_value_a_status_action_claims_is_refused_under_another_name(
     make_user: MakeUser,
 ) -> None:
@@ -123,7 +162,6 @@ def test_a_value_a_status_action_claims_is_refused_under_another_name(
     assert loan.status == 'pending'
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_field_protected_in_code_is_protected_on_a_proxy_of_its_model(
     make_user: MakeUser,
 ) -> None:
@@ -139,6 +177,10 @@ def test_a_field_protected_in_code_is_protected_on_a_proxy_of_its_model(
 
         assert 'credit_score' not in readable_fields(clerk, Loan)
         assert 'credit_score' not in readable_fields(clerk, RecentLoan)
+        # ... and it is the one field, with the one pair of permissions.
+        assert field_permission(RecentLoan, 'credit_score', 'view') == SCORE_VIEW
+        assert 'credit_score' in readable_fields(make_user(READER, SCORE_VIEW), RecentLoan)
+        assert writable_values(clerk, RecentLoan, 'status') == {'pending'}
     finally:
         del apps.all_models['lending']['recentloan']
         apps.clear_cache()

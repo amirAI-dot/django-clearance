@@ -341,10 +341,16 @@ def field_permission(model: type[Model] | Model, field: str, action: str) -> str
 
     ``shop.order_view_price`` on a model declaring its own permissions,
     ``shop.view_order_price`` - Django's verbs - on one keeping Django's.
+
+    It is the permission of the model the field is a field *of*: asked about
+    a proxy, or a model that inherits the field from a parent with a table of
+    its own, the answer is the one model's that declares it - a field has two
+    permissions, however many models show it.
     """
     if action not in FIELD_ACTIONS:
         raise ValueError(f'A field is read with view or written with edit, not {action!r}.')
 
+    model = field_owner(model, field)
     meta = model._meta
     verb = DJANGO_VERBS[action]
 
@@ -352,6 +358,33 @@ def field_permission(model: type[Model] | Model, field: str, action: str) -> str
         return f'{meta.app_label}.{verb}_{meta.model_name}_{field}'
 
     return f'{meta.app_label}.{resource_codename(model)}_{action}_{field}'
+
+
+def field_owner(model: type[Model] | Model, field: str) -> type[Model]:
+    """
+    The model ``field`` is a field of: ``model``'s concrete model - never a
+    proxy - or the parent it is inherited from, when that has its own table.
+    """
+    from django.core.exceptions import FieldDoesNotExist
+
+    concrete: type[Model] = model._meta.concrete_model  # type: ignore[assignment]
+
+    try:
+        owner = getattr(concrete._meta.get_field(field), 'model', None)
+    except FieldDoesNotExist:
+        return concrete
+
+    # A relation another model has to this one answers with that model: not an owner.
+    return owner if isinstance(owner, type) and issubclass(concrete, owner) else concrete
+
+
+def models_of(model: type[Model] | Model) -> tuple[type[Model], ...]:
+    """
+    Every model whose fields ``model`` has: its concrete model, and the
+    parents it inherits from that have tables of their own.
+    """
+    concrete: type[Model] = model._meta.concrete_model  # type: ignore[assignment]
+    return (concrete, *concrete._meta.get_parent_list())
 
 
 def resource_codename(model: type[Model] | Model) -> str:
@@ -362,8 +395,12 @@ def resource_codename(model: type[Model] | Model) -> str:
 
 
 def declared_status_actions(model: type[Model] | Model) -> Mapping[str, StatusDeclaration]:
-    """The status actions ``model`` declares in code, through ``build_permissions``."""
-    declared = model._meta.permissions
+    """
+    The status actions ``model`` declares in code, through ``build_permissions``
+    - its concrete model's: a proxy writes the same rows, so the same values
+    are claimed on it.
+    """
+    declared = model._meta.concrete_model._meta.permissions  # type: ignore[union-attr]
     return declared.status_actions if isinstance(declared, DeclaredPermissions) else {}
 
 
@@ -389,6 +426,17 @@ def _status_declaration(codename: str, code: str, raw: object) -> StatusDeclarat
 
 
 def declared_protected_fields(model: type[Model] | Model) -> tuple[str, ...]:
-    """The fields ``model`` protects in code, through ``build_permissions``."""
-    declared = model._meta.permissions
-    return declared.protected_fields if isinstance(declared, DeclaredPermissions) else ()
+    """
+    The fields of ``model`` protected in code, through ``build_permissions`` -
+    on its concrete model, or on a parent it inherits them from. A proxy shows
+    the same columns, so what is protected on the model is protected on it.
+    """
+    found: list[str] = []
+
+    for owner in models_of(model):
+        declared = owner._meta.permissions
+
+        if isinstance(declared, DeclaredPermissions):
+            found += [name for name in declared.protected_fields if name not in found]
+
+    return tuple(found)

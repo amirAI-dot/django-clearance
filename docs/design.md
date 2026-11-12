@@ -734,14 +734,25 @@ refused.
 |---|---|
 | a Django form | `ProtectedFieldsFormMixin` drops what may not be read, and shows disabled what may not be written - Django then keeps the value the row holds, whatever is sent |
 | a Django view | `ProtectedFieldsViewMixin` builds the form that way, and gives the template `readable_fields` and `writable_fields` |
-| the admin site | every `ModelAdmin` on `ClearanceAdminSite`, with no mixin: left out of the form, the list, the search, the filters and the ordering; read only, in the form and in `list_editable`, where it may not be written |
-| a DRF serializer | `ProtectedFieldsSerializerMixin` leaves out, locks and refuses; on every serializer, `ModelPolicyPermission` and `PolicyPermission` refuse what may not be written |
+| the admin site | every `ModelAdmin` on `ClearanceAdminSite`, with no mixin: left out of the form, the list, the search, the filters, the ordering and the date hierarchy, and refused as a filter typed into the address bar (`?price__gte=`); read only, in the form and in `list_editable`, where it may not be written |
+| a DRF serializer | `ProtectedFieldsSerializerMixin` leaves out, locks and refuses - under whatever name the serializer gives the field (`source=`), and in a serializer nested in it, written out or made by `depth`; on every serializer, `ModelPolicyPermission` and `PolicyPermission` refuse what may not be written |
+| a DRF view | `ProtectedSerializerMixin` - in `ScopedModelViewSet` already - has `SearchFilter` and `OrderingFilter` leave the field out; a filter of the project's own asks `path_readable` |
 | a template | `{% if perms.shop.view_order_price %}` |
 | code | `readable_fields(user, Order)`, `writable_fields(user, Order)` |
 
 The library guards the doors it provides; `Order.objects.values('price')` in
 the project's own code is the project's to guard, and the documentation says
 so. In 0.1 a field's permissions are the person's, not the row's.
+
+A field has the one pair of permissions however many models show it: it is
+protected on a proxy of its model, and on a model that inherits it from a
+parent with a table of its own, by the permissions of the model it is a
+field of. A status action is claimed on a proxy the same. And a relation is
+protected under its column's name too - `officer_id` is `officer`.
+
+In the admin site, a field choosing a related row offers the rows of that
+model the person may view, and the one the row holds already: a list of
+every loan on a payment's page showed them to somebody who may see none.
 
 What is protected is read once per request, in one query over the whole
 table - it holds the handful of fields a project protects - and kept on the

@@ -13,6 +13,12 @@ for either, or a value a status action claims that they are not allowed, is
 **refused**, naming the field - never silently dropped, so a client that
 thinks it saved something is told it did not.
 
+**A related row's fields are protected the same.** A serializer nested in this
+one - written out, or made by ``depth`` - is given this mixin too, so a
+payment does not show the credit score of its loan. And a value is refused
+under whatever name the serializer gives its field: ``decision``, with
+``source='status'``, is the status.
+
 **What it saves stays among the rows the person reaches**: a row made outside
 the scope ``create`` was given in, or edited out of the scope it was reached
 in, is refused with a 403 and the write undone - whatever ``perform_create``
@@ -78,12 +84,16 @@ class ProtectedFieldsSerializerMixin:
         protected = protection_of(user).fields(model)
 
         if not protected:
+            for field in fields.values():
+                _protect_nested(field)
             return fields
 
         readable, writable = readable_fields(user, model), writable_fields(user, model)
 
         for name, field in list(fields.items()):
             target = field.source or name
+
+            _protect_nested(field)
 
             if target not in protected:
                 continue
@@ -103,7 +113,28 @@ class ProtectedFieldsSerializerMixin:
             if refused:
                 raise serializers.ValidationError({name: [why] for name, why in refused.items()})
 
-        return super().to_internal_value(data)  # type: ignore[misc]
+        validated = super().to_internal_value(data)  # type: ignore[misc]
+
+        if isinstance(validated, Mapping):
+            # Again by the names of the model's fields: a field may be sent under another.
+            self._refuse(validated)
+
+        return validated
+
+    def build_nested_field(self, *args: Any, **kwargs: Any) -> Any:
+        """A serializer ``depth`` makes for a related row protects that row's fields too."""
+        field_class, field_kwargs = super().build_nested_field(*args, **kwargs)  # type: ignore[misc]
+        return protected_serializer(field_class), field_kwargs
+
+    def _refuse(self, validated: Mapping[str, Any]) -> None:
+        obj = self.instance if isinstance(self.instance, Model) else None
+        refused = refused_writes(self.protected_for, self.protected_model, validated, obj)
+
+        if refused:
+            named = {field.source: name for name, field in self.fields.items()}  # type: ignore[attr-defined]
+            raise serializers.ValidationError(
+                {named.get(source, source): [why] for source, why in refused.items()}
+            )
 
     def save(self, **kwargs: Any) -> Any:
         creating = self.instance is None
@@ -116,6 +147,19 @@ class ProtectedFieldsSerializerMixin:
                 require_within_scope(self.protected_for, action, saved)
 
         return saved
+
+
+def _protect_nested(field: Any) -> None:
+    """
+    Give a serializer nested in a protected one the mixin too - in place: it
+    is already built, and reads whose it is from the serializer it is in.
+    """
+    nested = field.child if isinstance(field, serializers.ListSerializer) else field
+
+    if isinstance(nested, serializers.ModelSerializer) and not isinstance(
+        nested, ProtectedFieldsSerializerMixin
+    ):
+        nested.__class__ = protected_serializer(type(nested))
 
 
 @cache
