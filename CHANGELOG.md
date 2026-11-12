@@ -79,6 +79,12 @@ Found by a security review of 0.1.0.
   fixed number of times (about 90 before, and one more for each bundle; 19
   now), and saving a bundle no longer reads it once for each permission.
 
+* **A refusal is said in the reader's language.** What the safety rules
+  refuse, and what is wrong with a rule, a status action, a protected field
+  or a name, was said in English whatever the language of the page. Each is
+  marked for translation and said in Persian; `AccessRefused.rule` still
+  names the rule for code.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

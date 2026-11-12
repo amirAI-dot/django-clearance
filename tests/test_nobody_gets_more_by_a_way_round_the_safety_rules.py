@@ -6,8 +6,7 @@ holding it themselves - by changing the rows a rule scope reaches, giving back
 a permission that was taken away, or lifting a ceiling with a second role -
 and Django's own user pages hand over a superuser's account, or a role.
 
-Each of these is a finding of the 0.1.0 review. One not yet fixed is marked
-``xfail`` - strictly, so the mark is taken off by whoever fixes it.
+Each of these was a finding of the 0.1.0 review.
 """
 
 from datetime import datetime

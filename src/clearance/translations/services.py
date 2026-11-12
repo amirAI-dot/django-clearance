@@ -15,6 +15,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils.translation import gettext
 
 from clearance.protocols import User
 from clearance.safety import SafetyRules
@@ -34,7 +35,10 @@ class TranslationService:
         known = [code for code, _ in settings.LANGUAGES]
 
         if language not in known:
-            raise ValidationError(f'{language!r} is not one of LANGUAGES: {", ".join(known)}.')
+            raise ValidationError(
+                gettext('%(language)r is not one of LANGUAGES: %(known)s.')
+                % {'language': language, 'known': ', '.join(known)}
+            )
 
         where: dict[str, Any] = {
             'content_type': ContentType.objects.get_for_model(thing),

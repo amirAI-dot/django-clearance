@@ -24,6 +24,7 @@ from typing import Any, Final
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models
 from django.db.models import Model
+from django.utils.translation import gettext
 
 from clearance.fields import ModelKey, model_key, writable_fields
 from clearance.grants import KEPT_PREFIX
@@ -81,24 +82,38 @@ def status_action_problems(
     problems = []
 
     if not is_action_name(code):
-        problems.append(f'{code!r} is not an action: use lowercase words joined by underscores.')
+        problems.append(
+            gettext('%(code)r is not an action: use lowercase words joined by underscores.')
+            % {'code': code}
+        )
     elif code in STANDARD_ACTIONS:
-        problems.append(f'{code!r} is an action every model has already.')
+        problems.append(gettext('%(code)r is an action every model has already.') % {'code': code})
 
     try:
         every = values_of(model, field)
     except FieldDoesNotExist:
-        return [*problems, f'{model.__name__} has no field {field!r}.']
+        return [
+            *problems,
+            gettext('%(model)s has no field %(field)r.')
+            % {'model': model.__name__, 'field': field},
+        ]
 
     if every is None:
-        return [*problems, f'{model.__name__}.{field} has no choices, and is not yes or no.']
+        return [
+            *problems,
+            gettext('%(field)s has no choices, and is not yes or no.')
+            % {'field': f'{model.__name__}.{field}'},
+        ]
 
     if not to:
-        problems.append('It writes no value.')
+        problems.append(gettext('It writes no value.'))
 
     for value in (*to, *start):
         if clean_value(model, field, value) not in every:
-            problems.append(f'{value!r} is not one of the values of {model.__name__}.{field}.')
+            problems.append(
+                gettext('%(value)r is not one of the values of %(field)s.')
+                % {'value': value, 'field': f'{model.__name__}.{field}'}
+            )
 
     return problems
 

@@ -29,6 +29,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Model, Q
+from django.utils.translation import gettext
 
 from clearance import querysets, signals
 from clearance.actions import status_action_problems, transition
@@ -335,8 +336,11 @@ class AccessService:
 
         if in_use:
             raise ValidationError(
-                f'{rule.name!r} is the scope of {in_use} grant(s). Choose another scope for '
-                f'them first.'
+                gettext(
+                    '%(name)r is the scope of %(count)s grant(s). Choose another scope for '
+                    'them first.'
+                )
+                % {'name': rule.name, 'count': in_use}
             )
 
         model, code, name = rule.content_type.model_class(), rule.code, rule.name
@@ -351,13 +355,18 @@ class AccessService:
         problems += too_long(ScopeRule, code=rule.code, name=rule.name)
 
         if not rule.code.isidentifier():
-            problems.append(f'{rule.code!r} is not a code: use letters, digits and underscores.')
+            problems.append(
+                gettext('%(code)r is not a code: use letters, digits and underscores.')
+                % {'code': rule.code}
+            )
 
         rows = model._default_manager.all() if model is not None else None
         taken = {EVERY_ROW, *(rows.scopes if isinstance(rows, ScopedQuerySet) else ())}
 
         if rule.code in taken:
-            problems.append(f'{rule.code!r} is already a scope of this model.')
+            problems.append(
+                gettext('%(code)r is already a scope of this model.') % {'code': rule.code}
+            )
 
         try:
             rule.compiled()
@@ -383,7 +392,8 @@ class AccessService:
 
         if own.exists():
             raise AccessRefused(
-                'own_scope', 'Nobody changes the rows of a scope their own grants are in.'
+                'own_scope',
+                gettext('Nobody changes the rows of a scope their own grants are in.'),
             )
 
     # ------------------------------------------------------------------
@@ -404,7 +414,9 @@ class AccessService:
         problem = protection_problem(model, field)
 
         if problem is None and protection.protects(model, field):
-            problem = f'{model.__name__}.{field} is already protected.'
+            problem = gettext('%(field)s is already protected.') % {
+                'field': f'{model.__name__}.{field}'
+            }
 
         if problem is not None:
             raise ValidationError(problem)
@@ -413,8 +425,8 @@ class AccessService:
 
         if reading:
             raise ValidationError(
-                f'{model.__name__}.{field} is read by the scope rules {", ".join(reading)}. '
-                f'Change them first.'
+                gettext('%(field)s is read by the scope rules %(rules)s. Change them first.')
+                % {'field': f'{model.__name__}.{field}', 'rules': ', '.join(reading)}
             )
 
         content_type = ContentType.objects.get_for_model(model)
@@ -450,8 +462,10 @@ class AccessService:
 
         if field in declared_protected_fields(model):
             raise ValidationError(
-                f'{model.__name__}.{field} is protected in code, by build_permissions; '
-                f'it is unprotected there.'
+                gettext(
+                    '%(field)s is protected in code, by build_permissions; it is unprotected there.'
+                )
+                % {'field': f'{model.__name__}.{field}'}
             )
 
         content_type = ContentType.objects.get_for_model(model)
@@ -523,7 +537,10 @@ class AccessService:
         )
 
         if taken:
-            problems.append(f'{code!r} is an action {model.__name__} has already.')
+            problems.append(
+                gettext('%(code)r is an action %(model)s has already.')
+                % {'code': code, 'model': model.__name__}
+            )
 
         if problems:
             raise ValidationError(problems)
@@ -581,7 +598,8 @@ class AccessService:
 
         if widens and self._holds(permission):
             raise AccessRefused(
-                'own_action', 'Nobody lets an action they hold write from more values.'
+                'own_action',
+                gettext('Nobody lets an action they hold write from more values.'),
             )
 
         if widens:
@@ -656,7 +674,7 @@ class AccessService:
             row = rows.get(name)
 
             if row is None:
-                problems.append(f'{name}: no such permission')
+                problems.append(gettext('%(name)s: no such permission') % {'name': name})
                 continue
 
             if scopes and scope is not None:
@@ -671,11 +689,17 @@ class AccessService:
 
                 if model is not None and protection.owns(model, name):
                     problems.append(
-                        f"{name}: a field's permission takes no scope - it is the person's, "
-                        f"not the row's"
+                        gettext(
+                            "%(name)s: a field's permission takes no scope - it is the "
+                            "person's, not the row's"
+                        )
+                        % {'name': name}
                     )
                 elif scope not in offered:
-                    problems.append(f'{name}: its model offers no scope {scope!r}')
+                    problems.append(
+                        gettext('%(name)s: its model offers no scope %(scope)r')
+                        % {'name': name, 'scope': scope}
+                    )
 
             found[name] = row
 
@@ -774,7 +798,10 @@ def too_long(model: type[Model], **values: str) -> list[str]:
 
         if longest is not None and len(value) > longest:
             problems.append(
-                f'{value[:30]!r}... is longer than the {longest} characters a {name} may have.'
+                gettext(
+                    '%(value)r... is longer than the %(longest)s characters a %(field)s may have.'
+                )
+                % {'value': value[:30], 'longest': longest, 'field': name}
             )
 
     return problems

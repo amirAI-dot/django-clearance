@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:22-0600\n"
+"POT-Creation-Date: 2026-11-12 08:25-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -37,6 +37,10 @@ msgstr "اسم‌ها ذخیره شدند."
 #, python-format
 msgid "Names of %(thing)s"
 msgstr "اسم‌های %(thing)s"
+
+#, python-format
+msgid "%(language)r is not one of LANGUAGES: %(known)s."
+msgstr "%(language)r یکی از LANGUAGES نیست: %(known)s."
 
 msgid "As the code or its row says it"
 msgstr "همان‌طور که کد یا ردیفش می‌گوید"

@@ -6,8 +6,7 @@ a page answers a wrong address with a server error, a list scoped by a view
 is not the list the queryset itself gives, and a page reads the database once
 for every bundle there is.
 
-Each of these is a finding of the 0.1.0 review. One not yet fixed is marked
-``xfail`` - strictly, so the mark is taken off by whoever fixes it.
+Each of these was a finding of the 0.1.0 review.
 """
 
 from typing import Any
@@ -22,6 +21,7 @@ from django.utils import translation
 
 from clearance.models import ScopeRule
 from clearance.querysets import SignedInReadQuerySet, visible
+from clearance.safety import AccessRefused
 from clearance.services import AccessService
 from tests.conftest import MakeBundle, MakeUser
 from tests.project.accounts.models import Person
@@ -61,7 +61,6 @@ def test_a_bundle_that_is_not_a_number_is_not_a_server_error(make_user: MakeUser
     assert response.status_code in (302, 400, 404)
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_refusal_is_said_in_the_readers_language(make_user: MakeUser) -> None:
     """The README: "The pages, messages and permissions come in English and Persian"."""
     manager = make_user(*MANAGE)
@@ -73,9 +72,44 @@ def test_a_refusal_is_said_in_the_readers_language(make_user: MakeUser) -> None:
             f'/admin/access/people/{manager.pk}/', {'do': 'give', 'bundle': bundle.pk}, follow=True
         )
 
-    assert [str(message) for message in page.context['messages']] != [
-        'Nobody changes their own access.'
-    ]
+    said = [str(message) for message in page.context['messages']]
+    assert said != ['Nobody changes their own access.']
+    assert len(said) == 1
+    assert not said[0].isascii()
+
+
+def test_every_refusal_has_its_words_in_persian(make_user: MakeUser) -> None:
+    """A refusal, and what is wrong with what was asked: said in Persian, each of them."""
+    manager, other = make_user(*MANAGE), make_user()
+    access = AccessService(actor=manager)
+    refusals: list[str] = []
+
+    def said(change: Any) -> None:
+        with pytest.raises((AccessRefused, ValidationError)) as refusal:
+            change()
+        error = refusal.value
+        refusals.extend(error.messages if isinstance(error, ValidationError) else [str(error)])
+
+    with translation.override('fa'):
+        said(lambda: access.grant(manager, 'lending.loan_view', 'all'))
+        said(lambda: access.grant(other, 'lending.loan_view', 'all'))
+        said(lambda: access.grant(other, 'lending.no_such', None))
+        said(lambda: access.create_bundle('Readers', {}))
+        said(lambda: AccessService(actor=None).create_bundle('x' * 200, {}))
+        said(lambda: AccessService(actor=None).protect_field(Loan, 'id'))
+        said(
+            lambda: AccessService(actor=None).create_scope_rule(
+                Loan, 'all', 'Every loan', [{'field': 'applicant__password', 'operator': 'is'}]
+            )
+        )
+        said(
+            lambda: AccessService(actor=None).create_status_action(
+                Loan, 'view', 'View', 'amount', ['paid']
+            )
+        )
+
+    assert len(refusals) >= 10
+    assert [message for message in refusals if message.isascii()] == []
 
 
 @pytest.mark.parametrize(

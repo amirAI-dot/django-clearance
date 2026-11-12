@@ -27,6 +27,7 @@ from types import MappingProxyType
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Model
+from django.utils.translation import gettext
 
 from clearance.grants import KEPT_PREFIX, grants_of
 from clearance.models import ProtectedField
@@ -165,16 +166,21 @@ def protection_problem(model: type[Model], name: str) -> str | None:
     try:
         field = model._meta.get_field(name)
     except FieldDoesNotExist:
-        return f'{model.__name__} has no field {name!r}.'
+        return gettext('%(model)s has no field %(field)r.') % {
+            'model': model.__name__,
+            'field': name,
+        }
+
+    named = {'field': f'{model.__name__}.{name}'}
 
     if name not in field_names(model):
-        return f'{model.__name__}.{name} is a relation of another model, not a field of its own.'
+        return gettext('%(field)s is a relation of another model, not a field of its own.') % named
 
     if getattr(field, 'primary_key', False):
-        return f'{model.__name__}.{name} is the primary key, how a row is found.'
+        return gettext('%(field)s is the primary key, how a row is found.') % named
 
     if issubclass(model, AbstractBaseUser) and name == 'password':
-        return f'{model.__name__}.{name} is the password, which is never shown at all.'
+        return gettext('%(field)s is the password, which is never shown at all.') % named
 
     return None
 
