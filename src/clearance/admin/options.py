@@ -13,9 +13,12 @@ project's admin classes stay exactly as Django documents them:
   the editable list, a row the person may look at but not edit is shown
   locked, and one they may not delete is not deleted;
 * **which fields** - a protected field the person may not read is left out of
-  the form, the list, the search, the filters and the ordering; one they may
-  read but not write is read only; a field a status action writes offers
-  only the values they may set;
+  the form, the list, the search, the filters, the ordering and the date
+  hierarchy, and a filter typed into the address bar - ``?price__gte=`` - is
+  refused; one they may read but not write is read only; a field a status
+  action writes offers only the values they may set; and a field choosing a
+  related row offers the rows of that model they may view, and the one the
+  row holds already;
 * **which actions** - an admin action the project wrote is offered only to
   whoever holds its permission (``<codename>_<action>``, made on migrate),
   and runs only over the rows its scope reaches. One that names Django's
@@ -223,7 +226,25 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
     def get_changelist_instance(self, request: HttpRequest) -> Any:
         changelist = super().get_changelist_instance(request)  # type: ignore[misc]
         changelist.list_editable = self.editable(request)
+        hierarchy = changelist.date_hierarchy
+
+        if hierarchy and not path_readable(user_of(request), self.model, hierarchy):
+            changelist.date_hierarchy = None  # its links would say which dates there are
+
         return changelist
+
+    def lookup_allowed(self, lookup: str, value: Any, request: HttpRequest | None = None) -> bool:
+        """
+        A filter typed into the address bar - ``?credit_score__gte=700`` - is a
+        yes-or-no question about the field, asked until its value is known. On
+        a field the person may not read it is refused, as Django refuses a
+        lookup the admin does not allow.
+        """
+        if request is not None and not path_readable(user_of(request), self.model, lookup):
+            return False
+
+        allowed: bool = super().lookup_allowed(lookup, value, request)  # type: ignore[misc]
+        return allowed
 
     def get_changelist_form(self, request: HttpRequest, **kwargs: Any) -> type[Any]:
         form = super().get_changelist_form(request, **kwargs)  # type: ignore[misc]
@@ -327,6 +348,36 @@ class BoundToUserFormMixin(ProtectedFieldsFormMixin):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs.setdefault('user', self.bound_user)
         super().__init__(*args, **kwargs)
+        self._offer_reachable_rows()
+
+    def _offer_reachable_rows(self) -> None:
+        """
+        A field choosing a related row - a loan for a payment - offers the rows
+        of that model the person may view, and whatever the row holds already:
+        a list of every loan would show them to somebody who may see none, and
+        choosing one would write to it. The superuser is offered every row.
+        """
+        user = self.protected_for
+
+        if getattr(user, 'is_superuser', False) and user.is_active:
+            return
+
+        for name, field in self.fields.items():
+            rows = getattr(field, 'queryset', None)
+
+            if rows is None:
+                continue
+
+            reached = visible(rows.model._default_manager.all(), user, 'view')
+            offered = Q(pk__in=reached.values('pk'))
+
+            if self.instance is not None and self.instance.pk is not None:
+                held = self.initial.get(name)  # type: ignore[attr-defined]
+                keys = held if isinstance(held, list | tuple) else [held]
+                kept = [getattr(key, 'pk', key) for key in keys if key is not None]
+                offered |= Q(pk__in=kept)
+
+            field.queryset = rows.filter(offered)  # type: ignore[attr-defined]
 
 
 def form_for(form: type[Any], user: User) -> type[Any]:

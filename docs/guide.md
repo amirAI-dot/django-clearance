@@ -213,6 +213,18 @@ and gives the template `readable_fields`:
 {% if 'price' in readable_fields %}<td>{{ order.price }}</td>{% endif %}
 ```
 
+The library's doors hide the field every way round: a serializer nested in a
+protected one, a field renamed with `source=`, DRF's `SearchFilter` and
+`OrderingFilter` on a `ScopedModelViewSet`, a filter typed into the admin
+site's address bar, and a proxy of the model. A filter of your own - a
+`django-filter` filterset, say - asks before it filters:
+
+```python
+from clearance.fields import path_readable
+
+if path_readable(request.user, Order, 'price__gte'): ...
+```
+
 ---
 
 ## 7. Actions

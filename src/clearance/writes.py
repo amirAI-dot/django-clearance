@@ -36,7 +36,7 @@ from django.db.models import Model
 from django.utils.translation import gettext_lazy as _
 
 from clearance.actions import clean_value, status_actions_of, writable_values
-from clearance.fields import field_names, writable_fields
+from clearance.fields import writable_fields
 from clearance.protocols import User
 from clearance.registry import registry
 
@@ -48,8 +48,13 @@ def refused_writes(
     user: User, model: type[Model], data: Mapping[str, Any], obj: Model | None = None
 ) -> dict[str, str]:
     """``{field: why}`` for every value in ``data`` ``user`` may not write to ``obj``."""
-    names = set(field_names(model))
-    sent = {name: value for name, value in data.items() if name in names}
+    # A relation is written under its column's name too - ``officer_id`` for ``officer``.
+    names = {
+        key: field.name
+        for field in (*model._meta.fields, *model._meta.many_to_many)
+        for key in (field.name, field.attname)
+    }
+    sent = {names[key]: value for key, value in data.items() if key in names}
 
     if not sent:
         return {}

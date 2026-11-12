@@ -11,15 +11,21 @@ works on its own on any other DRF view:
 * ``ScopedQuerySetMixin`` - the rows the person reaches for the action;
 * ``ModelPolicyPermission`` - the model's policy asked, writes guarded;
 * ``ProtectedSerializerMixin`` - the serializer leaves out and locks the
-  protected fields, whether or not it was written to.
+  protected fields, whether or not it was written to; and DRF's
+  ``SearchFilter`` and ``OrderingFilter`` leave out a field the person may
+  not read - searching or sorting by it tells what it holds. A filter of the
+  project's own asks ``clearance.fields.path_readable`` for itself.
 """
 
+from functools import cache
 from typing import Any
 
-from rest_framework import viewsets
+from rest_framework import filters, viewsets
 
 from clearance.drf.permissions import ModelPolicyPermission
 from clearance.drf.serializers import protected_serializer
+from clearance.fields import path_readable
+from clearance.protocols import user_of
 from clearance.views import ScopedQuerySetMixin
 
 
@@ -28,6 +34,50 @@ class ProtectedSerializerMixin:
 
     def get_serializer_class(self) -> type[Any]:
         return protected_serializer(super().get_serializer_class())  # type: ignore[misc]
+
+    def filter_queryset(self, queryset: Any) -> Any:
+        """DRF's own, with each backend searching and sorting by readable fields only."""
+        for backend in list(self.filter_backends):  # type: ignore[attr-defined]
+            queryset = protected_backend(backend)().filter_queryset(self.request, queryset, self)  # type: ignore[attr-defined]
+
+        return queryset
+
+
+class ReadableSearchMixin:
+    """A ``SearchFilter`` that searches only the fields the person may read."""
+
+    def get_search_fields(self, view: Any, request: Any) -> Any:
+        fields = super().get_search_fields(view, request)  # type: ignore[misc]
+        model = getattr(getattr(view, 'queryset', None), 'model', None) or view.get_queryset().model
+        user = user_of(request)
+        return [field for field in fields or () if path_readable(user, model, str(field))]
+
+
+class ReadableOrderingMixin:
+    """An ``OrderingFilter`` that sorts only by the fields the person may read."""
+
+    def get_ordering(self, request: Any, queryset: Any, view: Any) -> Any:
+        ordering = super().get_ordering(request, queryset, view)  # type: ignore[misc]
+        user = user_of(request)
+        return [
+            field
+            for field in ordering or ()
+            if not isinstance(field, str) or path_readable(user, queryset.model, field)
+        ]
+
+
+@cache
+def protected_backend(backend: type[Any]) -> type[Any]:
+    """``backend``, leaving out what the person may not read - made once per class."""
+    mixins = [
+        mixin
+        for mixin, base in (
+            (ReadableSearchMixin, filters.SearchFilter),
+            (ReadableOrderingMixin, filters.OrderingFilter),
+        )
+        if issubclass(backend, base) and not issubclass(backend, mixin)
+    ]
+    return type(backend.__name__, (*mixins, backend), {}) if mixins else backend
 
 
 class ScopedModelViewSet(  # type: ignore[misc]

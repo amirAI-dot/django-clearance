@@ -30,7 +30,13 @@ from django.db.models import Model
 
 from clearance.grants import KEPT_PREFIX, grants_of
 from clearance.models import ProtectedField
-from clearance.permissions import FIELD_ACTIONS, declared_protected_fields, field_permission
+from clearance.permissions import (
+    FIELD_ACTIONS,
+    declared_protected_fields,
+    field_owner,
+    field_permission,
+    models_of,
+)
 from clearance.protocols import User
 
 #: Where what is protected is kept on a user object once read.
@@ -64,8 +70,16 @@ class Protection:
         return frozenset(declared_protected_fields(model)) | self.stored(model)
 
     def stored(self, model: type[Model]) -> frozenset[str]:
-        """The fields of ``model`` an administrator protected in the database."""
-        return self._stored.get(model_key(model), frozenset())
+        """
+        The fields of ``model`` an administrator protected in the database -
+        on it, or on a parent it inherits them from.
+        """
+        found: frozenset[str] = frozenset()
+
+        for owner in models_of(model):
+            found |= self._stored.get(model_key(owner), frozenset())
+
+        return found
 
     def protects(self, model: type[Model], name: str) -> bool:
         return name in self.fields(model)
@@ -78,8 +92,8 @@ class Protection:
 
     def adding(self, model: type[Model], name: str) -> 'Protection':
         """As it would be with ``model.name`` protected too - to see what that would break."""
-        key = model_key(model)
-        return Protection({**self._stored, key: self.stored(model) | {name}})
+        key = model_key(field_owner(model, name))
+        return Protection({**self._stored, key: self._stored.get(key, frozenset()) | {name}})
 
 
 def protection_of(user: object) -> Protection:
@@ -117,7 +131,7 @@ def path_readable(user: User, model: type[Model], path: str) -> bool:
     """
     current = model
 
-    for name in path.lstrip('-^=@').split('__'):
+    for name in path.lstrip('-^=@$').split('__'):
         try:
             field = current._meta.get_field(name)
         except FieldDoesNotExist:

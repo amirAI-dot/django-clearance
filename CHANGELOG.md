@@ -43,6 +43,22 @@ Found by a security review of 0.1.0.
 * **A bundle a person starts with by their role is one they hold**: they do
   not change it.
 
+* **A protected field is not learnt another way.** Without its view
+  permission it was still read, or its value narrowed down, through:
+  * a filter typed into the admin site's address bar (`?price__gte=`), and
+    the date hierarchy - both refused now;
+  * a serializer nested in a protected one, written out or made by `depth`;
+  * DRF's `SearchFilter` and `OrderingFilter` naming it, on a view with
+    `ProtectedSerializerMixin` (`ScopedModelViewSet` has it);
+  * a proxy of its model, or a model inheriting it from a parent with its
+    own table - it has the one pair of permissions on all of them.
+* **A value is refused under whatever name it is sent**: a serializer field
+  with `source='status'` could write a value a status action claims, and a
+  relation could be written under its column's name (`officer_id`).
+* **A form in the admin site offers only the related rows the person may
+  view**, and the one the row holds already. **Changed:** choosing a related
+  row there needs `view` on its model.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

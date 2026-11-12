@@ -213,6 +213,18 @@ writable_fields(user, Order)
 {% if 'price' in readable_fields %}<td>{{ order.price }}</td>{% endif %}
 ```
 
+درهای کتابخانه فیلد را از هر راه دیگری هم پنهان می‌کنند: serializerی که داخل یک
+serializer محافظت‌شده است، فیلدی که با `source=` نام دیگری گرفته، `SearchFilter` و
+`OrderingFilter` خود DRF روی `ScopedModelViewSet`، فیلتری که در نوار نشانی پنل
+ادمین تایپ شود، و proxy مدل. فیلتر خودتان - مثلاً یک filterset از `django-filter` -
+پیش از فیلتر کردن می‌پرسد:
+
+```python
+from clearance.fields import path_readable
+
+if path_readable(request.user, Order, 'price__gte'): ...
+```
+
 ---
 
 ## ۷. اکشن‌ها

@@ -144,7 +144,13 @@ def test_a_row_is_not_added_in_the_admin_site_outside_the_scope_of_create(
     make_user: MakeUser,
 ) -> None:
     their_loan = Loan.objects.create(applicant=make_user(), amount=100)
-    clerk = staff(make_user(('lending.view_payment', 'own'), ('lending.add_payment', 'own')))
+    clerk = staff(
+        make_user(
+            ('lending.loan_view', 'all'),  # every loan is offered; a payment only for their own
+            ('lending.view_payment', 'own'),
+            ('lending.add_payment', 'own'),
+        )
+    )
     my_loan = Loan.objects.create(applicant=clerk, amount=100)
     client = admin_of(clerk)
 
@@ -258,7 +264,6 @@ def test_an_action_djangos_permissions_decide_runs_over_the_rows_of_that_permiss
     assert loan.region == 'north'  # archive needs change, which they hold for their own only
 
 
-@pytest.mark.xfail(reason='A finding of the 0.1.0 review, fixed in a later stage.')
 def test_a_form_in_the_admin_site_offers_only_the_related_rows_the_person_reaches(
     make_user: MakeUser,
 ) -> None:
@@ -269,3 +274,25 @@ def test_a_form_in_the_admin_site_offers_only_the_related_rows_the_person_reache
 
     assert page.status_code == 200
     assert str(loan) not in page.content.decode()  # "Loan 1 for 123456", in a <select>
+
+
+def test_a_form_in_the_admin_site_keeps_the_related_row_a_row_holds_already(
+    make_user: MakeUser,
+) -> None:
+    """Or a payment of a loan they may not view could not be saved at all."""
+    loan = Loan.objects.create(applicant=make_user(), amount=123456)
+    payment = Payment.objects.create(loan=loan, amount=5)
+    Loan.objects.create(applicant=make_user(), amount=654321)
+    clerk = staff(make_user(('lending.view_payment', 'all'), ('lending.change_payment', 'all')))
+    client = admin_of(clerk)
+
+    page = client.get(f'/admin/lending/payment/{payment.pk}/change/')
+    saved = client.post(
+        f'/admin/lending/payment/{payment.pk}/change/',
+        {'loan': loan.pk, 'amount': 6, 'state': 'due'},
+    )
+
+    assert str(loan) in page.content.decode()
+    assert 'for 654321' not in page.content.decode()
+    assert saved.status_code == 302
+    assert Payment.objects.get(pk=payment.pk).amount == 6
