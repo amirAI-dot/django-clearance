@@ -7,7 +7,11 @@ project's admin classes stay exactly as Django documents them:
 * **who** - ``has_view_permission`` and the rest ask the model's policy, with
   the object when there is one;
 * **which rows** - the change list, and every object opened, come from the
-  rows the person reaches;
+  rows the person reaches; and what is written stays among them - a row
+  added outside the scope ``create`` was given in, or edited out of the rows
+  the person may edit, is refused and the write undone. In an inline and in
+  the editable list, a row the person may look at but not edit is shown
+  locked, and one they may not delete is not deleted;
 * **which fields** - a protected field the person may not read is left out of
   the form, the list, the search, the filters and the ordering; one they may
   read but not write is read only; a field a status action writes offers
@@ -15,7 +19,8 @@ project's admin classes stay exactly as Django documents them:
 * **which actions** - an admin action the project wrote is offered only to
   whoever holds its permission (``<codename>_<action>``, made on migrate),
   and runs only over the rows its scope reaches. One that names Django's
-  ``permissions=`` is Django's to decide.
+  ``permissions=`` is Django's to offer, and runs over the rows those
+  permissions reach.
 
 On the user model, a person's groups and permissions are read only - they are
 changed on the library's people page, under the safety rules - and so is a
@@ -34,7 +39,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Model, QuerySet
+from django.db.models import Model, Q, QuerySet
 from django.forms.models import modelformset_factory
 from django.http import HttpRequest
 
@@ -47,6 +52,10 @@ from clearance.protocols import User, user_of
 from clearance.querysets import visible
 from clearance.registry import registry
 from clearance.safety import SafetyRules
+from clearance.writes import require_within_scope
+
+#: Django's own permissions, as an admin action names them, in the library's words.
+_DJANGO_PERMISSIONS = {'view': 'view', 'add': 'create', 'change': 'edit', 'delete': 'delete'}
 
 #: What a person's own access is made of, on the user model: changed on the people page only.
 _ACCESS_FIELDS = ('groups', 'user_permissions')
@@ -149,6 +158,27 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
         with self._keeping_somebody_managing(request):
             super().delete_queryset(request, queryset)  # type: ignore[misc]
 
+    # ------------------------------------------------------------------ writes
+
+    def save_related(self, request: HttpRequest, form: Any, formsets: Any, change: bool) -> None:
+        """
+        Once the row and everything of it is saved - its many-to-many fields
+        too, which a scope may read - it is still a row the person may write.
+        """
+        super().save_related(request, form, formsets, change)  # type: ignore[misc]
+        require_within_scope(user_of(request), 'edit' if change else 'create', form.instance)
+
+    def save_formset(self, request: HttpRequest, form: Any, formset: Any, change: bool) -> None:
+        """An inline's rows: each one added or changed stays among the rows the person may."""
+        super().save_formset(request, form, formset, change)  # type: ignore[misc]
+        user = user_of(request)
+
+        for added in getattr(formset, 'new_objects', ()):
+            require_within_scope(user, 'create', added)
+
+        for changed, _fields in getattr(formset, 'changed_objects', ()):
+            require_within_scope(user, 'edit', changed)
+
     @contextmanager
     def _keeping_somebody_managing(self, request: HttpRequest) -> Iterator[None]:
         """
@@ -202,13 +232,14 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
     def get_changelist_formset(self, request: HttpRequest, **kwargs: Any) -> type[Any]:
         """Django's own, over only the editable columns the person may write."""
         defaults = {'formfield_callback': partial(self.formfield_for_dbfield, request=request)}  # type: ignore[attr-defined]
-        return modelformset_factory(
+        formset = modelformset_factory(
             self.model,
             self.get_changelist_form(request),
             extra=0,
             fields=self.editable(request),
             **{**defaults, **kwargs},
         )
+        return formset_for(formset, user_of(request))
 
     def editable(self, request: HttpRequest) -> tuple[str, ...]:
         """``list_editable``, less every column the person may not write."""
@@ -239,7 +270,7 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
             if name == 'delete_selected':
                 offered[name] = _with_func(action, _scoped(func, 'delete', _below(user)))
             elif getattr(func, 'allowed_permissions', None):
-                offered[name] = action  # Django's to decide
+                offered[name] = _with_func(action, _reaching(func))  # Django's to offer
             elif is_action_name(name) and self.policy.allows(user, name):
                 offered[name] = _with_func(action, _scoped(func, name))
 
@@ -273,7 +304,7 @@ class ClearanceInlineMixin(ProtectedFieldsAdminMixin):
     def get_formset(self, request: HttpRequest, obj: Model | None = None, **kwargs: Any) -> Any:
         formset = super().get_formset(request, obj, **kwargs)  # type: ignore[misc]
         formset.form = form_for(formset.form, user_of(request))
-        return formset
+        return formset_for(formset, user_of(request))
 
 
 @cache
@@ -310,6 +341,57 @@ def form_for(form: type[Any], user: User) -> type[Any]:
         {'__module__': form.__module__, 'bound_user': user},
     )
     return bound
+
+
+class ScopedFormSetMixin:
+    """
+    A formset of rows the person may look at, changing only those they may.
+
+    The admin site lists the rows a person may *view* - in an inline, in the
+    editable list - and asks whether they may change the model, not each row.
+    So a row outside the scope they hold ``edit`` in is locked here: its
+    fields are disabled, which is Django's way of keeping what the row holds
+    whatever the browser sends. One outside their ``delete`` is not deleted.
+    """
+
+    bound_user: User
+    model: type[Model]
+
+    def _reached(self, action: str) -> frozenset[Any]:
+        """The keys of this formset's rows the person reaches for ``action`` - one query."""
+        kept: dict[str, frozenset[Any]] = self.__dict__.setdefault('_clearance_reached', {})
+
+        if action not in kept:
+            rows: Any = self.get_queryset()  # type: ignore[attr-defined]
+            keys = [row.pk for row in rows]
+            reached = visible(self.model._default_manager.all(), self.bound_user, action)
+            kept[action] = frozenset(reached.filter(pk__in=keys).values_list('pk', flat=True))
+
+        return kept[action]
+
+    def _construct_form(self, i: int, **kwargs: Any) -> Any:
+        form = super()._construct_form(i, **kwargs)  # type: ignore[misc]
+        key = form.instance.pk
+
+        saved = key is not None and i < self.initial_form_count()  # type: ignore[attr-defined]
+
+        if saved and key not in self._reached('edit'):
+            for field in form.fields.values():
+                field.disabled = True
+
+        return form
+
+    def _should_delete_form(self, form: Any) -> bool:
+        asked: bool = super()._should_delete_form(form)  # type: ignore[misc]
+        return asked and (form.instance.pk is None or form.instance.pk in self._reached('delete'))
+
+
+def formset_for(formset: type[Any], user: User) -> type[Any]:
+    """``formset``, changing only the rows ``user`` may - a class made per request."""
+    if issubclass(formset, ScopedFormSetMixin):
+        return formset
+
+    return type(formset.__name__, (ScopedFormSetMixin, formset), {'bound_user': user})
 
 
 def _with_mixin(mixin: type, cls: type[Any]) -> type[Any]:
@@ -352,6 +434,34 @@ def _scoped(
         return func(modeladmin, request, narrowed(rows) if narrowed is not None else rows)
 
     return scoped
+
+
+def _reaching(func: Callable[..., Any]) -> Callable[..., Any]:
+    """
+    An admin action naming Django's permissions - ``permissions=('change',)`` -
+    run only over the selected rows those permissions reach for the person.
+
+    Django offers it to whoever holds any one of them, asked about the model;
+    which rows is the library's to say. A permission of the project's own -
+    ``has_publish_permission`` - is the project's to scope.
+    """
+    named = tuple(getattr(func, 'allowed_permissions', ()))
+    actions = [_DJANGO_PERMISSIONS[name] for name in named if name in _DJANGO_PERMISSIONS]
+
+    if len(actions) != len(named):
+        return func
+
+    @wraps(func)
+    def reaching(modeladmin: Any, request: HttpRequest, queryset: QuerySet[Any]) -> Any:
+        user, rows = user_of(request), queryset.model._default_manager.all()
+        reached = Q()
+
+        for action in actions:
+            reached |= Q(pk__in=visible(rows, user, action).values('pk'))
+
+        return func(modeladmin, request, queryset.filter(reached))
+
+    return reaching
 
 
 def _above(user: User, obj: object | None) -> bool:

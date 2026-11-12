@@ -17,6 +17,19 @@ Found by a security review of 0.1.0.
 * **The last person able to manage access is not switched off or deleted** on
   the user page.
 
+* **A scope holds for what is written.** A row created outside the scope
+  `create` was given in, or edited out of the rows the person reaches, is
+  refused and the write undone - in Django's views, DRF, and the admin site.
+  `clearance.writes.require_within_scope` asks the same in a view that saves
+  by hand. **Changed:** a grant of `create` with no scope now reaches the
+  model's `default_scope`, as every other grant does - so no rows on a
+  `ScopedQuerySet` that names none. Give `create` a scope.
+* **An inline and the editable list change only the rows the person may
+  edit**, and an inline deletes only those they may delete. Before, every
+  row they could view was theirs to change there.
+* **An admin action naming Django's `permissions=`** runs over the rows
+  those permissions reach, not every row the person can see.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

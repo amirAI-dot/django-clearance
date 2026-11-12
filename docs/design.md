@@ -673,6 +673,28 @@ within the person's scope for that action. A view finds its object among
 `visible_to(user, action)` already; asked from a service, it costs one
 `exists()`.
 
+### 9.5 What is written
+
+A scope narrows what a person writes as surely as what they read. Once a row
+is saved, and inside the transaction that saved it, every door asks whether
+it is among the rows the person reaches for the action - `create` for a new
+row, the view's own action for one changed - and a row that is not is
+refused and the write undone. So somebody given `create` for "their own"
+makes no row for anybody else, and nobody edits a row out of the rows they
+reach, to where they could never have reached it.
+
+It is asked after the write because a scope is a query: whether a row is "of
+their branch" is the database's to say, of the row as it is saved - its
+many-to-many fields included. A grant of `create` with no scope reaches the
+model's `default_scope`, as any grant does - and so nothing, on a
+`ScopedQuerySet` that names none.
+
+`ScopedQuerySetMixin` asks in `form_valid`, `perform_create` and
+`perform_update`; `ProtectedFieldsSerializerMixin` in `save`, so a view's own
+`perform_create` is covered too; the admin site once the row and its inlines
+are saved. A view that saves by hand asks with
+`clearance.writes.require_within_scope(user, action, obj)`.
+
 ---
 
 ## 10. Layer 3: protected fields
@@ -912,8 +934,13 @@ Django documents them:
   writes offers only the values they may set;
 * **which actions** - an admin action the project wrote is offered only to
   whoever holds its permission, and runs only over the selected rows its
-  scope reaches; one naming Django's `permissions=` is Django's to decide,
-  and `delete_selected` runs over the rows the person may delete.
+  scope reaches; one naming Django's `permissions=` is Django's to offer, and
+  runs over the rows those permissions reach; and `delete_selected` runs over
+  the rows the person may delete;
+* **what is written** - a row added or changed stays among the rows the
+  person may write (9.5). An inline and the editable list show the rows the
+  person may *view*: one they may not edit is locked there, and one they may
+  not delete is not deleted.
 
 On the user model, a person's groups and permissions are read only - they are
 changed on the people page, under the safety rules - and so is a field the
@@ -1207,9 +1234,9 @@ Made by the owner.
     makes a superuser, changes or deletes a superuser's account, or writes a
     field roles are read from; and the last person able to manage access is
     not switched off or deleted there.
-46. **An admin action naming Django's `permissions=` is Django's**; any other
-    is found, needs its own permission, and runs over the rows its scope
-    reaches.
+46. **An admin action naming Django's `permissions=` is Django's to offer**,
+    and runs over the rows those permissions reach; any other is found, needs
+    its own permission, and runs over the rows its scope reaches.
 47. **A person with no role, or with any role that is not limited, has no
     ceiling**; a new role is limited and permits nothing until its ceiling is
     set.

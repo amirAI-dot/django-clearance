@@ -12,17 +12,36 @@ they are the serializer's or the form's to judge.
 Every door that takes values from outside asks this - the API's permission
 class and its serializers - so a value is refused the same way whichever
 door it came through, and the refusal names the field.
+
+**And what is written stays among the rows the person reaches.** A scope that
+only narrowed what is read would let somebody given "their own" create a row
+for anybody else, or move a row to where they could never have reached it.
+So every door asks, once the row is saved and inside the same transaction::
+
+    with transaction.atomic():
+        payment = form.save()
+        require_within_scope(request.user, 'create', payment)
+
+A row outside the scope the action was given in is refused, and the
+transaction it was written in is undone. The library's views, serializers
+and admin pages ask by themselves; a view of the project's own that saves by
+hand asks as above.
 """
 
 from collections.abc import Mapping
 from typing import Any
 
+from django.core.exceptions import PermissionDenied
 from django.db.models import Model
 from django.utils.translation import gettext_lazy as _
 
 from clearance.actions import clean_value, status_actions_of, writable_values
 from clearance.fields import field_names, writable_fields
 from clearance.protocols import User
+from clearance.registry import registry
+
+#: The actions that only look: a write made by a view of one is an edit.
+_READS = frozenset({'view', 'list'})
 
 
 def refused_writes(
@@ -51,3 +70,30 @@ def refused_writes(
                 )
 
     return refused
+
+
+def require_within_scope(user: User, action: str, obj: Model) -> None:
+    """
+    ``PermissionDenied`` unless ``obj``, as it is saved now, is among the rows
+    ``user`` reaches for ``action``.
+
+    Asked after the row is written and inside the transaction that wrote it,
+    so the refusal undoes the write: a row made outside the scope ``create``
+    was given in, or edited out of the scope ``edit`` was.
+    """
+    if not registry.policy_for(type(obj)).within_scope(user, action, obj):
+        raise PermissionDenied
+
+
+def write_action(view: object, *, creating: bool) -> str:
+    """
+    The action whose scope a row written by ``view`` must stay within:
+    ``create`` for a new row; otherwise the view's own - ``approve`` for a view
+    that approves - and ``edit`` for a view that names only how it reads.
+    """
+    if creating:
+        return 'create'
+
+    named = getattr(view, 'get_scope_action', None)
+    action = named() if callable(named) else None
+    return action if isinstance(action, str) and action not in _READS else 'edit'
