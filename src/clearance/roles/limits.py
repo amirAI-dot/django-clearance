@@ -34,3 +34,6 @@ class RoleLimits(Limits):
 
     def describe(self, user: User) -> list[str]:
         return [str(role) for role in resolver().roles(user)]
+
+    def person_fields(self) -> frozenset[str]:
+        return resolver().fields()

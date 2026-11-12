@@ -421,7 +421,9 @@ manager. It gives two things:
 
 Roles are given in the admin site or with `RoleService(actor).assign(person,
 role)`, and read by the resolver `ROLE_RESOLVER` names. `AttributeResolver`
-reads them off the user instead - a field named by `ROLE_ATTRIBUTE`. In code:
+reads them off the user instead - a field named by `ROLE_ATTRIBUTE`, which
+only the superuser writes in the admin site: writing it is giving a role. In
+code:
 
 ```python
 from clearance.roles.resolvers import has_role

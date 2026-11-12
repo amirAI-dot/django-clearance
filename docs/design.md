@@ -916,8 +916,12 @@ Django documents them:
   and `delete_selected` runs over the rows the person may delete.
 
 On the user model, a person's groups and permissions are read only - they are
-changed on the people page, under the safety rules - and only the superuser
-makes somebody a superuser. Django's own group page is taken away: a bundle
+changed on the people page, under the safety rules - and so is a field the
+role resolver reads roles from. Only the superuser makes somebody a superuser,
+and only the superuser changes or deletes a superuser's account, password
+included: whoever sets it signs in as them. Switching off or deleting the last
+person able to manage access is refused there as everywhere. Django's own
+group page is taken away: a bundle
 is a group, and that page wrote round every rule. An admin site that is not
 the library's is refused at start-up (E016); a project with a site of its own
 subclasses `ClearanceAdminSite`.
@@ -1200,7 +1204,9 @@ Made by the owner.
     any other admin site is refused (E016).
 45. **On the user page, a person's groups and permissions are read only**,
     changed on the people page under the safety rules; only the superuser
-    makes a superuser.
+    makes a superuser, changes or deletes a superuser's account, or writes a
+    field roles are read from; and the last person able to manage access is
+    not switched off or deleted there.
 46. **An admin action naming Django's `permissions=` is Django's**; any other
     is found, needs its own permission, and runs over the rows its scope
     reaches.

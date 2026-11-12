@@ -44,6 +44,14 @@ class Limits:
         """What ``user`` is, in words - shown on their page in the admin site."""
         return []
 
+    def person_fields(self) -> frozenset[str]:
+        """
+        The fields of the user model that say what a person is. Writing one
+        gives its bundles and lifts its ceiling, so the admin site keeps it
+        for the superuser.
+        """
+        return frozenset()
+
 
 _installed: Limits = Limits()
 

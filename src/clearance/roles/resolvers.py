@@ -47,6 +47,14 @@ class RoleResolver(ABC):
     def holders(self, roles: 'QuerySet[Role]') -> 'QuerySet[Any]':
         """Everybody with any of ``roles``."""
 
+    def fields(self) -> frozenset[str]:
+        """
+        The fields of the user model this resolver reads roles from - none,
+        unless it says so. The admin site keeps them for the superuser: whoever
+        writes one gives a role, round every rule about giving one.
+        """
+        return frozenset()
+
 
 class AssignmentResolver(RoleResolver):
     """Roles given in the admin site, or by ``RoleService.assign``."""
@@ -66,6 +74,9 @@ class AttributeResolver(RoleResolver):
     @property
     def attribute(self) -> str:
         return str(clearance_settings.value('ROLE_ATTRIBUTE'))
+
+    def fields(self) -> frozenset[str]:
+        return frozenset({self.attribute})
 
     def roles(self, user: User) -> 'QuerySet[Role]':
         code = getattr(user, self.attribute, None)
