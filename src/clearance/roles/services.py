@@ -13,7 +13,9 @@ two more, because a ceiling is what stops a bundle:
 
 * **a ceiling is changed only with ``role_ceiling_edit``** - setting one,
   lifting one, and anything that lifts one from somebody: deleting a limited
-  role, or taking a limited role away from a person;
+  role, taking a limited role away from a person, or giving a person under
+  a ceiling a second role that widens it - one that is not limited lifts it
+  altogether;
 * **nobody changes what their own role holds** - its ceiling, its starting
   bundles, or whether it exists.
 
@@ -191,7 +193,8 @@ class RoleService:
     def assign(self, person: UserModel, role: Role) -> None:
         """
         Give ``person`` ``role``: its starting bundles - which the actor must
-        hold - and its ceiling.
+        hold - and its ceiling. When they are under a ceiling already and the
+        role would widen it, or lift it, that needs ``role_ceiling_edit``.
         """
         self.rules.require_may('edit')
         self.rules.require_not_own(person)
@@ -199,6 +202,9 @@ class RoleService:
 
         for bundle in role.bundles.select_related('group'):
             self.rules.require_holds(self._grants_of(bundle.group))
+
+        if self._widens_ceiling(person, role):
+            self.rules.require_may('ceiling')
 
         _, created = RoleAssignment.objects.get_or_create(
             user=person,
@@ -230,6 +236,26 @@ class RoleService:
             self._announce(signals.role_unassigned, person=person, role=role)
 
     # ------------------------------------------------------------------ helpers
+
+    @staticmethod
+    def _widens_ceiling(person: UserModel, role: Role) -> bool:
+        """
+        Whether ``role`` would let ``person`` hold what their ceiling stops now.
+
+        Somebody with no role, or with one that is not limited, has no ceiling
+        to widen. Otherwise theirs is the union of their roles' - which a role
+        that is not limited lifts, and one permitting anything more widens.
+        """
+        held = list(resolver().roles(person))
+
+        if not held or role in held or any(not one.limited for one in held):
+            return False
+
+        if not role.limited:
+            return True
+
+        permitted = RoleCeiling.objects.filter(role__in=held).values('permission')
+        return role.ceiling.exclude(permission__in=permitted).exists()
 
     def _require_not_own_role(self, role: Role) -> None:
         if not self.rules.unbound and role.code in roles_of(self.actor):  # type: ignore[arg-type]

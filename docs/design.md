@@ -552,7 +552,9 @@ more refusals hold, because a change can give somebody what nobody gave them:
 
 * **releasing a value, or deleting the action, needs the action on every
   row** - the value is then written by whoever may edit the row;
-* **nobody lets an action they hold write from more values** (`own_action`).
+* **nobody lets an action they hold write from more values** (`own_action`),
+  and nobody who does not hold it does either: it gives whoever holds it
+  more. So that change is the superuser's, and the `ACCESS` file's.
 
 The same, in code - in `build_permissions`, or in the `ACCESS` file for a
 model that keeps Django's permissions - and shown read only in the admin
@@ -647,6 +649,9 @@ library's own permissions, and two more refusals hold:
 * **nobody changes the rows of a rule their own grants are in** - it would
   widen their own access (`own_scope`); renaming it is no change to anybody's
   rows;
+* **changing its rows needs every permission granted in it, on every row** -
+  it gives each of them with other rows, and somebody holding nothing about
+  a model could otherwise widen "the north" to everything for a colleague;
 * **a rule still chosen in a grant is not deleted** - the grant would reach
   nothing without anybody deciding it should. Its grants are moved first.
 
@@ -804,7 +809,9 @@ Every change goes through `RoleService`, under the core's rules and two more:
 
 * **a ceiling is changed only with `role_ceiling_edit`** - setting one,
   removing one, and anything that lifts one from somebody: deleting a limited
-  role, or taking a limited role away from a person;
+  role, taking a limited role away from a person, or giving a person under a
+  ceiling a second role that widens it - one that is not limited lifts it
+  altogether;
 * **nobody changes what their own role holds** - its ceiling, its starting
   bundles, or whether it exists.
 
@@ -825,13 +832,17 @@ goes through `AccessService`, which refuses:
 * **giving what you do not hold** - putting a permission in a bundle, giving
   a bundle holding it, or granting it, when you do not hold it yourself; and
   **with a scope you do not hold it with**, unless you hold it with `all` -
-  or a colleague could hand it back to you;
+  or a colleague could hand it back to you. Giving back a permission that
+  was taken from somebody is giving it;
 * **a change after which nobody but the superuser could manage access** -
   the last holder of `permission_edit` losing it;
-* **a change to the rows of a rule scope your own grants are in** (9.2);
+* **a change to your own access** reaches a bundle you start with by your
+  role, as one you were given;
+* **a change to the rows of a rule scope your own grants are in**, or one
+  granting a permission you do not hold on every row (9.2);
 * **unprotecting a field you do not hold both permissions of** (10.4);
 * **releasing a status action's value, or deleting it, without holding it on
-  every row; letting one you hold write from more values** (8.1);
+  every row; letting one write from more values** (8.1);
 * **changing what the `ACCESS` file owns** - anybody, the superuser too; only
   the sync changes it (5.8);
 * **lifting a ceiling from anybody without `role_ceiling_edit`, or changing

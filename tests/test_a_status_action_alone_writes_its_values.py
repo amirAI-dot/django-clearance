@@ -417,10 +417,15 @@ def test_nobody_lets_an_action_they_hold_write_from_more_values(
     access.change_status_action(refund, start=['paid'])  # no wider: allowed
 
 
-def test_somebody_not_holding_it_widens_where_it_writes_from(
+def test_somebody_not_holding_it_does_not_widen_where_it_writes_from(
     access: AccessService, refund: StatusAction
 ) -> None:
-    access.change_status_action(refund, start=[])
+    """It gives whoever holds the action more - and they have nothing of it to give."""
+    with pytest.raises(AccessRefused) as refusal:
+        access.change_status_action(refund, start=[])
+
+    assert refusal.value.rule == 'not_held'
+    AccessService(actor=None).change_status_action(refund, start=[])  # the system, and the file
 
     refund.refresh_from_db()
     assert refund.from_values == []

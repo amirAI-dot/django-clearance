@@ -35,6 +35,7 @@ from clearance.actions import status_action_problems, transition
 from clearance.discovery import action_label
 from clearance.fields import Protection, field_permissions, protection_problem
 from clearance.grants import Scope, forget_grants, grants_of
+from clearance.limits import limits
 from clearance.models import (
     PermissionRevocation,
     ProtectedField,
@@ -239,10 +240,19 @@ class AccessService:
         )
 
     def restore(self, person: UserModel, permission: str) -> None:
-        """Undo a revocation: ``person``'s bundles give ``permission`` again."""
+        """
+        Undo a revocation: ``person``'s bundles give ``permission`` again. That
+        is giving it, so the actor must hold it, with every scope they give it in.
+        """
         self.rules.require_may('edit')
         self.rules.require_not_own(person)
         (found,) = self._resolve({permission: None}, scopes=False).values()
+
+        if not PermissionRevocation.objects.filter(user=person, permission=found).exists():
+            return
+
+        for scope in self._scopes_bundles_give(person, found):
+            self.rules.require_holds({permission: scope})
 
         if PermissionRevocation.objects.filter(user=person, permission=found).delete()[0]:
             forget_grants(person)
@@ -285,7 +295,10 @@ class AccessService:
         """
         Rename ``rule``, or change the rows it reaches - for everybody holding a
         grant in it. Changing the rows is refused to whoever holds one: it would
-        change their own access.
+        change their own access. And it is giving every permission granted in
+        it with other rows, so the actor must hold each of them on every row:
+        otherwise somebody holding nothing about a model could widen "the
+        north" to every row for a colleague.
         """
         self.rules.require_may('edit')
         reaching = (
@@ -294,6 +307,14 @@ class AccessService:
 
         if reaching:
             self._require_not_holding_rule(rule)
+            self.rules.require_holds(
+                {
+                    f'{app_label}.{codename}': EVERY_ROW
+                    for app_label, codename in self._grants_in(rule)
+                    .values_list('permission__content_type__app_label', 'permission__codename')
+                    .distinct()
+                }
+            )
 
         rule.name = name if name is not None else rule.name
         rule.conditions = conditions if conditions is not None else rule.conditions
@@ -526,7 +547,9 @@ class AccessService:
         A value no longer claimed is written by whoever may write the row, so
         only somebody allowed the action on every row may release one. A
         ``from`` that lets it write from more values gives whoever holds it
-        more, so it is refused to them.
+        more: it is refused to them, whose own access it would change, and to
+        whoever does not hold it, who has nothing to give - so it is the
+        superuser's, and the ``ACCESS`` file's.
         """
         self.rules.require_may('edit')
         self.rules.require_not_declared('status_action', status_key(action))
@@ -552,6 +575,9 @@ class AccessService:
             raise AccessRefused(
                 'own_action', 'Nobody lets an action they hold write from more values.'
             )
+
+        if widens:
+            self.rules.require_holds({permission: querysets.EVERY_ROW})
 
         action.name = name if name is not None else action.name
         action.to_values, action.from_values = new_to, new_start
@@ -652,6 +678,21 @@ class AccessService:
             ScopeGrant.objects.update_or_create(
                 permission=permission, **holder, defaults={'scope': scope}
             )
+
+    @staticmethod
+    def _scopes_bundles_give(person: UserModel, permission: Permission) -> set[Scope]:
+        """The scopes ``person``'s bundles - given, and started with - give ``permission`` in."""
+        bundles = Group.objects.filter(
+            Q(pk__in=person.groups.values('pk'))
+            | Q(pk__in=limits().starting_bundles(person).values('pk')),
+            permissions=permission,
+        )
+        scopes = dict(
+            ScopeGrant.objects.filter(group__in=bundles, permission=permission).values_list(
+                'group_id', 'scope'
+            )
+        )
+        return {scopes.get(pk) for pk in bundles.values_list('pk', flat=True)}
 
     @staticmethod
     def _direct_scope(person: UserModel, permission: Permission) -> Scope:
