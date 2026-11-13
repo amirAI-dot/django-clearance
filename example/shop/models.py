@@ -12,11 +12,16 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from clearance.permissions import DEFAULT_ACTIONS, build_permissions
+from clearance.querysets import SignedInReadQuerySet
 from shop.querysets import OrderQuerySet
 
 
 class Branch(models.Model):
+    """Reference data: anybody signed in may read the branches, to choose one for an order."""
+
     name = models.CharField(_('name'), max_length=80, unique=True)
+
+    objects = SignedInReadQuerySet.as_manager()
 
     class Meta:
         verbose_name = _('branch')

@@ -425,7 +425,14 @@ def sync_after_migrate(
     last = list(apps.get_app_configs())[-1]
     backwards = any(backward for _, backward in plan or ())
 
-    if sender is not last or using != DEFAULT_DB_ALIAS or backwards or is_test_database(using):
+    if sender is not last or using != DEFAULT_DB_ALIAS or backwards:
+        return
+
+    if is_test_database(using):
+        if verbosity >= 1:
+            # Told by its name: a working database called test_... would never sync, unsaid.
+            name = connections[using].settings_dict.get('NAME')
+            print(f'clearance_sync: skipped on {name!r}, a database made for tests.')
         return
 
     access = read_access()
@@ -502,6 +509,13 @@ def _status_spec(code: str, spec: Mapping[str, Any]) -> dict[str, Any]:
 def _status_problems(model: Any, code: Any, spec: Any) -> list[str]:
     if not isinstance(spec, Mapping) or set(spec) - {'field', 'to', 'from', 'name'}:
         return ["give it 'field', 'to', and optionally 'from' and 'name'."]
+
+    if not isinstance(spec.get('field'), str):
+        return ["'field' is the name of a field."]
+
+    for end in ('to', 'from'):
+        if not isinstance(spec.get(end, []), list | tuple):
+            return [f'{end!r} is a list of values.']
 
     wanted = _status_spec(str(code), spec)
     return status_action_problems(

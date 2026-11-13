@@ -157,7 +157,20 @@ class SafetyRules:
 
     @contextmanager
     def keeping_somebody_managing(self) -> Iterator[None]:
-        """Refuses the change, inside its transaction, if it leaves nobody to manage access."""
+        """
+        Refuses the change, inside its transaction, if it leaves nobody to manage access.
+
+        The permission's row is locked first, so two such changes made at once
+        wait their turn: each of two administrators taking it from the other
+        would otherwise see the other still holding it, and both would go
+        through. A database that writes one at a time ignores the lock.
+        """
+        app_label, _dot, codename = MANAGE['edit'].partition('.')
+        list(
+            Permission.objects.select_for_update()
+            .filter(content_type__app_label=app_label, codename=codename)
+            .values_list('pk', flat=True)
+        )
         somebody_could = somebody_holds(MANAGE['edit'])
 
         yield

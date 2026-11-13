@@ -101,7 +101,11 @@ def test_an_edit_does_not_move_a_row_out_of_the_rows_the_person_reaches(
 
 
 def test_a_row_is_created_within_the_scope_create_was_given_in(make_user: MakeUser) -> None:
-    me = make_user(('lending.view_payment', 'own'), ('lending.add_payment', 'own'))
+    me = make_user(
+        ('lending.loan_view', 'own'),
+        ('lending.view_payment', 'own'),
+        ('lending.add_payment', 'own'),
+    )
     my_loan = Loan.objects.create(applicant=me, amount=100)
 
     response = api(me).post('/api/payments/', {'loan': my_loan.pk, 'amount': 5}, format='json')
@@ -114,7 +118,7 @@ def test_a_grant_of_create_with_no_scope_reaches_what_the_models_default_does(
     make_user: MakeUser,
 ) -> None:
     """A loan names no default scope, so the grant makes no loan; a payment's is ``own``."""
-    me = make_user('lending.loan_create', 'lending.add_payment')
+    me = make_user(('lending.loan_view', 'own'), 'lending.loan_create', 'lending.add_payment')
     my_loan = Loan.objects.create(applicant=me, amount=100)
     sent = {'loan': my_loan.pk, 'amount': 5}
 

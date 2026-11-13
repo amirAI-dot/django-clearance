@@ -345,6 +345,16 @@ class OrderReport(APIView):
     policy_action = 'report'
 ```
 
+**A related row is one the person may view.** A field of the serializer that
+chooses a related row takes the rows of that model the person may view - any
+other key is refused as if it were not there. Reference data everybody
+chooses from reads through `SignedInReadQuerySet`:
+
+```python
+class Branch(models.Model):
+    objects = SignedInReadQuerySet.as_manager()   # anybody signed in may choose one
+```
+
 **A view that holds no record says so.** With `ModelPolicyPermission` as the
 default, a view with no model and no policy is refused at start-up (E009) -
 DRF's own `DefaultRouter` root view among them. Give it the permission it

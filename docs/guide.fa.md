@@ -346,6 +346,16 @@ class OrderReport(APIView):
     policy_action = 'report'
 ```
 
+**ردیف مرتبط ردیفی است که شخص اجازه‌ی دیدنش را دارد.** فیلدی از serializer که ردیف
+مرتبط را انتخاب می‌کند ردیف‌هایی از آن مدل را می‌پذیرد که شخص اجازه‌ی دیدنشان را
+دارد - هر کلید دیگری رد می‌شود، انگار وجود ندارد. داده‌ی مرجعی که همه از آن انتخاب
+می‌کنند با `SignedInReadQuerySet` خوانده می‌شود:
+
+```python
+class Branch(models.Model):
+    objects = SignedInReadQuerySet.as_manager()   # anybody signed in may choose one
+```
+
 **viewای که هیچ رکوردی نگه نمی‌دارد این را می‌گوید.** وقتی `ModelPolicyPermission`
 پیش‌فرض است، viewای که نه مدل دارد و نه policy موقع بالا آمدن پروژه رد می‌شود
 (E009) - از جمله view ریشه‌ی `DefaultRouter` خود DRF. مجوزی را که لازم دارد به آن

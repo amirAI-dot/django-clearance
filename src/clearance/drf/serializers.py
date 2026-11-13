@@ -19,6 +19,11 @@ payment does not show the credit score of its loan. And a value is refused
 under whatever name the serializer gives its field: ``decision``, with
 ``source='status'``, is the status.
 
+**A related row is one the person may view.** A field choosing a related row
+- a loan for a payment - takes the rows of that model the person may view,
+and the one the row holds already: any other is refused as if it were not
+there, which is all somebody who may not see it should learn.
+
 **What it saves stays among the rows the person reaches**: a row made outside
 the scope ``create`` was given in, or edited out of the scope it was reached
 in, is refused with a 403 and the write undone - whatever ``perform_create``
@@ -39,11 +44,12 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
-from django.db.models import Model
+from django.db.models import Model, Q
 from rest_framework import serializers
 
 from clearance.fields import protection_of, readable_fields, writable_fields
 from clearance.protocols import User
+from clearance.querysets import visible
 from clearance.writes import refused_writes, require_within_scope, write_action
 
 
@@ -83,17 +89,17 @@ class ProtectedFieldsSerializerMixin:
         model, user = self.protected_model, self.protected_for
         protected = protection_of(user).fields(model)
 
+        for field in fields.values():
+            _protect_nested(field)
+            self._offer_reachable_rows(field)
+
         if not protected:
-            for field in fields.values():
-                _protect_nested(field)
             return fields
 
         readable, writable = readable_fields(user, model), writable_fields(user, model)
 
         for name, field in list(fields.items()):
             target = field.source or name
-
-            _protect_nested(field)
 
             if target not in protected:
                 continue
@@ -104,6 +110,33 @@ class ProtectedFieldsSerializerMixin:
                 field.read_only, field.required = True, False
 
         return fields
+
+    def _offer_reachable_rows(self, field: Any) -> None:
+        """
+        Narrow the rows a related field takes to those of its model the person
+        may view - and the one this row holds already, or a row whose loan they
+        may not see could not be saved at all. The superuser takes every row.
+        """
+        relation = getattr(field, 'child_relation', field)
+        rows = getattr(relation, 'queryset', None)
+        user = self.protected_for
+
+        if not isinstance(relation, serializers.RelatedField) or rows is None:
+            return
+
+        if getattr(user, 'is_superuser', False) and user.is_active:
+            return
+
+        offered = Q(pk__in=visible(rows.model._default_manager.all(), user, 'view').values('pk'))
+        held = self.instance if isinstance(self.instance, Model) else None
+
+        if held is not None and field.source and '.' not in field.source:
+            now: Any = getattr(held, field.source, None)
+            keys = now.values('pk') if hasattr(now, 'values') else [getattr(now, 'pk', now)]
+            offered |= Q(pk__in=keys)
+
+        narrowed: Any = relation
+        narrowed.queryset = rows.filter(offered)
 
     def to_internal_value(self, data: Any) -> Any:
         if isinstance(data, Mapping):

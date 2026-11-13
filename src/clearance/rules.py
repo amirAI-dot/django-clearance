@@ -138,6 +138,13 @@ class Path:
                     % {'path': path, 'model': current.__name__, 'name': name}
                 ) from None
 
+            if field.is_relation and field.related_model is None:
+                # A generic relation: no one model to reach, no one column to compare.
+                raise ValidationError(
+                    gettext('%(path)r: %(name)r reaches no one model, and cannot be compared.')
+                    % {'path': path, 'name': name}
+                )
+
             if not readable(current, name, protection):
                 raise ValidationError(
                     gettext('%(path)r: %(field)s may not be read.')

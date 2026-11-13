@@ -17,8 +17,8 @@ things from the running project.
 ``clearance.E009``  a ``PolicyRequiredMixin`` view cannot ask a policy
 ``clearance.E011``  ``CLEARANCE`` is not a dictionary, has an unknown key, or a
                     value it cannot use
-``clearance.E012``  a field protected in code is not a field of its model, or
-                    cannot be protected
+``clearance.E012``  a field protected in code is not a field of its model,
+                    cannot be protected, or has a permission another model has
 ``clearance.E013``  an action found in the code cannot make a permission
 ``clearance.E014``  a model declares its own permissions but keeps Django's
 ``clearance.E015``  a status action declared in code names a field or a value
@@ -39,7 +39,7 @@ from clearance.actions import status_action_problems
 from clearance.conf import clearance_settings
 from clearance.declared import access_problems, read_access
 from clearance.discovery import FoundAction, action_problems, find_actions
-from clearance.fields import protection_problem
+from clearance.fields import field_permissions, protection_problem
 from clearance.permissions import declared_protected_fields, declared_status_actions
 from clearance.querysets import EVERY_ROW, ScopedQuerySet
 from clearance.views import PolicyRequiredMixin, urlconf_callbacks
@@ -158,8 +158,12 @@ def permission_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
 
 
 def field_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
-    """E012: every field a model protects in code can be protected."""
-    return [
+    """
+    E012: every field a model protects in code can be protected - it is a
+    field of the model, and its two permissions are no other model's.
+    """
+    models = list(models)
+    errors: list[CheckMessage] = [
         Error(
             f'{model._meta.label} protects {name!r} in code, and cannot: {problem}',
             obj=model,
@@ -169,6 +173,40 @@ def field_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:
         for name in declared_protected_fields(model)
         if (problem := protection_problem(model, name)) is not None
     ]
+
+    for model in models:
+        if model._meta.proxy:
+            continue  # its fields are its concrete model's, and so are their permissions
+
+        for name in declared_protected_fields(model):
+            for permission in field_permissions(model, name).values():
+                for other in apps.get_app_config(model._meta.app_label).get_models():
+                    if other is not model and permission in _own_permissions(other):
+                        errors.append(
+                            Error(
+                                f'{model._meta.label} protects {name!r} with {permission}, which '
+                                f'is a permission of {other._meta.label} too: holding that one '
+                                f'would be holding this.',
+                                hint='Rename the field, or the other permission.',
+                                obj=model,
+                                id='clearance.E012',
+                            )
+                        )
+
+    return errors
+
+
+def _own_permissions(model: type[Model]) -> set[str]:
+    """What ``model`` itself declares, as ``app_label.codename`` - but its fields' own two."""
+    meta = model._meta
+    fields = {
+        permission
+        for name in declared_protected_fields(model)
+        for permission in field_permissions(model, name).values()
+    }
+    declared = {f'{meta.app_label}.{codename}' for codename, _ in meta.permissions}
+    standard = {f'{meta.app_label}.{verb}_{meta.model_name}' for verb in meta.default_permissions}
+    return (declared | standard) - fields
 
 
 def status_action_errors(models: Iterable[type[Model]]) -> list[CheckMessage]:

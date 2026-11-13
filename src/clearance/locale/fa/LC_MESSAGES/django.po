@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 08:26-0600\n"
+"POT-Creation-Date: 2026-11-13 01:40-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -322,6 +322,10 @@ msgid "%(path)r: %(model)s has no field %(name)r."
 msgstr "%(path)r: %(model)s فیلدی به اسم %(name)r ندارد."
 
 #, python-format
+msgid "%(path)r: %(name)r reaches no one model, and cannot be compared."
+msgstr "%(path)r: %(name)r به یک مدل مشخص نمی‌رسد و نمی‌شود با آن مقایسه کرد."
+
+#, python-format
 msgid "%(path)r: %(field)s may not be read."
 msgstr "%(path)r: خواندن %(field)s مجاز نیست."
 
@@ -479,6 +483,13 @@ msgstr "%(name)s: مجوز یک فیلد دامنه نمی‌گیرد - مال �
 #, python-format
 msgid "%(name)s: its model offers no scope %(scope)r"
 msgstr "%(name)s: مدل آن دامنه‌ای به اسم %(scope)r ندارد"
+
+#, python-format
+msgid ""
+"%(permission)s is a permission of %(model)s already: holding that one would "
+"be holding this."
+msgstr ""
+"%(permission)s از قبل مجوز %(model)s است: داشتن آن یکی یعنی داشتن این یکی."
 
 #, python-format
 msgid ""
