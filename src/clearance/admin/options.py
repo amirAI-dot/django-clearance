@@ -55,7 +55,7 @@ from clearance.policies import BasePolicy
 from clearance.protocols import User, user_of
 from clearance.querysets import visible
 from clearance.registry import registry
-from clearance.safety import SafetyRules, outranks
+from clearance.safety import SafetyRules, is_own_account, outranks, own_fields
 from clearance.writes import require_deletable, require_within_scope
 
 #: Django's own permissions, as an admin action names them, in the library's words.
@@ -84,7 +84,14 @@ class ProtectedFieldsAdminMixin:
 
     def get_readonly_fields(self, request: HttpRequest, obj: Model | None = None) -> list[str]:
         readonly = list(super().get_readonly_fields(request, obj))  # type: ignore[misc]
-        return [*readonly, *(name for name in self.locked(request) if name not in readonly)]
+        locked = set(self.locked(request))
+        user = user_of(request)
+
+        if is_own_account(user, obj):
+            # What a rule scope reads as the person's is, on their own page, their access.
+            locked |= {name for name in own_fields(user) if _has_field(self.model, name)}
+
+        return [*readonly, *(name for name in sorted(locked) if name not in readonly)]
 
     def get_fields(self, request: HttpRequest, obj: Model | None = None) -> list[Any]:
         fields: Sequence[Any] = super().get_fields(request, obj)  # type: ignore[misc]
@@ -417,7 +424,9 @@ class ScopedFormSetMixin:
 
         if action not in kept:
             rows: Any = self.get_queryset()  # type: ignore[attr-defined]
-            keys = [row.pk for row in rows]
+            # An account holding more than the person is not theirs to change, whatever the scope.
+            accounts = self.model is get_user_model()
+            keys = [row.pk for row in rows if not (accounts and outranks(row, self.bound_user))]
             reached = visible(self.model._default_manager.all(), self.bound_user, action)
             kept[action] = frozenset(reached.filter(pk__in=keys).values_list('pk', flat=True))
 
@@ -432,6 +441,9 @@ class ScopedFormSetMixin:
         if saved and key not in self._reached('edit'):
             for field in form.fields.values():
                 field.disabled = True
+        elif saved and is_own_account(self.bound_user, form.instance):
+            for name in own_fields(self.bound_user) & set(form.fields):
+                form.fields[name].disabled = True
 
         return form
 

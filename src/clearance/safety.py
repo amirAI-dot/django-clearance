@@ -30,7 +30,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 
-from clearance.grants import Scope, grants_given, grants_of, groups_lookup
+from clearance.grants import KEPT_PREFIX, Scope, grants_given, grants_of, groups_lookup
 from clearance.limits import limits
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import User
@@ -192,8 +192,10 @@ def outranks(person: object, actor: object) -> bool:
 
     Changing an account is holding it: whoever sets its password signs in
     with it. So an account is changed or deleted only by somebody holding at
-    least what it holds - never one that would hand them more. A switched-off
-    account counts by what switching it on would give back. Nobody outranks
+    least what it holds - never one that would hand them more. A scope held
+    by both counts only when it reaches the same rows for anybody: holding
+    "their branch" is not holding somebody else's. A switched-off account
+    counts by what switching it on would give back. Nobody outranks
     themselves, and nobody outranks the superuser.
     """
     if getattr(person, 'pk', None) == getattr(actor, 'pk', None):
@@ -206,14 +208,112 @@ def outranks(person: object, actor: object) -> bool:
         return True
 
     held = grants_of(cast(User, actor))
+    same: _SameRows | None = None
 
     for permission, scopes in grants_given(cast(Any, person)).items():
         mine = held.scopes(permission)
 
-        if mine is None or (EVERY_ROW not in mine and not scopes <= mine):
+        if mine is None:
+            return True
+
+        if EVERY_ROW in mine:
+            continue
+
+        if not scopes <= mine:
+            return True
+
+        # The same scope by name is the same rows only when it reaches the same
+        # for anybody: "their branch" is another branch for somebody of another.
+        same = same or _SameRows()
+
+        if not all(same.for_anybody(permission, scope) for scope in scopes):
             return True
 
     return False
+
+
+class _SameRows:
+    """
+    Which scopes reach the same rows whoever holds them - read in three
+    queries, once, when two people hold a permission in the same scope by name.
+
+    ``all`` does, and so does a rule scope comparing with constants only. A
+    scope in code is handed the person, and a rule comparing with something
+    of the person's reads it: each reaches other rows for another person.
+    """
+
+    def __init__(self) -> None:
+        from clearance.fields import Protection
+        from clearance.models import ScopeCondition
+
+        self.models = {
+            f'{row.content_type.app_label}.{row.codename}': row.content_type.model_class()
+            for row in Permission.objects.select_related('content_type')
+        }
+        self.of_the_person = set(
+            ScopeCondition.objects.filter(source='person').values_list(
+                'rule__content_type__app_label', 'rule__content_type__model', 'rule__code'
+            )
+        )
+        self.protection = Protection.load()
+
+    def for_anybody(self, permission: str, scope: Scope) -> bool:
+        from clearance.querysets import ScopedQuerySet
+
+        model = self.models.get(permission)
+
+        if model is None or self.protection.owns(model, permission):
+            return True  # of no model any more, or a field's: no rows to differ by
+
+        rows: Any = model._default_manager.all()
+        scoped = isinstance(rows, ScopedQuerySet)
+
+        if scope is None:
+            scope = rows.default_scope if scoped else EVERY_ROW
+
+        if scope is None or scope == EVERY_ROW:
+            return True
+
+        if scoped and scope in rows.scopes:
+            return False
+
+        meta = model._meta
+        return (meta.app_label, meta.model_name, scope) not in self.of_the_person
+
+
+#: Where the fields of their own a person may not write are kept on them once read.
+_OWN_FIELDS = f'{KEPT_PREFIX}own_fields'
+
+
+def own_fields(user: object) -> frozenset[str]:
+    """
+    The fields of ``user``'s own account that say which rows they reach: the
+    ones a rule scope reads as the person's - "the loans of the person's
+    region" reads ``region``.
+
+    Writing one on their own account is changing their own access, which
+    nobody does; somebody else who may change the account does it. Read once
+    per request, in one query. The superuser reaches every row already.
+    """
+    from clearance.models import ScopeCondition
+
+    if getattr(user, 'is_superuser', False) or not getattr(user, 'is_authenticated', False):
+        return frozenset()
+
+    kept: frozenset[str] | None = getattr(user, _OWN_FIELDS, None)
+
+    if kept is None:
+        paths = ScopeCondition.objects.filter(source='person').values_list('person', flat=True)
+        kept = frozenset(path.partition('__')[0] for path in paths if path)
+        setattr(user, _OWN_FIELDS, kept)
+
+    return kept
+
+
+def is_own_account(user: object, obj: object) -> bool:
+    """Whether ``obj`` is the account ``user`` is signed in with."""
+    key = getattr(obj, 'pk', None)
+    return key is not None and isinstance(obj, get_user_model()) and key == getattr(user, 'pk', 0)
 
 
 def somebody_holds(permission: str) -> bool:

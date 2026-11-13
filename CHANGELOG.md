@@ -144,6 +144,21 @@ And what the review had left open:
 * **The guide says what a long-lived process does** with what is kept on a
   user: read them again, or `forget_grants(user)`.
 
+* **Found by a check of the fixes above**, and held:
+  * the editable list of accounts leaves an account holding more than the
+    person alone - on Django 5.2 it changed a manager's e-mail address, which
+    is a way into their account;
+  * nobody writes, on their own account, a field a rule scope reads as the
+    person's (`region`, for "the person's region") - in the admin site, a
+    protected form, or an API: it is which rows they reach;
+  * **Changed:** an account is outranked by one holding the same scope by
+    name only when that scope reaches the same rows for anybody. Two people
+    holding "their branch" each hold a branch of their own; changing the
+    other's account needs the permission in `all`;
+  * **Changed:** a delete asks every model a cascade reaches that has a
+    `delete` permission, not only the models with scopes or declared
+    permissions. Deleting a loan needs `delete` on its statements too.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with
