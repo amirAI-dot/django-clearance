@@ -119,6 +119,23 @@ class DeclaredPermissions(tuple[tuple[str, str], ...]):
         declared.labels = MappingProxyType(dict(labels or {}))
         return declared
 
+    def adding(self, codename: str, label: Promise) -> 'DeclaredPermissions':
+        """
+        These, and one permission more that no action of the resource names -
+        stored by its English name, as Django stores every permission's, and
+        read in the reader's language.
+        """
+        with translation.override(None):
+            stored = str(label)
+
+        return DeclaredPermissions(
+            [*self, (codename, stored)],
+            self.codename,
+            self.protected_fields,
+            self.status_actions,
+            {**self.labels, codename: label},
+        )
+
 
 class PermissionSet:
     """

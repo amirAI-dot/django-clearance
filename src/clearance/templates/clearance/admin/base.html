@@ -4,7 +4,7 @@
 {% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'clearance/admin.css' %}">{% endblock %}
 
 {% block breadcrumbs %}
-<div class="breadcrumbs">
+<div class="breadcrumbs clearance-breadcrumbs">
   <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
   &rsaquo; <a href="{% url 'admin:clearance_overview' %}">{% translate 'Access' %}</a>
   {% block crumbs %}{% endblock %}

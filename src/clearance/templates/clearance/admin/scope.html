@@ -26,7 +26,7 @@
       {% for row in rows %}
         <tr class="clearance-condition">
           <td><input type="text" name="field" value="{{ row.field }}" list="clearance-paths" aria-label="{% translate 'Field' %}"></td>
-          <td><select name="operator" aria-label="{% translate 'Operator' %}">{% for operator in operators %}<option value="{{ operator }}"{% if row.operator == operator %} selected{% endif %}>{{ operator }}</option>{% endfor %}</select></td>
+          <td><select name="operator" aria-label="{% translate 'Operator' %}">{% for code, words in operators %}<option value="{{ code }}"{% if row.operator == code %} selected{% endif %}>{{ words }}</option>{% endfor %}</select></td>
           <td><select name="kind" aria-label="{% translate 'Compared with' %}">
             <option value="constant"{% if row.kind == 'constant' %} selected{% endif %}>{% translate 'a value' %}</option>
             <option value="person"{% if row.kind == 'person' %} selected{% endif %}>{% translate "the person's" %}</option>

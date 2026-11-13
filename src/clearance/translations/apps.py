@@ -8,6 +8,7 @@ language, and removes a name with the thing it names.
 """
 
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
 
 class TranslationsConfig(AppConfig):
@@ -16,7 +17,7 @@ class TranslationsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
 
     # A product name, the same in every language - so not marked for translation.
-    verbose_name = 'Clearance: translations'
+    verbose_name = _('Clearance: translations')
 
     def ready(self) -> None:
         from django.core.checks import register

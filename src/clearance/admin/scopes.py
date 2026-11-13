@@ -10,6 +10,7 @@ condition and names each one that is wrong.
 """
 
 from collections.abc import Iterator, Mapping
+from types import MappingProxyType
 from typing import Any
 
 from django.apps import apps
@@ -21,7 +22,9 @@ from django.db.models import Count, Model
 from django.http import HttpRequest, HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404
 from django.urls import URLPattern, path
+from django.utils.functional import Promise
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy
 
 from clearance.admin.views import PageSet
 from clearance.fields import Protection, field_names
@@ -34,6 +37,21 @@ from clearance.services import AccessService
 
 #: How many empty conditions a new rule's page offers, for a browser without the script.
 BLANK_CONDITIONS = 3
+
+#: Each operator, in the reader's language - its code is what the rule keeps.
+OPERATOR_WORDS: Mapping[str, Promise] = MappingProxyType(
+    {
+        'is': gettext_lazy('is'),
+        'is_not': gettext_lazy('is not'),
+        'is_one_of': gettext_lazy('is one of'),
+        'contains': gettext_lazy('contains'),
+        'is_empty': gettext_lazy('is empty'),
+        'before': gettext_lazy('before'),
+        'after': gettext_lazy('after'),
+        'at_least': gettext_lazy('at least'),
+        'at_most': gettext_lazy('at most'),
+    }
+)
 
 
 class ScopePages(PageSet):
@@ -109,7 +127,7 @@ class ScopePages(PageSet):
             form=form,
             rows=rows[: max(len(conditions) + 1, BLANK_CONDITIONS)],
             errors=errors,
-            operators=list(OPERATORS),
+            operators=[(code, OPERATOR_WORDS.get(code, code)) for code in OPERATORS],
             matches=MATCHES,
             paths=list(field_paths(model)),
             person_paths=list(field_paths(get_user_model())),

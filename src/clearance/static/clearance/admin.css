@@ -1,9 +1,15 @@
 /* The access pages: Django's admin, with a grid. Colours are the admin's own variables. */
 .clearance table { width: 100%; margin-bottom: 1.5em; }
-.clearance-grid th[scope="row"] { white-space: nowrap; }
+.clearance-grid th[scope="row"] { min-width: 9em; }
 .clearance-grid td { vertical-align: top; }
-.clearance-grid select { display: block; max-width: 12em; margin-top: 0.25em; }
+.clearance-grid select { display: block; max-width: 10em; margin-top: 0.25em; }
 .clearance-other { margin-bottom: 0.5em; }
+/* A model's other permissions run under its four, across the grid: none is pushed off the side. */
+.clearance-grid tr.clearance-others td { border-top: none; padding-top: 0; }
+.clearance-grid tr.clearance-others .clearance-other {
+    display: inline-flex; align-items: center; gap: 0.5em; margin-inline-end: 1.5em;
+}
+.clearance-grid tr.clearance-others select { display: inline-block; margin-top: 0; }
 .clearance-inline { display: inline; margin-inline-start: 0.5em; }
 .clearance-note { color: var(--body-quiet-color); }
 .clearance-grid label.clearance-other { display: inline-block; margin-inline-end: 1.5em; white-space: nowrap; }
@@ -15,3 +21,15 @@
 /* A wide table scrolls inside its own box: the page never scrolls sideways, in either direction. */
 .clearance { min-width: 0; }
 .clearance-scroll { overflow-x: auto; max-width: 100%; }
+/* The breadcrumbs as Django's own bar, on every Django: 6.1 styles only its new markup. */
+div.breadcrumbs.clearance-breadcrumbs {
+    background: var(--breadcrumbs-bg);
+    padding: 10px 40px;
+    border: none;
+    color: var(--breadcrumbs-fg);
+    text-align: start;
+    font-size: 0.875rem;
+}
+div.breadcrumbs.clearance-breadcrumbs a { color: var(--breadcrumbs-link-fg); }
+div.breadcrumbs.clearance-breadcrumbs a:focus,
+div.breadcrumbs.clearance-breadcrumbs a:hover { color: var(--breadcrumbs-fg); }

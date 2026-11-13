@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 01:40-0600\n"
+"POT-Creation-Date: 2026-11-13 12:46-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -65,6 +65,33 @@ msgstr "%(field)s محافظت شد."
 msgid "%(field)s is no longer protected."
 msgstr "%(field)s دیگر محافظت‌شده نیست."
 
+msgid "is"
+msgstr "برابر است با"
+
+msgid "is not"
+msgstr "برابر نیست با"
+
+msgid "is one of"
+msgstr "یکی است از"
+
+msgid "contains"
+msgstr "شامل"
+
+msgid "is empty"
+msgstr "خالی است"
+
+msgid "before"
+msgstr "پیش از"
+
+msgid "after"
+msgstr "پس از"
+
+msgid "at least"
+msgstr "دست‌کم"
+
+msgid "at most"
+msgstr "حداکثر"
+
 msgid "Row scopes"
 msgstr "دامنه‌های ردیف"
 
@@ -79,6 +106,18 @@ msgstr "دامنه‌ی قانونی حذف شد."
 
 msgid "Access"
 msgstr "دسترسی"
+
+msgid "View"
+msgstr "دیدن"
+
+msgid "Create"
+msgstr "ساختن"
+
+msgid "Edit"
+msgstr "ویرایش"
+
+msgid "Delete"
+msgstr "حذف"
 
 msgid "Bundles"
 msgstr "بسته‌ها"
@@ -125,6 +164,9 @@ msgstr "هر بسته یک اسم لازم دارد."
 msgid "There is a bundle called %(name)s already."
 msgstr "بسته‌ای به اسم %(name)s از قبل هست."
 
+msgid "Clearance"
+msgstr "کنترل دسترسی"
+
 #, python-format
 msgid "%(field)s is a relation of another model, not a field of its own."
 msgstr "%(field)s رابطه‌ی یک مدل دیگر است، نه فیلدی از خود این مدل."
@@ -143,6 +185,9 @@ msgstr "شما نمی‌توانید %(field)s را %(value)s کنید."
 
 msgid "access"
 msgstr "دسترسی"
+
+msgid "Can change the ceilings of roles"
+msgstr "می‌تواند سقف نقش‌ها را تغییر دهد"
 
 msgid "scope"
 msgstr "دامنه"
@@ -539,9 +584,6 @@ msgstr "اکشن‌های دیگر روی این فیلد"
 
 msgid "Save"
 msgstr "ذخیره"
-
-msgid "Delete"
-msgstr "حذف"
 
 #, python-format
 msgid ""

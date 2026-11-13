@@ -39,9 +39,8 @@ class Access(models.Model):
     class Meta:
         managed = False
         default_permissions = ()
-        permissions = (
-            *build_permissions('permission', 'access', actions=DEFAULT_ACTIONS),
-            ('role_ceiling_edit', 'Can change the ceilings of roles'),
+        permissions = build_permissions('permission', _('access'), actions=DEFAULT_ACTIONS).adding(
+            'role_ceiling_edit', _('Can change the ceilings of roles')
         )
         verbose_name = _('access')
         verbose_name_plural = _('access')

@@ -9,6 +9,7 @@ installed, nothing about roles exists.
 """
 
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
 
 class RolesConfig(AppConfig):
@@ -17,7 +18,7 @@ class RolesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
 
     # A product name, the same in every language - so not marked for translation.
-    verbose_name = 'Clearance: roles'
+    verbose_name = _('Clearance: roles')
 
     def ready(self) -> None:
         from django.core.checks import register
