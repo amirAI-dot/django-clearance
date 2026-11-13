@@ -38,6 +38,7 @@ drf = ["djangorestframework>=3.16"]
 
 [project.urls]
 Repository = "https://github.com/amirAI-dot/django-clearance"
+Documentation = "https://amirai-dot.github.io/django-clearance/"
 Changelog = "https://github.com/amirAI-dot/django-clearance/blob/main/CHANGELOG.md"
 Guide = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md"
 Design = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md"
@@ -52,6 +53,7 @@ test = [
 ]
 lint = ["ruff>=0.15"]
 browser = ["playwright>=1.55"]
+docs = ["mkdocs-material>=9.6", "mkdocs-static-i18n>=1.3"]
 types = [
     "mypy>=1.15",
     "django-stubs>=5.2",
@@ -98,7 +100,7 @@ line-length = 100
 target-version = "py311"
 src = ["src", "tests", "example"]
 # The documents' examples are prose, laid out for reading rather than formatted.
-extend-exclude = ["docs"]
+extend-exclude = ["docs/*.md"]
 
 [tool.ruff.lint]
 select = [

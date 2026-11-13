@@ -11,7 +11,7 @@
 > everything. Stages 0 to 3 were built on the first edition; section 22 says
 > what changes in them.
 >
-> Persian: [`design.fa.md`](design.fa.md). How to use the library, rather
+> Persian: [`design.fa.md`](https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.fa.md). How to use the library, rather
 > than why it is built so: [`guide.md`](guide.md).
 
 **django-clearance** - role, policy and row-level access control for Django.

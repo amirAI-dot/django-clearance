@@ -1,10 +1,10 @@
 # راهنما
 
-[English](guide.md)
+[English](https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md)
 
 چطور django-clearance را در یک پروژه به کار ببرید، از نصب تا آخرین اپ اختیاری.
 اینکه چرا این‌طور ساخته شده در [سند طراحی](design.fa.md) آمده؛ پروژه‌ای که همه‌ی
-بخش‌هایش را به کار می‌برد در [`example/`](../example/README.fa.md) است.
+بخش‌هایش را به کار می‌برد در [`example/`](https://github.com/amirAI-dot/django-clearance/blob/main/example/README.fa.md) است.
 
 ---
 

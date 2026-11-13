@@ -9,6 +9,8 @@ Every check the project runs, defined once - locally and in CI alike.
     nox -s browser                           the pages in a real browser
     nox -s messages                          the catalogues hold every marked string
     nox -s package                           the built wheel installs, and the example runs on it
+    nox -s docs                              the documentation site builds, every link found
+    nox -s screenshots                       the admin site's pictures taken again, for the docs
 
 CI runs these same sessions, built from the same table, so a check that
 passes here passes there and a supported version cannot be left out of one.
@@ -163,3 +165,30 @@ def package(session: nox.Session) -> None:
         installed = 'import clearance, sys; sys.exit("site-packages" not in clearance.__file__)'
         session.run('python', '-c', installed)
         session.run('python', 'manage.py', 'test', '--noinput')
+
+
+@nox.session(python=NEWEST_PYTHON)
+def docs(session: nox.Session) -> None:
+    """
+    The documentation site builds with no warning - a link, an anchor or a
+    picture it cannot find fails it. ``nox -s docs -- serve`` shows it at
+    http://127.0.0.1:8000 while it is written.
+    """
+    session.install('--group', 'docs')
+    session.env['NO_MKDOCS_2_WARNING'] = '1'
+
+    if session.posargs[:1] == ['serve']:
+        session.run('mkdocs', 'serve', *session.posargs[1:])
+    else:
+        session.run('mkdocs', 'build', '--strict', *session.posargs)
+
+
+@nox.session(python=NEWEST_PYTHON)
+def screenshots(session: nox.Session) -> None:
+    """The admin site's pictures in docs/img/, taken again from the example shop."""
+    session.install('-e', '.[drf]', '--group', 'browser', django_release(NEWEST_DJANGO))
+
+    if not os.environ.get('PLAYWRIGHT_BROWSERS_PATH'):
+        session.run('python', '-m', 'playwright', 'install', '--with-deps', 'chromium')
+
+    session.run('python', 'docs/screenshots.py')
