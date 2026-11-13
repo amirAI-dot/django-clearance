@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-clearance"
-version = "0.1.0"
+version = "0.2.0"
 description = "Role, policy and row-level access control for Django. Denied by default."
 readme = "README.md"
 license = "BSD-3-Clause"
