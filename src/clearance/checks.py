@@ -31,6 +31,7 @@ from typing import Any
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.checks import CheckMessage, Error
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
@@ -54,12 +55,22 @@ _OWN_ACTIONS = ('_view', '_create', '_edit', '_delete')
 
 
 def check_settings(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:
-    """E011: the ``CLEARANCE`` setting can be read."""
+    """E011: the ``CLEARANCE`` setting can be read, and the fields it names exist."""
     try:
         clearance_settings.raw()
     except ImproperlyConfigured as error:
         return [Error(str(error), id='clearance.E011')]
-    return []
+
+    user = get_user_model()
+    names = {field.name for field in user._meta.get_fields()}
+    return [
+        Error(
+            f"CLEARANCE['PERSON_FIELDS'] names {name!r}, which is not a field of "
+            f'{user._meta.label}.',
+            id='clearance.E011',
+        )
+        for name in sorted(clearance_settings.person_fields() - names)
+    ]
 
 
 def check_access(app_configs: Any = None, **kwargs: Any) -> list[CheckMessage]:

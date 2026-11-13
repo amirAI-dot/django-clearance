@@ -409,10 +409,13 @@ class ScopedFormSetMixin:
     A formset of rows the person may look at, changing only those they may.
 
     The admin site lists the rows a person may *view* - in an inline, in the
-    editable list - and asks whether they may change the model, not each row.
-    So a row outside the scope they hold ``edit`` in is locked here: its
-    fields are disabled, which is Django's way of keeping what the row holds
-    whatever the browser sends. One outside their ``delete`` is not deleted.
+    editable list - and before Django 6.1 asks whether they may change the
+    model, not each row. So a row the policy would not let them edit is
+    locked here: its fields are disabled, which is Django's way of keeping
+    what the row holds whatever the browser sends. One they may not delete is
+    not deleted. Outside the scope is one query for every row; a hook of the
+    policy's own - "a delivered order is never edited" - and an account
+    holding more than the person are asked of each row, as nothing else can.
     """
 
     bound_user: User
@@ -423,12 +426,21 @@ class ScopedFormSetMixin:
         kept: dict[str, frozenset[Any]] = self.__dict__.setdefault('_clearance_reached', {})
 
         if action not in kept:
-            rows: Any = self.get_queryset()  # type: ignore[attr-defined]
-            # An account holding more than the person is not theirs to change, whatever the scope.
-            accounts = self.model is get_user_model()
-            keys = [row.pk for row in rows if not (accounts and outranks(row, self.bound_user))]
+            rows: Any = list(self.get_queryset())  # type: ignore[attr-defined]
             reached = visible(self.model._default_manager.all(), self.bound_user, action)
-            kept[action] = frozenset(reached.filter(pk__in=keys).values_list('pk', flat=True))
+            within = set(
+                reached.filter(pk__in=[row.pk for row in rows]).values_list('pk', flat=True)
+            )
+            policy = registry.policy_for(self.model)
+
+            if policy.decides_itself(action) or self.model is get_user_model():
+                within = {
+                    row.pk
+                    for row in rows
+                    if row.pk in within and policy.allows(self.bound_user, action, row)
+                }
+
+            kept[action] = frozenset(within)
 
         return kept[action]
 

@@ -29,8 +29,13 @@ DEFAULTS: Final[Mapping[str, object]] = MappingProxyType(
         'ACCESS': None,
         'SYNC_ON_MIGRATE': False,
         'RULE_DEPTH': 3,
+        'PERSON_FIELDS': (),
+        'CASCADE_UNASKED_APPS': (),
     }
 )
+
+#: The keys that hold names - of fields, of apps - and nothing else.
+_NAMES: Final = ('PERSON_FIELDS', 'CASCADE_UNASKED_APPS')
 
 
 class ClearanceSettings:
@@ -52,6 +57,10 @@ class ClearanceSettings:
             )
 
         self._check_rule_depth(raw.get('RULE_DEPTH', DEFAULTS['RULE_DEPTH']))
+
+        for key in _NAMES:
+            self._check_names(key, raw.get(key, DEFAULTS[key]))
+
         return raw
 
     def value(self, key: str) -> object:
@@ -61,6 +70,29 @@ class ClearanceSettings:
     def rule_depth(self) -> int:
         """How many relations a rule may cross."""
         return cast(int, self.value('RULE_DEPTH'))  # raw() refuses anything else
+
+    def person_fields(self) -> frozenset[str]:
+        """
+        The fields of the user model the project's code scopes read - ``branch``
+        for "their branch". Like those a rule scope reads, nobody writes them on
+        their own account: that would be changing their own access.
+        """
+        return frozenset(cast(tuple[str, ...], self.value('PERSON_FIELDS')))
+
+    def cascade_unasked_apps(self) -> frozenset[str]:
+        """
+        The apps whose rows a delete takes with it unasked - an app keeping a
+        token or an address for each account, whose ``delete`` nobody is given.
+        A model the library guards is asked all the same.
+        """
+        return frozenset(cast(tuple[str, ...], self.value('CASCADE_UNASKED_APPS')))
+
+    @staticmethod
+    def _check_names(key: str, names: object) -> None:
+        if not isinstance(names, list | tuple) or not all(isinstance(n, str) for n in names):
+            raise ImproperlyConfigured(
+                f'CLEARANCE[{key!r}] must be a list of names, not {names!r}.'
+            )
 
     @staticmethod
     def _check_rule_depth(depth: object) -> None:

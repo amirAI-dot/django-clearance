@@ -158,6 +158,16 @@ class BasePolicy:
         """The name of the method that would decide ``action``, whether or not it exists."""
         return self.custom_actions.get(action, f'{self.hook_prefix}{action}')
 
+    def decides_itself(self, action: str) -> bool:
+        """
+        Whether a hook of the policy's own decides ``action`` - so a row within
+        the action's scope may still be refused, and only asking it can tell.
+        ``BasePolicy``'s hooks ask the scope and nothing more: they are not one.
+        """
+        name = self.hook_name(action)
+        hook = getattr(type(self), name, None)
+        return callable(hook) and hook is not getattr(BasePolicy, name, None)
+
     def permission_for(self, action: str) -> str:
         """The permission ``action`` requires: ``shop.change_order``, ``loans.loan_approve``."""
         if self.model is not None:

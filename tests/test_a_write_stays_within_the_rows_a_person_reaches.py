@@ -469,3 +469,121 @@ def test_the_admin_site_deletes_nothing_a_cascade_takes_outside_the_scope(
 
 def test_deleting_nothing_asks_nothing(make_user: MakeUser) -> None:
     require_deletable(make_user(), Loan.objects.none())
+
+
+# ---------------------------------------------------------------------- a policy's own hooks
+
+
+@pytest.fixture
+def approved_stays(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A rule no scope can say: an approved loan is neither edited nor deleted."""
+    from tests.project.lending.policies import LoanPolicy
+
+    def unless_approved(action: str) -> Any:
+        def hook(self: Any, user: Any, obj: Any = None) -> bool:
+            if not self.has_within_scope(user, action, obj):
+                return False
+            return obj is None or getattr(obj, 'status', None) != 'approved'
+
+        return hook
+
+    monkeypatch.setattr(LoanPolicy, 'can_edit', unless_approved('edit'), raising=False)
+    monkeypatch.setattr(LoanPolicy, 'can_delete', unless_approved('delete'), raising=False)
+
+
+def test_the_editable_list_asks_the_policys_own_hook_of_each_row(
+    make_user: MakeUser, approved_stays: None
+) -> None:
+    """Before Django 6.1 asked each row itself, the list changed what the hook refuses."""
+    owner = make_user()
+    approved = Loan.objects.create(applicant=owner, amount=1, region='north', status='approved')
+    pending = Loan.objects.create(applicant=owner, amount=1, region='north')
+    clerk = staff(make_user(('lending.loan_view', 'all'), ('lending.loan_edit', 'all')))
+    client = admin_of(clerk)
+    page = client.get('/admin/lending/loan/')
+    formset = page.context['cl'].formset
+    data = posted(formset.management_form)
+
+    for form in formset.forms:
+        data.update(posted(form))
+        data[form.add_prefix('id')] = form.instance.pk
+        data[form.add_prefix('region')] = 'south'
+
+    data['_save'] = 'Save'
+    client.post('/admin/lending/loan/', data)
+
+    approved.refresh_from_db()
+    pending.refresh_from_db()
+    assert (approved.region, pending.region) == ('north', 'south')
+
+
+def test_an_inline_asks_the_policys_own_hook_of_each_row(
+    make_user: MakeUser, approved_stays: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A payment, not a loan, is the inline's row: its policy's hook is asked."""
+    from clearance.registry import registry
+
+    payments = registry.policy_for(Payment)
+    monkeypatch.setattr(
+        type(payments),
+        'can_edit',
+        lambda self, user, obj=None: obj is None or obj.state != 'paid',
+        raising=False,
+    )
+    clerk = staff(
+        make_user(
+            ('lending.loan_view', 'all'),
+            ('lending.loan_edit', 'all'),
+            ('lending.view_payment', 'all'),
+            ('lending.change_payment', 'all'),
+        )
+    )
+    loan = Loan.objects.create(applicant=clerk, amount=100)
+    paid = Payment.objects.create(loan=loan, amount=5, state='paid')
+    due = Payment.objects.create(loan=loan, amount=5)
+    client = admin_of(clerk)
+    page = client.get(f'/admin/lending/loan/{loan.pk}/change/')
+    data = posted(page.context['adminform'].form)
+
+    for formset in page.context['inline_admin_formsets']:
+        data.update(posted(formset.formset.management_form))
+        for form in formset.formset.forms:
+            data.update(posted(form))
+            data[form.add_prefix('id')] = form.instance.pk
+            data[form.add_prefix('loan')] = loan.pk
+            data[form.add_prefix('amount')] = 9
+
+    client.post(f'/admin/lending/loan/{loan.pk}/change/', data)
+
+    paid.refresh_from_db()
+    due.refresh_from_db()
+    assert (paid.amount, due.amount) == (5, 9)
+
+
+def test_an_inline_with_no_hook_of_its_own_reads_its_rows_in_a_fixed_number_of_queries(
+    make_user: MakeUser,
+) -> None:
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    clerk = staff(
+        make_user(
+            ('lending.loan_view', 'all'),
+            ('lending.loan_edit', 'all'),
+            ('lending.view_payment', 'all'),
+            ('lending.change_payment', 'own'),
+        )
+    )
+    loan = Loan.objects.create(applicant=clerk, amount=100)
+    client = admin_of(clerk)
+
+    def page() -> int:
+        with CaptureQueriesContext(connection) as queries:
+            client.get(f'/admin/lending/loan/{loan.pk}/change/')
+        return len(queries)
+
+    Payment.objects.create(loan=loan, amount=1)
+    one = page()
+    Payment.objects.bulk_create(Payment(loan=loan, amount=2) for _ in range(5))
+
+    assert page() == one

@@ -15,7 +15,7 @@ from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.exceptions import PermissionDenied
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 
 from clearance.admin.options import protected_admin
 from clearance.forms import ProtectedFieldsFormMixin
@@ -25,7 +25,7 @@ from clearance.safety import outranks, own_fields
 from clearance.writes import refused_writes, require_deletable
 from tests.conftest import MakeBundle, MakeUser
 from tests.project.accounts.models import Person
-from tests.project.lending.models import Loan
+from tests.project.lending.models import Loan, Statement
 
 pytestmark = pytest.mark.django_db
 
@@ -214,3 +214,46 @@ def test_deleting_an_account_takes_only_what_its_deleter_may_delete(make_user: M
 
     remover = make_user(('accounts.delete_person', 'all'), ('lending.loan_delete', 'all'))
     require_deletable(remover, person)
+
+
+# ---------------------------------------------------------------------- what the project says
+
+
+def test_a_field_a_code_scope_reads_is_locked_on_ones_own_account_when_the_project_names_it(
+    make_user: MakeUser,
+) -> None:
+    """A code scope is code: only the project can say ``region`` is what it reads."""
+    clerk = fresh(make_user(*PEOPLE), region='south')
+    other = make_user()
+
+    with override_settings(CLEARANCE={'PERSON_FIELDS': ['region']}):
+        assert own_fields(fresh(clerk)) == {'region'}
+        assert list(refused_writes(fresh(clerk), Person, {'region': 'north'}, fresh(clerk))) == [
+            'region'
+        ]
+        assert refused_writes(fresh(clerk), Person, {'region': 'north'}, other) == {}
+
+    assert own_fields(fresh(clerk)) == frozenset()
+
+
+def test_an_app_the_project_names_goes_with_a_delete_unasked(make_user: MakeUser) -> None:
+    person = make_user()
+    Loan.objects.create(applicant=person, amount=1)
+    remover = make_user(('accounts.delete_person', 'all'))
+
+    with (
+        override_settings(CLEARANCE={'CASCADE_UNASKED_APPS': ['lending']}),
+        pytest.raises(PermissionDenied),
+    ):
+        require_deletable(remover, person)  # a loan is the library's to guard all the same
+
+    payments_only = make_user()
+    statement_loan = Loan.objects.create(applicant=payments_only, amount=1)
+    Statement.objects.create(loan=statement_loan, total=1)
+    clerk = make_user(('lending.loan_view', 'all'), ('lending.loan_delete', 'all'))
+
+    with pytest.raises(PermissionDenied):
+        require_deletable(clerk, statement_loan)  # a statement keeps Django's delete
+
+    with override_settings(CLEARANCE={'CASCADE_UNASKED_APPS': ['lending']}):
+        require_deletable(clerk, statement_loan)

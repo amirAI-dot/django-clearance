@@ -1056,6 +1056,8 @@ not know is refused (E011).
 | `ACCESS` | `None` | the access declared in code - bundles, roles, ceilings, status actions - applied by `clearance_sync` |
 | `SYNC_ON_MIGRATE` | `False` | run `clearance_sync` once at the end of a forward `migrate` |
 | `RULE_DEPTH` | `3` | how many relations a rule's field may cross |
+| `PERSON_FIELDS` | `()` | the fields of the user that the project's code scopes read - locked on a person's own account |
+| `CASCADE_UNASKED_APPS` | `()` | the apps whose rows a delete takes with it unasked |
 
 ---
 
