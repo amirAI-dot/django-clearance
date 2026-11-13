@@ -15,7 +15,9 @@ from typing import Any
 import pytest
 from django.contrib import admin
 from django.contrib.messages.storage.fallback import FallbackStorage
+from django.db import connection
 from django.test import Client, RequestFactory, override_settings
+from django.test.utils import CaptureQueriesContext
 
 from clearance.admin.options import protected_admin
 from clearance.checks import backend_errors
@@ -374,3 +376,45 @@ def test_with_perm_answers_as_has_perm_does(make_user: MakeUser, make_bundle: Ma
     assert holding(include_superusers=False) == {officer, starter}
     assert holding(is_active=False) == {retired}
     assert all(person.has_perm('lending.loan_approve') for person in holding())
+
+
+def test_with_perm_lets_in_whoever_a_ceiling_permits_and_answers_alike_however_asked(
+    make_user: MakeUser, make_bundle: MakeBundle
+) -> None:
+    approvers = make_bundle({'lending.loan_approve': 'all'})
+    permitted, stopped = make_user(bundles=(approvers,)), make_user(bundles=(approvers,))
+    approving = Role.objects.create(code='approving', name='Approving', limited=True)
+    RoleCeiling.objects.create(role=approving, permission=permission('lending.loan_approve'))
+    RoleService(actor=None).assign(permitted, approving)
+    RoleService(actor=None).assign(stopped, Role.objects.create(code='clerk', name='Clerk'))
+    loan = Loan.objects.create(applicant=stopped, amount=1)
+
+    by_name = set(Person.objects.with_perm('lending.loan_approve', include_superusers=False))
+    by_row = set(
+        Person.objects.with_perm(permission('lending.loan_approve'), include_superusers=False)
+    )
+
+    assert by_name == by_row == {permitted}
+    assert not Person.objects.with_perm('lending.loan_approve', obj=loan).exists()
+
+
+def test_with_perm_costs_the_same_however_many_people_hold_it(
+    make_user: MakeUser,
+    make_bundle: MakeBundle,
+) -> None:
+    approvers = make_bundle({'lending.loan_approve': 'all'})
+    clerk = Role.objects.create(code='clerk', name='Clerk')
+
+    def holders() -> int:
+        with CaptureQueriesContext(connection) as captured:
+            list(Person.objects.with_perm('lending.loan_approve'))
+        return len(captured)
+
+    for _ in range(2):
+        RoleService(actor=None).assign(make_user(bundles=(approvers,)), clerk)
+    few = holders()
+
+    for _ in range(6):
+        RoleService(actor=None).assign(make_user(bundles=(approvers,)), clerk)
+
+    assert holders() == few

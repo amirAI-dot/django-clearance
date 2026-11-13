@@ -2,9 +2,11 @@
 
 [فارسی](CHANGELOG.fa.md)
 
-## Unreleased
+## Unreleased - to be 0.2.0
 
-Found by a security review of 0.1.0.
+Found by a security review of 0.1.0. It changes what 0.1.0 did in ways a
+project may notice - each is marked **Changed** - so it is released as 0.2.0,
+not as a patch.
 
 * **The page of a user opens in the admin site.** Adding or changing one was
   a server error with Django's `UserAdmin`, for everybody.
@@ -103,6 +105,22 @@ Found by a security review of 0.1.0.
   is refused rather than failing. A status action in the `ACCESS` file whose
   `to` or `from` is not a list is a problem said, not a traceback. A sync
   skipped on a test database says so.
+
+And what the review's fixes left:
+
+* **Rows sent together stay within the scope too.** A list created at once
+  (`many=True`) was saved row by row past the check a single row met; each
+  row is now asked, and the list is saved whole or not at all.
+* **A queryset's own `visible_to` may call `visible(self, ...)`**, as 0.1.0's
+  did: inside it, `visible` answers by the grants. It called the override
+  again, without end.
+* **An API keeps the related row a row holds already**, though the person
+  may not view it - an edit to a payment whose loan they cannot see was
+  refused. The guard read a field's source before DRF had set it.
+* **`with_perm` costs the same however many people hold the permission**:
+  the ceiling is asked of everybody at once, not of each in turn.
+* **Every line of the library is run by a test**, and the suite fails below
+  that (`fail_under = 100`).
 
 ## 0.1.0 - the first release
 

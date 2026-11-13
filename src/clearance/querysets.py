@@ -34,6 +34,7 @@ A code scope answers with one of:
 
 import logging
 from collections.abc import Mapping
+from contextvars import ContextVar
 from functools import reduce
 from operator import or_
 from types import MappingProxyType
@@ -143,11 +144,29 @@ def visible(queryset: QuerySetT, user: User, action: str = 'view') -> QuerySetT:
     the union of the scopes of the action's grants. A ``ScopedQuerySet`` is
     asked through its ``visible_to``, so one that answers in a way of its own
     - ``SignedInReadQuerySet``, or a project's - answers here as well.
-    """
-    if isinstance(queryset, ScopedQuerySet):
-        return queryset.visible_to(user, action)
 
-    return rows_reached(queryset, user, action)
+    Asked from inside that ``visible_to``, it answers by the grants, as
+    ``super().visible_to`` does: an override narrowing what the grants reach
+    may write either::
+
+        def visible_to(self, user, action='view'):
+            return visible(self, user, action).filter(archived=False)
+    """
+    kind = type(queryset)
+
+    if not answers_for_itself(queryset) or kind in _ANSWERING.get():
+        return rows_reached(queryset, user, action)
+
+    asking = _ANSWERING.set(_ANSWERING.get() | {kind})
+
+    try:
+        return queryset.visible_to(user, action)  # type: ignore[attr-defined, no-any-return]
+    finally:
+        _ANSWERING.reset(asking)
+
+
+#: The querysets whose own ``visible_to`` is being asked now - by ``visible``.
+_ANSWERING: ContextVar[frozenset[type]] = ContextVar('clearance_answering', default=frozenset())
 
 
 def answers_for_itself(queryset: models.QuerySet[Any]) -> bool:

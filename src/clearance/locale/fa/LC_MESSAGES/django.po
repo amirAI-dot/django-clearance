@@ -29,7 +29,7 @@ msgstr "%(model)s فیلدی به اسم %(field)r ندارد."
 
 #, python-format
 msgid "%(field)s has no choices, and is not yes or no."
-msgstr "%(field)s گزینه ندارد، و بله یا نه هم نیست."
+msgstr "%(field)s گزینه ندارد، و بله/خیر هم نیست."
 
 msgid "It writes no value."
 msgstr "هیچ مقداری نمی‌نویسد."
@@ -397,14 +397,14 @@ msgid "You may not change a role's ceiling."
 msgstr "شما اجازه‌ی تغییر سقف یک نقش را ندارید."
 
 msgid "Nobody changes their own access."
-msgstr "هیچ‌کس دسترسی خودش را تغییر نمی‌دهد."
+msgstr "هیچ‌کس نمی‌تواند دسترسی خودش را تغییر دهد."
 
 #, python-format
 msgid "The %(kind)s %(key)r is declared in code: change it there."
-msgstr "%(kind)s %(key)r در کد اعلام شده: همان‌جا تغییرش دهید."
+msgstr "%(kind)s %(key)r در کد تعریف شده: همان‌جا تغییرش دهید."
 
 msgid "Nobody changes a bundle they hold themselves."
-msgstr "هیچ‌کس بسته‌ای را که خودش دارد تغییر نمی‌دهد."
+msgstr "هیچ‌کس نمی‌تواند بسته‌ای را که خودش دارد تغییر دهد."
 
 msgid "no scope"
 msgstr "بدون دامنه"
@@ -425,7 +425,7 @@ msgid ""
 "After this nobody but the superuser could manage access. Give somebody else "
 "permission_edit first."
 msgstr ""
-"بعد از این، جز superuser هیچ‌کس نمی‌تواند دسترسی را مدیریت کند. اول "
+"بعد از این، جز ابرکاربر هیچ‌کس نمی‌تواند دسترسی را مدیریت کند. اول "
 "permission_edit را به کس دیگری بدهید."
 
 #, python-format
@@ -444,7 +444,7 @@ msgid "%(code)r is already a scope of this model."
 msgstr "%(code)r از قبل یکی از دامنه‌های این مدل است."
 
 msgid "Nobody changes the rows of a scope their own grants are in."
-msgstr "هیچ‌کس ردیف‌های دامنه‌ای را که اعطاهای خودش در آن است تغییر نمی‌دهد."
+msgstr "هیچ‌کس نمی‌تواند ردیف‌های دامنه‌ای را که اعطاهای خودش در آن است تغییر دهد."
 
 #, python-format
 msgid "%(field)s is already protected."
@@ -460,15 +460,15 @@ msgid ""
 "%(field)s is protected in code, by build_permissions; it is unprotected "
 "there."
 msgstr ""
-"%(field)s در کد، با build_permissions، محافظت شده؛ محافظتش همان‌جا برداشته "
-"می‌شود."
+"%(field)s در کد، با build_permissions، محافظت شده؛ محافظتش را همان‌جا بردارید."
 
 #, python-format
 msgid "%(code)r is an action %(model)s has already."
 msgstr "%(code)r اکشنی است که %(model)s از قبل دارد."
 
 msgid "Nobody lets an action they hold write from more values."
-msgstr "هیچ‌کس نمی‌گذارد اکشنی که خودش دارد از مقدارهای بیشتری بنویسد."
+msgstr ""
+"هیچ‌کس نمی‌تواند به اکشنی که خودش دارد اجازه دهد از مقدارهای بیشتری بنویسد."
 
 #, python-format
 msgid "%(name)s: no such permission"

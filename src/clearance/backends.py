@@ -33,7 +33,7 @@ from django.contrib.auth.models import Permission
 from django.db.models import Q, QuerySet
 
 from clearance.grants import groups_lookup
-from clearance.limits import Limits, limits
+from clearance.limits import limits
 from clearance.models import PermissionRevocation
 from clearance.safety import holders_of
 
@@ -77,18 +77,8 @@ class ClearanceBackend(ModelBackend):
 
         app_label, _, codename = perm.partition('.')
         row = Permission.objects.filter(content_type__app_label=app_label, codename=codename)
-        holders = holders_of(perm, is_active=is_active)
-        given = limits()
-
-        if type(given) is not Limits:
-            # A ceiling is each person's own: asked of each of those the permission was given.
-            holders = people.model._default_manager.filter(
-                pk__in=[
-                    person.pk
-                    for person in holders.iterator()
-                    if row.filter(given.allowed(person, 'pk')).exists()
-                ]
-            )
+        # A ceiling is each person's own, asked of everybody at once: a fixed number of queries.
+        holders = holders_of(perm, is_active=is_active).filter(limits().within_ceiling(row))
 
         found = Q(pk__in=holders.values('pk'))
 

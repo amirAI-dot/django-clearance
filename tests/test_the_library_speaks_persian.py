@@ -27,7 +27,7 @@ from tests.conftest import MakeUser
 
 SOURCE = Path(__file__).resolve().parent.parent / 'src' / 'clearance'
 CATALOGUES = sorted(SOURCE.rglob('locale/fa/LC_MESSAGES/django.po'))
-PLACEHOLDER = re.compile(r'%\((\w+)\)[sd]')
+PLACEHOLDER = re.compile(r'%\((\w+)\)[sdr]')
 
 #: "Bundles", in Persian - written as escapes: the code is English only.
 BUNDLES_FA = '\u0628\u0633\u062a\u0647\u200c\u0647\u0627'

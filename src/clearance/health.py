@@ -156,9 +156,6 @@ def _grants_reaching_nothing() -> Iterator[Finding]:
         }
         wanted.update({p.pk: (p, model) for p in permissions if _name(p) not in fields})
 
-    if not wanted:
-        return
-
     scoped: set[tuple[Any, Any, Any]] = set(
         ScopeGrant.objects.filter(permission__in=list(wanted)).values_list(
             'group_id', 'user_id', 'permission_id'
