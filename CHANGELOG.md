@@ -85,6 +85,25 @@ Found by a security review of 0.1.0.
   marked for translation and said in Persian; `AccessRefused.rule` still
   names the rule for code.
 
+* **A protected serializer takes only the related rows the person may
+  view**, as a form in the admin site does. **Changed:** an API choosing a
+  related row needs `view` on its model; reference data everybody chooses
+  from reads through `SignedInReadQuerySet`, as the example's branches do.
+* **A permission another model has is not made again.** A field's
+  permission, or a status action's, with the codename of another model's
+  in the same app would be that one: refused in the admin site, and at
+  start-up for a field protected in code (E012).
+* **Two changes that could each leave nobody managing access wait their
+  turn**: the check locks the permission's row, where the database can.
+* **Migration 0006 is undone without loss**: the rows go back into the
+  columns. Going forward, a condition that compared with `None` becomes
+  `is_empty`.
+* **Smaller ones.** A yes or no sent as a form sends it (`on`, `true`) is
+  read as one, where a status action claims it. A rule on a generic relation
+  is refused rather than failing. A status action in the `ACCESS` file whose
+  `to` or `from` is not a list is a problem said, not a traceback. A sync
+  skipped on a test database says so.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

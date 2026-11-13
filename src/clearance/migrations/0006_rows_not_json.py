@@ -2,6 +2,11 @@
 A rule's conditions and a status action's values move out of JSON columns
 into rows of their own - each condition, each constant and each value a row
 the database can constrain, index and join.
+
+Undone, the rows go back into the columns: a rule keeps its conditions and
+an action its values, each constant in words, as the rows hold it. A
+condition that compared with nothing - ``is``, and ``None`` - is ``is_empty``
+once it is a row: a row holds a constant in words, and nothing has none.
 """
 
 from typing import Any
@@ -29,6 +34,9 @@ def into_rows(apps: Any, schema_editor: Any) -> None:
             given = item.get('value')
             value: dict[str, Any] = given if isinstance(given, dict) else {}
             constant = value.get('constant')
+
+            if 'constant' in value and constant is None and item.get('operator') == 'is':
+                item, value = {**item, 'operator': 'is_empty'}, {}
 
             if 'person' in value:
                 source, person, words = 'person', str(value['person']), []
@@ -60,6 +68,46 @@ def into_rows(apps: Any, schema_editor: Any) -> None:
             for end, given in (('to', action.to_values), ('from', action.from_values))
             for place, word in enumerate(dict.fromkeys(str(one) for one in given or []))
         )
+
+
+def out_of_rows(apps: Any, schema_editor: Any) -> None:
+    """Undoing: copy the rows back into the JSON columns - every rule, every action."""
+    alias = schema_editor.connection.alias
+    rules = apps.get_model('clearance', 'ScopeRule')
+    conditions = apps.get_model('clearance', 'ScopeCondition')
+    constants = apps.get_model('clearance', 'ScopeConditionValue')
+    actions = apps.get_model('clearance', 'StatusAction')
+    values = apps.get_model('clearance', 'StatusActionValue')
+
+    for rule in rules.objects.using(alias).all():
+        written = []
+
+        for row in conditions.objects.using(alias).filter(rule=rule).order_by('position'):
+            words = list(
+                constants.objects.using(alias)
+                .filter(condition=row)
+                .order_by('position')
+                .values_list('value', flat=True)
+            )
+            item: dict[str, Any] = {'field': row.field, 'operator': row.operator}
+
+            if row.source == 'person':
+                item['value'] = {'person': row.person}
+            elif row.source == 'list':
+                item['value'] = {'constant': words}
+            elif row.source == 'constant':
+                item['value'] = {'constant': words[0] if words else None}
+
+            written.append(item)
+
+        rule.conditions = written
+        rule.save(update_fields=['conditions'])
+
+    for action in actions.objects.using(alias).all():
+        rows = values.objects.using(alias).filter(action=action).order_by('position')
+        action.to_values = [row.value for row in rows if row.end == 'to']
+        action.from_values = [row.value for row in rows if row.end == 'from']
+        action.save(update_fields=['to_values', 'from_values'])
 
 
 class Migration(migrations.Migration):
@@ -208,7 +256,7 @@ class Migration(migrations.Migration):
                 name='clearance_statusactionvalue_once_each',
             ),
         ),
-        migrations.RunPython(into_rows, migrations.RunPython.noop),
+        migrations.RunPython(into_rows, out_of_rows),
         migrations.RemoveField(
             model_name='scoperule',
             name='conditions',

@@ -756,9 +756,18 @@ parent with a table of its own, by the permissions of the model it is a
 field of. A status action is claimed on a proxy the same. And a relation is
 protected under its column's name too - `officer_id` is `officer`.
 
-In the admin site, a field choosing a related row offers the rows of that
-model the person may view, and the one the row holds already: a list of
-every loan on a payment's page showed them to somebody who may see none.
+A field choosing a related row - in a form of the admin site, and in a
+protected serializer - offers the rows of that model the person may view,
+and the one the row holds already: a list of every loan on a payment's page
+showed them to somebody who may see none, and an API took any loan's key,
+answering whether it exists. Reference data everybody chooses from - the
+branches - is read through `SignedInReadQuerySet`.
+
+A permission is known by its app and its codename, so a field's permission
+that another model of the app has already would be that one: protecting the
+field is refused, and so is a status action whose permission another model
+has - in the admin site, and at start-up for a field protected in code
+(E012).
 
 What is protected is read once per request, in one query over the whole
 table - it holds the handful of fields a project protects - and kept on the
@@ -1083,7 +1092,7 @@ Every foreign key to a person is `settings.AUTH_USER_MODEL`.
 | `clearance.E009` | a `PolicyRequiredMixin` view, or a DRF view guarded by a policy, cannot ask one |
 | `clearance.E010` | `ROLE_RESOLVER` or `ROLE_ATTRIBUTE` cannot be used |
 | `clearance.E011` | `CLEARANCE` is not a dictionary, has a key the library does not know, or a value it cannot use - `RULE_DEPTH` below one |
-| `clearance.E012` | a field protected in code is not a field of its model, or cannot be protected - the primary key, the password, a relation of another model |
+| `clearance.E012` | a field protected in code is not a field of its model, or cannot be protected - the primary key, the password, a relation of another model - or its permission is another model's too |
 | `clearance.E013` | an action found in the code cannot make a permission - its policy has no model, or the name is too long |
 | `clearance.E014` | a model declares its permissions with `build_permissions` but keeps Django's own - `default_permissions = ()` is missing |
 | `clearance.E015` | a status action declared in code names a field or a value its model does not have |

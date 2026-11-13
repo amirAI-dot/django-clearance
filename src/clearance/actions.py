@@ -233,10 +233,24 @@ def writable_values(
     return (every - claimed) | given | (every & {current})
 
 
+#: Yes and no, as a form and an API send them - the words DRF's own ``BooleanField`` takes.
+_YES: Final = frozenset({'true', 't', 'yes', 'y', 'on', '1'})
+_NO: Final = frozenset({'false', 'f', 'no', 'n', 'off', '0'})
+
+
 def clean_value(model: type[Model], field: str, value: object) -> object:
-    """``value`` as the field holds it - ``'1'`` is ``1`` for a number - or as it was."""
+    """
+    ``value`` as the field holds it - ``'1'`` is ``1`` for a number, and
+    ``'on'`` is yes for a yes or no - or as it was.
+    """
+    found: Any = model._meta.get_field(field)
+
+    if isinstance(found, models.BooleanField) and isinstance(value, str):
+        word = value.strip().lower()
+        value = True if word in _YES else False if word in _NO else value
+
     try:
-        return model._meta.get_field(field).to_python(value)  # type: ignore[union-attr]
+        return found.to_python(value)
     except ValidationError:
         return value
 

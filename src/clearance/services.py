@@ -431,6 +431,13 @@ class AccessService:
 
         content_type = ContentType.objects.get_for_model(model)
         permissions = field_permissions(model, field)
+        _refuse(
+            [
+                problem
+                for name in permissions.values()
+                if (problem := permission_taken(content_type, name)) is not None
+            ]
+        )
         words = model._meta.get_field(field).verbose_name  # type: ignore[union-attr]
 
         with transaction.atomic():
@@ -535,6 +542,11 @@ class AccessService:
         taken = code in declared_status_actions(model) or (
             Permission.objects.filter(content_type=content_type, codename=codename).exists()
         )
+
+        elsewhere = permission_taken(content_type, f'{model._meta.app_label}.{codename}')
+
+        if elsewhere is not None:
+            problems.append(elsewhere)
 
         if taken:
             problems.append(
@@ -768,6 +780,32 @@ class AccessService:
             signal.send(sender=AccessService, actor=self.actor, **kwargs)
 
         transaction.on_commit(send)
+
+
+def permission_taken(content_type: ContentType, permission: str) -> str | None:
+    """
+    Why ``permission`` cannot be made for the model of ``content_type`` - another
+    model of its app has one of that name - or ``None`` when it can.
+
+    Django knows a permission by its app and its codename, so two models'
+    would be one: holding ``view_order_x`` of a model ``OrderX`` would read the
+    field ``x`` of ``Order``.
+    """
+    app_label, _dot, codename = permission.partition('.')
+    other = (
+        Permission.objects.filter(content_type__app_label=app_label, codename=codename)
+        .exclude(content_type=content_type)
+        .select_related('content_type')
+        .first()
+    )
+
+    if other is None:
+        return None
+
+    return gettext(
+        '%(permission)s is a permission of %(model)s already: holding that one would '
+        'be holding this.'
+    ) % {'permission': permission, 'model': other.content_type.model}
 
 
 def _refuse(problems: list[str]) -> None:
