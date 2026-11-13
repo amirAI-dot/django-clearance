@@ -8,6 +8,7 @@ the permission of every action found in the code - and, with
 """
 
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
 
 class ClearanceConfig(AppConfig):
@@ -19,7 +20,7 @@ class ClearanceConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
 
     # A product name, the same in every language - so not marked for translation.
-    verbose_name = 'Clearance'
+    verbose_name = _('Clearance')
 
     def ready(self) -> None:
         from django.apps import apps

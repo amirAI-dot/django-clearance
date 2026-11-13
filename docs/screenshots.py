@@ -63,8 +63,6 @@ print(json.dumps({
 
 #: The pictures that show a part of a long page, by the text the part starts at.
 FOCUS = {'bundle': 'Shop: orders'}
-#: The pictures of a page wider than the screen most pictures are taken on.
-WIDE = {'bundle': {'width': 1680, 'height': 800}}
 
 
 def pages(keys: dict[str, int]) -> dict[str, tuple[str, str]]:
@@ -153,7 +151,6 @@ def photograph(server: str, shown: dict[str, tuple[str, str]]) -> None:
                     signed_in[who] = sign_in(context.new_page(), server, who)
 
                 page = signed_in[who]
-                page.set_viewport_size(WIDE.get(picture, SIZE))
                 page.goto(f'{server}{address}')
 
                 if picture in FOCUS:

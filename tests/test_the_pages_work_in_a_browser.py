@@ -139,3 +139,27 @@ def test_no_page_is_wider_than_the_screen_in_either_direction(
         )
 
     assert wide <= screen, f'{address} in {language} is {wide}px on a {screen}px screen'
+
+
+@pytest.mark.parametrize('language', ['en', 'fa'])
+def test_a_bundles_grid_fits_a_common_screen_with_every_permission_in_sight(
+    browser: Any, live_server: Any, administrator: Person, language: str
+) -> None:
+    """
+    A model's other permissions - approving a loan, reading its credit score -
+    sat in a fifth column, behind a sideways scroll on a 1280-pixel screen.
+    """
+    with override_settings(LANGUAGE_CODE=language):
+        page = page_for(
+            browser, live_server, administrator, viewport={'width': 1280, 'height': 800}
+        )
+        page.goto(f'{live_server.url}/admin/access/bundles/add/')
+
+        wide, room = page.evaluate(
+            "(() => { const box = document.querySelector('.clearance-scroll');"
+            ' return [box.scrollWidth, box.clientWidth]; })()'
+        )
+        approve = page.locator('input[value="lending.loan_approve"]')
+
+    assert wide <= room, f'the grid is {wide}px in a {room}px box, in {language}'
+    assert approve.is_visible()

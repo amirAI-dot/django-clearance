@@ -2,6 +2,21 @@
 
 [فارسی](CHANGELOG.fa.md)
 
+## Unreleased
+
+What the pictures of the admin site showed, for the documentation:
+
+* **The access pages say their own words in Persian** - the grid's column
+  headings, the library's own permissions ("Can create access") and the
+  apps' names were in English.
+* **The access pages' breadcrumbs are Django's bar**, on Django 6.1 too,
+  which styles only its new markup.
+* **The rule builder shows its operators in words** - "is one of", not
+  `is_one_of` - in the reader's language.
+* **A bundle's grid fits a 1280-pixel screen.** A model's other permissions -
+  approving, printing, a field's - run on a row of their own under its four,
+  where they were pushed off the side.
+
 ## 0.2.0 - the security review
 
 Found by a security review of 0.1.0. It changes what 0.1.0 did in ways a

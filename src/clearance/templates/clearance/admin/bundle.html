@@ -15,7 +15,7 @@
     <div class="clearance-scroll">
     <table class="clearance-grid">
       <thead>
-        <tr><th>{% translate 'Model' %}</th>{% for column in grid.columns %}<th>{{ column }}</th>{% endfor %}<th>{% translate 'Other permissions' %}</th></tr>
+        <tr><th>{% translate 'Model' %}</th>{% for heading in grid.headings %}<th>{{ heading }}</th>{% endfor %}</tr>
       </thead>
       <tbody>
       {% for row in grid.rows %}
@@ -24,8 +24,14 @@
           {% for cell in row.columns %}
             <td>{% if cell %}{% include "clearance/admin/cell.html" %}{% endif %}</td>
           {% endfor %}
-          <td>{% for cell in row.others %}<div class="clearance-other">{% include "clearance/admin/cell.html" with labelled=True %}</div>{% endfor %}</td>
         </tr>
+        {% if row.others %}
+        <tr class="clearance-others">
+          <td></td>
+          <td colspan="{{ grid.headings|length }}"><span class="clearance-note">{% translate 'Other permissions' %}:</span>
+            {% for cell in row.others %}<div class="clearance-other">{% include "clearance/admin/cell.html" with labelled=True %}</div>{% endfor %}</td>
+        </tr>
+        {% endif %}
       {% endfor %}
       </tbody>
     </table>

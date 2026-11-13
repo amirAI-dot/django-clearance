@@ -145,3 +145,65 @@ def test_the_access_pages_read_in_persian(client: Client, make_user: MakeUser) -
     assert BUNDLES_FA in page.content.decode()
     with translation.override('fa'):
         assert _('What it is for') == WHAT_FOR_FA, "an optional app's own catalogue is read too"
+
+
+# ---------------------------------------------------------------------- the access pages
+
+
+#: "Can create access", "Can change the ceilings of roles" and "is one of", in Persian -
+#: written as escapes: the code is English only.
+CREATE_ACCESS_FA = (
+    '\u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u062f \u062f\u0633'
+    '\u062a\u0631\u0633\u06cc \u0628\u0633\u0627\u0632\u062f'
+)
+CEILINGS_FA = (
+    '\u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u062f \u0633\u0642'
+    '\u0641 \u0646\u0642\u0634\u200c\u0647\u0627 \u0631\u0627 \u062a'
+    '\u063a\u06cc\u06cc\u0631 \u062f\u0647\u062f'
+)
+IS_ONE_OF_FA = '\u06cc\u06a9\u06cc \u0627\u0633\u062a \u0627\u0632'
+
+
+@pytest.mark.django_db
+def test_the_librarys_own_permissions_and_apps_read_in_persian() -> None:
+    """They were kept in a plain tuple, which lost the labels they are read by."""
+    from django.apps import apps
+
+    from clearance.labels import labels_in
+    from tests.conftest import permission
+
+    persian = labels_in('fa')
+
+    assert persian.of(permission('clearance.permission_create')) == CREATE_ACCESS_FA
+    assert persian.of(permission('clearance.role_ceiling_edit')) == CEILINGS_FA
+    assert permission('clearance.role_ceiling_edit').name == 'Can change the ceilings of roles'
+    with translation.override('fa'):
+        assert str(apps.get_app_config('clearance').verbose_name) != 'Clearance'
+
+
+@pytest.mark.django_db
+def test_the_grid_and_the_rule_builder_say_their_words_in_persian(
+    client: Client, make_user: MakeUser
+) -> None:
+    person = make_user(superuser=True)
+    person.is_staff = True
+    person.save()
+    client.force_login(person)
+
+    with override_settings(LANGUAGE_CODE='fa'):
+        grid = client.get('/admin/access/bundles/add/').content.decode()
+        builder = client.get('/admin/access/scopes/add/?model=lending.Loan').content.decode()
+
+    with translation.override('fa'):
+        view = _('View')
+    assert view != 'View'
+    assert f'<th>{view}</th>' in grid
+    assert f'>{IS_ONE_OF_FA}</option>' in builder
+    assert 'clearance-breadcrumbs' in grid, "the bar Django's own pages have"
+
+
+def test_every_operator_of_a_rule_has_words() -> None:
+    from clearance.admin.scopes import OPERATOR_WORDS
+    from clearance.rules import OPERATORS
+
+    assert set(OPERATOR_WORDS) == set(OPERATORS)

@@ -13,10 +13,13 @@ grants there are.
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Final
 
 from django.contrib.auth.models import Group, Permission
 from django.db.models import Model
+from django.utils.functional import Promise
+from django.utils.translation import gettext_lazy as _
 
 from clearance.fields import Protection
 from clearance.grants import Scope
@@ -29,6 +32,11 @@ from clearance.querysets import code_scopes
 
 #: The columns of the grid: the four actions every model has.
 COLUMNS: Final = DEFAULT_ACTIONS
+
+#: Each column's heading, in the reader's language.
+HEADINGS: Final[Mapping[str, Promise]] = MappingProxyType(
+    {'view': _('View'), 'create': _('Create'), 'edit': _('Edit'), 'delete': _('Delete')}
+)
 
 
 def name_of(permission: Permission) -> str:
@@ -189,6 +197,7 @@ class PermissionGrid:
     """Every permission there is, laid out as a bundle is edited."""
 
     columns = COLUMNS
+    headings = tuple(HEADINGS[column] for column in COLUMNS)
 
     def __init__(self, rows: list[Row]) -> None:
         self.rows = rows
