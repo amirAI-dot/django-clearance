@@ -155,6 +155,8 @@ status      is one of   pending, approved
 
 A rule is only ever a Django `Q`, checked when it is saved. It never reads a
 protected field or the password, and crosses at most `RULE_DEPTH` relations.
+A condition reaching another model - `customer__email` - reads it, so whoever
+writes the rule must be allowed to view all of that model.
 
 ### 5.3 Asking for rows
 
@@ -164,7 +166,16 @@ visible(Order.objects.all(), user, 'view')   # the same, for any queryset
 ```
 
 A person's grants and rules are read once per request, in a fixed number of
-queries, however many lists the page shows.
+queries, however many lists the page shows. They are kept on the user object,
+as Django keeps a person's permissions: in a process that outlives a request -
+a worker, a websocket - read the user again, or forget what is kept, when
+their access may have changed.
+
+```python
+from clearance.grants import forget_grants
+
+forget_grants(user)    # read again, at the next question
+```
 
 A queryset may answer in a way of its own by overriding `visible_to`; every
 door - a view, the admin site, a policy - then asks it. Inside the override,
@@ -185,7 +196,9 @@ scope `create` was given in, or edited out of the rows the person reaches.
 Give `create` a scope as you give `view` one: with none, it reaches the
 model's `default_scope`, which is no rows on a `ScopedQuerySet` naming none.
 Rows sent together - a list, `many=True` - are each asked, and saved all or
-none.
+none. A delete takes nothing the person may not delete: when a cascade would
+take a row outside their delete scope, of a model the library guards, the
+delete is refused (`require_deletable` asks the same by hand).
 
 A view of your own that saves by hand asks the same, after saving and inside
 the transaction:
@@ -228,9 +241,10 @@ and gives the template `readable_fields`:
 
 The library's doors hide the field every way round: a serializer nested in a
 protected one, a field renamed with `source=`, DRF's `SearchFilter` and
-`OrderingFilter` on a `ScopedModelViewSet`, a filter typed into the admin
-site's address bar, and a proxy of the model. A filter of your own - a
-`django-filter` filterset, say - asks before it filters:
+`OrderingFilter` and django-filter's `DjangoFilterBackend` on a
+`ScopedModelViewSet`, a filter typed into the admin site's address bar, and a
+proxy of the model. A filter of another kind, of your own, asks before it
+filters:
 
 ```python
 from clearance.fields import path_readable
@@ -458,6 +472,8 @@ refused when it would let somebody give themselves more:
   gives back one that was taken away, widens the rows of a rule scope others
   hold it in, or lets a status action write from more values;
 * a second role that would widen somebody's ceiling needs `role_ceiling_edit`;
+* an account is changed or deleted only by somebody holding at least what it
+  holds - setting its password is signing in as it;
 * a change after which nobody could manage access is refused;
 * what the `ACCESS` file owns is changed only in the file.
 

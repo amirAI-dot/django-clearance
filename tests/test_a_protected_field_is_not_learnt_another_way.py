@@ -9,15 +9,19 @@ a value a status action claims is written under another name.
 Each of these was a finding of the 0.1.0 review.
 """
 
+import sys
 from typing import Any
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.test import Client
-from rest_framework import filters, serializers
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics, serializers, viewsets
+from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from clearance.actions import writable_values
+from clearance.drf.permissions import ModelPolicyPermission
 from clearance.drf.serializers import protected_serializer
 from clearance.drf.viewsets import ScopedModelViewSet
 from clearance.fields import readable_fields
@@ -183,3 +187,95 @@ def test_a_field_protected_in_code_is_protected_on_a_proxy_of_its_model(
     finally:
         del apps.all_models['lending']['recentloan']
         apps.clear_cache()
+
+
+# ---------------------------------------------------------------------- the permission class alone
+
+
+class Decided(serializers.ModelSerializer):  # type: ignore[type-arg]
+    """Written knowing nothing of the library, with the status under another name."""
+
+    decision = serializers.CharField(source='status')
+
+    class Meta:
+        model = Loan
+        fields = ('id', 'amount', 'decision')
+
+
+class PlainLoans(viewsets.ModelViewSet):  # type: ignore[type-arg]
+    """No protected serializer - chosen at run time, where E003 cannot see it."""
+
+    permission_classes = (ModelPolicyPermission,)
+    queryset = Loan.objects.all()
+
+    def get_serializer_class(self) -> Any:
+        return Decided
+
+
+class NoSerializer(generics.GenericAPIView):  # type: ignore[type-arg]
+    permission_classes = (ModelPolicyPermission,)
+    queryset = Loan.objects.all()
+
+    def post(self, request: Any) -> Any:
+        return Response({})
+
+
+def test_the_permission_class_refuses_a_value_sent_under_another_name(
+    make_user: MakeUser,
+) -> None:
+    editor = make_user(('lending.loan_view', 'all'), ('lending.loan_edit', 'all'))
+    loan = Loan.objects.create(applicant=editor, amount=1)
+    request = APIRequestFactory().patch('/', {'decision': 'approved'}, format='json')
+    force_authenticate(request, editor)
+
+    response = PlainLoans.as_view({'patch': 'partial_update'})(request, pk=loan.pk)
+
+    loan.refresh_from_db()
+    assert response.status_code == 400
+    assert 'decision' in response.data
+    assert loan.status == 'pending'
+
+
+def test_a_view_naming_no_serializer_is_asked_by_the_names_sent(make_user: MakeUser) -> None:
+    request = APIRequestFactory().post('/', {'amount': 1}, format='json')
+    force_authenticate(request, make_user(('lending.loan_create', 'all')))
+
+    assert NoSerializer.as_view()(request).status_code == 200
+
+
+# ---------------------------------------------------------------------- django-filter
+
+
+class FilteredLoans(LoanViewSet):
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ('status', 'credit_score')
+
+
+def listed(person: Person, query: str) -> list[int]:
+    request = APIRequestFactory().get(f'/?{query}')
+    force_authenticate(request, person)
+    response = FilteredLoans.as_view({'get': 'list'})(request)
+    return sorted(row['id'] for row in response.data)
+
+
+def test_a_filterset_filters_only_by_the_fields_the_person_may_read(make_user: MakeUser) -> None:
+    """``?credit_score=700`` asked whether a score is 700, of somebody who may not read it."""
+    owner = make_user()
+    scored = Loan.objects.create(applicant=owner, amount=1, credit_score=700, status='approved')
+    other = Loan.objects.create(applicant=owner, amount=1, credit_score=500)
+    reader = make_user(READER)
+    allowed = make_user(READER, SCORE_VIEW)
+
+    assert listed(reader, 'credit_score=700') == sorted([scored.pk, other.pk])
+    assert listed(reader, 'status=approved') == [scored.pk]
+    assert listed(allowed, 'credit_score=700') == [scored.pk]
+
+
+def test_without_django_filter_the_library_knows_drfs_own_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from clearance.drf.viewsets import _backends
+
+    monkeypatch.setitem(sys.modules, 'django_filters.rest_framework', None)
+
+    assert [base for _mixin, base in _backends()] == [filters.SearchFilter, filters.OrderingFilter]

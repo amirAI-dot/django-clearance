@@ -313,3 +313,88 @@ def test_a_row_saved_outside_the_scope_by_a_view_of_no_model_is_not_asked_about(
     view.request = RequestFactory().get('/')  # type: ignore[assignment]
 
     view.require_written_within_scope(None, creating=True)
+
+
+# ---------------------------------------------------------------------- what review 9 added
+
+
+def test_the_admin_sites_bulk_delete_of_rows_that_are_no_accounts_deletes_them(
+    make_user: MakeUser,
+) -> None:
+    clerk = staff(make_user(('lending.loan_view', 'all'), ('lending.loan_delete', 'all')))
+    loans = [Loan.objects.create(applicant=make_user(), amount=1) for _ in range(2)]
+
+    admin_of(clerk).post(
+        '/admin/lending/loan/',
+        {
+            'action': 'delete_selected',
+            '_selected_action': [loan.pk for loan in loans],
+            'post': 'yes',
+        },
+    )
+
+    assert not Loan.objects.exists()
+
+
+def test_a_view_of_no_serializer_is_guarded_by_the_names_sent(make_user: MakeUser) -> None:
+    from rest_framework.response import Response
+    from rest_framework.test import APIRequestFactory, force_authenticate
+    from rest_framework.views import APIView
+
+    from clearance.drf.permissions import PolicyPermission
+    from tests.project.lending.policies import loan_access
+
+    class Decide(APIView):
+        permission_classes = (PolicyPermission,)
+        policy = loan_access.policy
+        policy_action = 'create'
+
+        def post(self, request: Any) -> Any:
+            return Response({})
+
+    request = APIRequestFactory().post('/', {'credit_score': 900}, format='json')
+    force_authenticate(request, make_user(('lending.loan_create', 'all')))
+
+    response = Decide.as_view()(request)
+
+    assert response.status_code == 400
+    assert 'credit_score' in response.data
+
+
+def test_a_serializer_used_outside_a_view_refuses_a_value_under_another_name(
+    make_user: MakeUser,
+) -> None:
+    class Decided(serializers.ModelSerializer):  # type: ignore[type-arg]
+        decision = serializers.CharField(source='status')
+
+        class Meta:
+            model = Loan
+            fields = ('id', 'decision')
+
+    editor = make_user(('lending.loan_view', 'all'), ('lending.loan_edit', 'all'))
+    loan = Loan.objects.create(applicant=editor, amount=1)
+    serializer = protected_serializer(Decided)(
+        loan, data={'decision': 'approved'}, context={'user': editor}
+    )
+
+    assert not serializer.is_valid()
+    assert 'decision' in serializer.errors
+
+
+def test_a_view_filtered_by_django_filter_with_no_filterset_lists_as_before(
+    make_user: MakeUser,
+) -> None:
+    from django_filters.rest_framework import DjangoFilterBackend
+    from rest_framework.test import APIRequestFactory, force_authenticate
+
+    from tests.project.lending.api import LoanViewSet
+
+    class Loans(LoanViewSet):
+        filter_backends = (DjangoFilterBackend,)
+
+    reader = make_user(('lending.loan_view', 'all'))
+    Loan.objects.create(applicant=reader, amount=1)
+    request = APIRequestFactory().get('/?anything=1')
+    force_authenticate(request, reader)
+
+    assert len(Loans.as_view({'get': 'list'})(request).data) == 1

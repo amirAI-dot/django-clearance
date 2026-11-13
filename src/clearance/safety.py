@@ -22,7 +22,7 @@ the last rule only.
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, cast
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
@@ -30,7 +30,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 
-from clearance.grants import Scope, grants_of, groups_lookup
+from clearance.grants import Scope, grants_given, grants_of, groups_lookup
 from clearance.limits import limits
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import User
@@ -183,6 +183,37 @@ class SafetyRules:
                     'Give somebody else permission_edit first.'
                 ),
             )
+
+
+def outranks(person: object, actor: object) -> bool:
+    """
+    Whether ``person``'s account holds anything ``actor`` does not: the
+    superuser's flag, or a permission - or a wider scope of one.
+
+    Changing an account is holding it: whoever sets its password signs in
+    with it. So an account is changed or deleted only by somebody holding at
+    least what it holds - never one that would hand them more. A switched-off
+    account counts by what switching it on would give back. Nobody outranks
+    themselves, and nobody outranks the superuser.
+    """
+    if getattr(person, 'pk', None) == getattr(actor, 'pk', None):
+        return False
+
+    if getattr(actor, 'is_superuser', False) and getattr(actor, 'is_active', False):
+        return False
+
+    if getattr(person, 'is_superuser', False):
+        return True
+
+    held = grants_of(cast(User, actor))
+
+    for permission, scopes in grants_given(cast(Any, person)).items():
+        mine = held.scopes(permission)
+
+        if mine is None or (EVERY_ROW not in mine and not scopes <= mine):
+            return True
+
+    return False
 
 
 def somebody_holds(permission: str) -> bool:

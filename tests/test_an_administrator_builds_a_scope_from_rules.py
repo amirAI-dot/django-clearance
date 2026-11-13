@@ -509,3 +509,39 @@ def test_a_rule_says_what_it_is() -> None:
     rule = stored_rule(Loan, 'large', condition('amount', 'at_least', constant=1))
 
     assert str(rule) == 'loan: large'
+
+
+# ---------------------------------------------------------------------- what a rule may read
+
+
+MANAGES = ('clearance.permission_create', 'clearance.permission_edit')
+BY_EMAIL = [condition('applicant__email', 'contains', constant='example')]
+
+
+def test_a_rule_reaching_another_model_needs_its_writer_to_view_all_of_it(
+    make_user: MakeUser,
+) -> None:
+    """
+    A condition on ``applicant__email`` reads people: whoever may not see them
+    would learn what they hold, one yes-or-no rule at a time.
+    """
+    sees_no_people = make_user(*MANAGES, ('lending.loan_view', 'all'))
+    sees_some = make_user(*MANAGES, ('lending.loan_view', 'all'), ('accounts.view_person', 'own'))
+    sees_all = make_user(*MANAGES, ('lending.loan_view', 'all'), ('accounts.view_person', 'all'))
+
+    for refused in (sees_no_people, sees_some):
+        with pytest.raises(AccessRefused, match=r'accounts\.view_person'):
+            AccessService(actor=refused).create_scope_rule(Loan, 'mailed', 'Mailed', BY_EMAIL)
+
+    AccessService(actor=sees_all).create_scope_rule(Loan, 'mailed', 'Mailed', BY_EMAIL)
+    assert ScopeRule.objects.filter(code='mailed').exists()
+
+
+def test_a_rule_on_the_models_own_fields_reads_nothing_else(make_user: MakeUser) -> None:
+    writer = make_user(*MANAGES, ('lending.loan_view', 'all'))
+    by_officer = [condition('officer', 'is', person='')]  # its own column: the officer's key
+
+    AccessService(actor=writer).create_scope_rule(Loan, 'mine', 'Mine', by_officer)
+    AccessService(actor=None).create_scope_rule(Loan, 'mailed', 'Mailed', BY_EMAIL)
+
+    assert ScopeRule.objects.count() == 2

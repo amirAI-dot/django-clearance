@@ -48,6 +48,7 @@ test = [
     "pytest-django>=4.11",
     "pytest-cov>=7",
     "psycopg[binary]>=3.2",
+    "django-filter>=25.1",
 ]
 lint = ["ruff>=0.15"]
 browser = ["playwright>=1.55"]
@@ -135,6 +136,11 @@ python_version = "3.11"
 files = ["src"]
 strict = true
 plugins = ["mypy_django_plugin.main"]
+
+# django-filter is optional and ships no types: its backend is read as Any.
+[[tool.mypy.overrides]]
+module = ["django_filters.*"]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "tests.project.settings"

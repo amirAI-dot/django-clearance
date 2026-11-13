@@ -28,7 +28,8 @@ project's admin classes stay exactly as Django documents them:
 On the user model, a person's groups and permissions are read only - they are
 changed on the library's people page, under the safety rules - and so is a
 field that says what role they have. Only the superuser makes somebody a
-superuser, and only the superuser changes or deletes a superuser's account:
+superuser, and an account is changed or deleted only by somebody holding at
+least what it holds - the superuser's by the superuser alone - because
 whoever sets its password signs in as them. A change there that would leave
 nobody able to manage access - the last manager switched off, or deleted - is
 refused, as everywhere else.
@@ -54,8 +55,8 @@ from clearance.policies import BasePolicy
 from clearance.protocols import User, user_of
 from clearance.querysets import visible
 from clearance.registry import registry
-from clearance.safety import SafetyRules
-from clearance.writes import require_within_scope
+from clearance.safety import SafetyRules, outranks
+from clearance.writes import require_deletable, require_within_scope
 
 #: Django's own permissions, as an admin action names them, in the library's words.
 _DJANGO_PERMISSIONS = {'view': 'view', 'add': 'create', 'change': 'edit', 'delete': 'delete'}
@@ -133,12 +134,10 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
         return self.policy.allows(user_of(request), 'create')
 
     def has_change_permission(self, request: HttpRequest, obj: Model | None = None) -> bool:
-        user = user_of(request)
-        return self.policy.allows(user, 'edit', obj) and not _above(user, obj)
+        return self.policy.allows(user_of(request), 'edit', obj)
 
     def has_delete_permission(self, request: HttpRequest, obj: Model | None = None) -> bool:
-        user = user_of(request)
-        return self.policy.allows(user, 'delete', obj) and not _above(user, obj)
+        return self.policy.allows(user_of(request), 'delete', obj)
 
     def get_form(
         self, request: HttpRequest, obj: Model | None = None, change: bool = False, **kwargs: Any
@@ -154,10 +153,14 @@ class ClearanceModelAdminMixin(ProtectedFieldsAdminMixin):
             super().save_model(request, obj, form, change)  # type: ignore[misc]
 
     def delete_model(self, request: HttpRequest, obj: Model) -> None:
+        require_deletable(user_of(request), obj)
+
         with self._keeping_somebody_managing(request):
             super().delete_model(request, obj)  # type: ignore[misc]
 
     def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Any]) -> None:
+        require_deletable(user_of(request), queryset)
+
         with self._keeping_somebody_managing(request):
             super().delete_queryset(request, queryset)  # type: ignore[misc]
 
@@ -515,30 +518,17 @@ def _reaching(func: Callable[..., Any]) -> Callable[..., Any]:
     return reaching
 
 
-def _above(user: User, obj: object | None) -> bool:
-    """
-    Whether ``obj`` is the account of a superuser, and ``user`` is not one.
-
-    Changing an account is holding it: whoever sets its password signs in
-    with it. So a superuser's is the superuser's alone to change or delete.
-    """
-    return (
-        isinstance(obj, get_user_model())
-        and bool(getattr(obj, 'is_superuser', False))
-        and not getattr(user, 'is_superuser', False)
-    )
-
-
 def _below(user: User) -> Callable[[QuerySet[Any]], QuerySet[Any]]:
-    """The rows that are not accounts above ``user``: a list's way of asking ``_above``."""
+    """
+    The rows that are not accounts holding more than ``user``: a list's way of
+    asking what ``policy.allows`` asks of one account - they are left alone.
+    """
 
     def below(rows: QuerySet[Any]) -> QuerySet[Any]:
-        above = rows.model is get_user_model() and not getattr(user, 'is_superuser', False)
-        return (
-            rows.exclude(is_superuser=True)
-            if above and _has_field(rows.model, 'is_superuser')
-            else rows
-        )
+        if rows.model is not get_user_model():
+            return rows
+
+        return rows.exclude(pk__in=[person.pk for person in rows if outranks(person, user)])
 
     return below
 

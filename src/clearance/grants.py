@@ -63,8 +63,20 @@ class Grants:
         """The scopes ``permission`` is given with, or ``None`` when it is not held."""
         return self._scopes.get(permission)
 
+    def items(self) -> Iterable[tuple[str, frozenset[Scope]]]:
+        """Every permission held, with its scopes."""
+        return self._scopes.items()
+
 
 NOTHING = Grants({})
+
+
+def grants_given(person: UserModel) -> Grants:
+    """
+    What ``person`` is given, whether or not they are switched on now - what
+    switching them on would hand back. Read afresh, never kept.
+    """
+    return Grants.from_rows(_rows(person))
 
 
 def grants_of(user: User) -> Grants:
