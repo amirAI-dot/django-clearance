@@ -405,18 +405,23 @@ def test_a_delete_takes_no_row_the_person_may_not_delete(make_user: MakeUser) ->
     assert Payment.objects.count() == 1
 
 
-def test_a_delete_takes_the_rows_the_person_may_delete_and_what_the_library_does_not_guard(
+def test_a_delete_takes_the_rows_of_every_model_the_person_may_delete(
     make_user: MakeUser,
 ) -> None:
-    clerk = make_user(
+    """A statement keeps Django's permissions and a plain manager: its ``delete`` is asked too."""
+    grants = (
         ('lending.loan_view', 'all'),
         ('lending.loan_delete', 'all'),
         ('lending.delete_payment', 'all'),
     )
     loan = Loan.objects.create(applicant=make_user(), amount=1)
     Payment.objects.create(loan=loan, amount=7)
-    Statement.objects.create(loan=loan, total=7)  # Django's own permissions: not the library's
+    Statement.objects.create(loan=loan, total=7)
 
+    assert api(make_user(*grants)).delete(f'/api/loans/{loan.pk}/').status_code == 403
+    assert Statement.objects.count() == 1
+
+    clerk = make_user(*grants, 'lending.delete_statement')
     assert api(clerk).delete(f'/api/loans/{loan.pk}/').status_code == 204
     assert (Loan.objects.count(), Payment.objects.count(), Statement.objects.count()) == (0, 0, 0)
 

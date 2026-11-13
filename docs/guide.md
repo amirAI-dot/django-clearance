@@ -197,8 +197,11 @@ Give `create` a scope as you give `view` one: with none, it reaches the
 model's `default_scope`, which is no rows on a `ScopedQuerySet` naming none.
 Rows sent together - a list, `many=True` - are each asked, and saved all or
 none. A delete takes nothing the person may not delete: when a cascade would
-take a row outside their delete scope, of a model the library guards, the
-delete is refused (`require_deletable` asks the same by hand).
+take a row they may not delete - of any model that has a `delete` permission,
+within its scope - the delete is refused (`require_deletable` asks the same
+by hand). So deleting a user needs `delete` on what goes with them. What has
+no permission to ask, and Django's own log, sessions and content types, go
+as Django sends them.
 
 A view of your own that saves by hand asks the same, after saving and inside
 the transaction:
@@ -473,7 +476,12 @@ refused when it would let somebody give themselves more:
   hold it in, or lets a status action write from more values;
 * a second role that would widen somebody's ceiling needs `role_ceiling_edit`;
 * an account is changed or deleted only by somebody holding at least what it
-  holds - setting its password is signing in as it;
+  holds - setting its password is signing in as it. A scope both hold counts
+  only when it reaches the same rows for anybody: "their branch", or a scope
+  in code, is each person's own, and is held over others by holding `all`;
+* nobody writes, on their own account, a field a rule scope reads as the
+  person's - their `region`, when a rule says "the person's region": it is
+  which rows they reach. Somebody else who may change the account does;
 * a change after which nobody could manage access is refused;
 * what the `ACCESS` file owns is changed only in the file.
 

@@ -31,7 +31,7 @@ hand asks as above.
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import router
 from django.db.models import Model
 from django.db.models.deletion import Collector
@@ -43,6 +43,7 @@ from clearance.permissions import DeclaredPermissions
 from clearance.protocols import User
 from clearance.querysets import ScopedQuerySet, visible
 from clearance.registry import registry
+from clearance.safety import is_own_account, own_fields
 
 #: The actions that only look: a write made by a view of one is an edit.
 _READS = frozenset({'view', 'list'})
@@ -66,9 +67,11 @@ def refused_writes(
     writable = writable_fields(user, model)
     status_fields = status_actions_of(user).fields(model)
     refused: dict[str, str] = {}
+    # On their own account, a field a rule scope reads as the person's is their access.
+    own = own_fields(user) if is_own_account(user, obj) else frozenset()
 
     for name, value in sent.items():
-        if name not in writable:
+        if (name in own and _changes(obj, name, value)) or name not in writable:
             refused[name] = str(_('You may not write %(field)s.') % {'field': name})
         elif name in status_fields:
             cleaned = clean_value(model, name, value)
@@ -79,6 +82,19 @@ def refused_writes(
                 )
 
     return refused
+
+
+def _changes(obj: Any, name: str, value: object) -> bool:
+    """Whether ``value`` is other than ``obj`` holds in ``name``: sent back, it is no change."""
+    field = obj._meta.get_field(name)
+    sent = getattr(value, 'pk', value)
+
+    try:
+        sent = field.target_field.to_python(sent) if field.is_relation else field.to_python(sent)
+    except (ValidationError, TypeError, ValueError):
+        return True  # not a value of the field at all: not what it holds
+
+    return bool(sent != getattr(obj, field.attname))
 
 
 def require_within_scope(user: User, action: str, obj: Model) -> None:
@@ -116,10 +132,11 @@ def require_deletable(user: User, rows: Model | Iterable[Model]) -> None:
 
     Asked before the delete. A row deleted with another is deleted all the
     same, so somebody allowed to delete a loan but no payment would otherwise
-    delete its payments. A cascade reaching a model the library guards - one
-    with a ``ScopedQuerySet``, or permissions declared with
-    ``build_permissions`` - asks its delete scope; another model's rows go as
-    Django sends them, as its admin site does for a model it does not show.
+    delete its payments. Every model a cascade reaches that has a ``delete``
+    permission is asked for it, within its scope. What has none to ask - a
+    table Django makes for a many-to-many field, the library's own tables -
+    and what Django keeps for itself - its admin site's log, its sessions and
+    content types - goes as Django sends it.
     """
     found = [rows] if isinstance(rows, Model) else list(rows)
 
@@ -150,8 +167,24 @@ class _EveryRow(Collector):
         return False
 
 
+#: The apps whose rows Django keeps for itself: nobody is given them, and they go with a row.
+_DJANGOS_OWN = frozenset({'admin', 'contenttypes', 'sessions'})
+
+
 def _guarded(model: type[Model]) -> bool:
-    """Whether the library guards ``model``'s rows: scoped, or declaring its permissions."""
-    return isinstance(model._default_manager.all(), ScopedQuerySet) or isinstance(
-        model._meta.permissions, DeclaredPermissions
+    """
+    Whether deleting ``model``'s rows is asked: it is scoped or declares its
+    permissions, or it keeps Django's ``delete`` and is not Django's own.
+    """
+    meta = model._meta
+
+    if isinstance(model._default_manager.all(), ScopedQuerySet) or isinstance(
+        meta.permissions, DeclaredPermissions
+    ):
+        return True
+
+    return (
+        not meta.auto_created
+        and 'delete' in meta.default_permissions
+        and meta.app_label not in _DJANGOS_OWN
     )

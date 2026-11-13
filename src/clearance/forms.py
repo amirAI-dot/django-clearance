@@ -29,6 +29,7 @@ from django.utils.translation import gettext_lazy as _
 from clearance.actions import status_actions_of, writable_values
 from clearance.fields import protection_of, readable_fields, writable_fields
 from clearance.protocols import User
+from clearance.safety import is_own_account, own_fields
 
 
 class ProtectedFieldsFormMixin:
@@ -54,6 +55,11 @@ class ProtectedFieldsFormMixin:
             if name not in readable:
                 del self.fields[name]
             elif name not in writable:
+                self.fields[name].disabled = True
+
+        if is_own_account(user, self.instance):
+            # A field a rule scope reads as the person's is, on their own account, their access.
+            for name in own_fields(user) & set(self.fields):
                 self.fields[name].disabled = True
 
         #: The values each field a status action writes may be set to, by this person.
