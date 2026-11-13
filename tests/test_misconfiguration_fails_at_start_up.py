@@ -45,8 +45,24 @@ def ids(messages: list[CheckMessage]) -> list[str | None]:
 
 @pytest.mark.parametrize(
     'setting',
-    [{'SYNC_ON_MIGRAT': True}, ['ACCESS'], {'RULE_DEPTH': 0}, {'RULE_DEPTH': True}],
-    ids=['a misspelled key', 'not a dictionary', 'no relations at all', 'not a number'],
+    [
+        {'SYNC_ON_MIGRAT': True},
+        ['ACCESS'],
+        {'RULE_DEPTH': 0},
+        {'RULE_DEPTH': True},
+        {'PERSON_FIELDS': 'branch'},
+        {'CASCADE_UNASKED_APPS': [1]},
+        {'PERSON_FIELDS': ['no_such_field']},
+    ],
+    ids=[
+        'a misspelled key',
+        'not a dictionary',
+        'no relations at all',
+        'not a number',
+        'one name, not a list',
+        'not names',
+        'a field the user does not have',
+    ],
 )
 def test_a_setting_that_cannot_be_read_is_refused_not_ignored(setting: object) -> None:
     with override_settings(CLEARANCE=setting):

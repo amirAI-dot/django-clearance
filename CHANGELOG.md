@@ -159,6 +159,20 @@ And what the review had left open:
     `delete` permission, not only the models with scopes or declared
     permissions. Deleting a loan needs `delete` on its statements too.
 
+And what a check of those found:
+
+* **An inline and the editable list ask a policy's own hook of each row** -
+  "a delivered order is never edited". They asked the scope alone, so a hook
+  refusing a row was passed round: in an inline on every Django, in the
+  editable list before 6.1.
+* **`PERSON_FIELDS` names the fields of the user a code scope reads** -
+  `('branch',)` for `Q(branch=user.branch_id)` - and they are locked on a
+  person's own account, as the fields a rule scope reads are. The library
+  cannot read a scope written in code.
+* **`CASCADE_UNASKED_APPS` names the apps a delete takes with it unasked** - an
+  app keeping a token or an address for each account, whose `delete` nobody
+  is given. A model the library guards is asked all the same.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

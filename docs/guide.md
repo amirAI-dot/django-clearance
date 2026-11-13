@@ -201,7 +201,9 @@ take a row they may not delete - of any model that has a `delete` permission,
 within its scope - the delete is refused (`require_deletable` asks the same
 by hand). So deleting a user needs `delete` on what goes with them. What has
 no permission to ask, and Django's own log, sessions and content types, go
-as Django sends them.
+as Django sends them - and so do the apps named in `CASCADE_UNASKED_APPS`:
+an app keeping a token or an address for each account, whose `delete`
+nobody is given.
 
 A view of your own that saves by hand asks the same, after saving and inside
 the transaction:
@@ -481,7 +483,9 @@ refused when it would let somebody give themselves more:
   in code, is each person's own, and is held over others by holding `all`;
 * nobody writes, on their own account, a field a rule scope reads as the
   person's - their `region`, when a rule says "the person's region": it is
-  which rows they reach. Somebody else who may change the account does;
+  which rows they reach. Somebody else who may change the account does. A
+  scope in code is code: name the fields it reads in `PERSON_FIELDS` -
+  `('branch',)` for `Q(branch=user.branch_id)` - and they are kept the same;
 * a change after which nobody could manage access is refused;
 * what the `ACCESS` file owns is changed only in the file.
 
@@ -571,6 +575,8 @@ All under `CLEARANCE`; none is needed.
 | `ACCESS` | `None` | the access declared in code, applied by `clearance_sync` |
 | `SYNC_ON_MIGRATE` | `False` | run `clearance_sync` at the end of every forward `migrate` |
 | `RULE_DEPTH` | `3` | how many relations a rule's field may cross |
+| `PERSON_FIELDS` | `()` | the fields of the user that the project's code scopes read - locked on a person's own account |
+| `CASCADE_UNASKED_APPS` | `()` | the apps whose rows a delete takes with it unasked |
 
 A key the library does not know is refused (E011).
 

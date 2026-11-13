@@ -30,6 +30,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 
+from clearance.conf import clearance_settings
 from clearance.grants import KEPT_PREFIX, Scope, grants_given, grants_of, groups_lookup
 from clearance.limits import limits
 from clearance.models import Declared, PermissionRevocation
@@ -289,7 +290,8 @@ def own_fields(user: object) -> frozenset[str]:
     """
     The fields of ``user``'s own account that say which rows they reach: the
     ones a rule scope reads as the person's - "the loans of the person's
-    region" reads ``region``.
+    region" reads ``region`` - and the ones the project names in
+    ``PERSON_FIELDS`` for its code scopes, which the library cannot read.
 
     Writing one on their own account is changing their own access, which
     nobody does; somebody else who may change the account does it. Read once
@@ -304,7 +306,8 @@ def own_fields(user: object) -> frozenset[str]:
 
     if kept is None:
         paths = ScopeCondition.objects.filter(source='person').values_list('person', flat=True)
-        kept = frozenset(path.partition('__')[0] for path in paths if path)
+        read = {path.partition('__')[0] for path in paths if path}
+        kept = frozenset(read | clearance_settings.person_fields())
         setattr(user, _OWN_FIELDS, kept)
 
     return kept

@@ -38,6 +38,7 @@ from django.db.models.deletion import Collector
 from django.utils.translation import gettext_lazy as _
 
 from clearance.actions import clean_value, status_actions_of, writable_values
+from clearance.conf import clearance_settings
 from clearance.fields import writable_fields
 from clearance.permissions import DeclaredPermissions
 from clearance.protocols import User
@@ -186,5 +187,5 @@ def _guarded(model: type[Model]) -> bool:
     return (
         not meta.auto_created
         and 'delete' in meta.default_permissions
-        and meta.app_label not in _DJANGOS_OWN
+        and meta.app_label not in _DJANGOS_OWN | clearance_settings.cascade_unasked_apps()
     )
