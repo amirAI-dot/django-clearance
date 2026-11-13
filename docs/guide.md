@@ -1,11 +1,11 @@
 # The guide
 
-[فارسی](guide.fa.md)
+[فارسی](https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.fa.md)
 
 How to use django-clearance in a project, from installing it to the last
 optional app. Why it is built the way it is lives in the
 [design](design.md); a project that uses every part of it is in
-[`example/`](../example/README.md).
+[`example/`](https://github.com/amirAI-dot/django-clearance/tree/main/example).
 
 ---
 

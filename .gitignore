@@ -26,3 +26,6 @@ htmlcov/
 
 # The example project's database
 example/db.sqlite3
+
+# The documentation site, built by nox -s docs
+site/
