@@ -16,6 +16,7 @@ theme:
   features:
     - content.code.copy
     - content.tabs.link
+    - navigation.indexes
     - navigation.sections
     - navigation.top
     - navigation.footer
@@ -40,6 +41,9 @@ theme:
         icon: material/brightness-4
         name: Light mode
 
+extra_css:
+  - stylesheets/extra.css
+
 plugins:
   - search
   - i18n:
@@ -57,12 +61,32 @@ plugins:
             language: fa
           nav_translations:
             Home: خانه
+            Getting started: شروع
+            Tutorial: آموزش
             Guide: راهنما
             Design: طراحی
             Changelog: تغییرات
 
 nav:
   - Home: index.md
+  - Getting started:
+      - getting-started/introduction.md
+      - getting-started/installation.md
+      - getting-started/quickstart.md
+  - Tutorial:
+      - tutorial/index.md
+      - tutorial/01-the-shop.md
+      - tutorial/02-permissions.md
+      - tutorial/03-bundles.md
+      - tutorial/04-row-scopes.md
+      - tutorial/05-rule-scopes.md
+      - tutorial/06-protected-fields.md
+      - tutorial/07-status-actions.md
+      - tutorial/08-policies.md
+      - tutorial/09-views-and-the-api.md
+      - tutorial/10-roles.md
+      - tutorial/11-access-as-code.md
+      - tutorial/12-names-in-every-language.md
   - Guide: guide.md
   - Design: design.md
   - Changelog: changelog.md
