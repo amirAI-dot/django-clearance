@@ -2,11 +2,11 @@
 
 [فارسی](CHANGELOG.fa.md)
 
-## Unreleased - to be 0.2.0
+## 0.2.0 - the security review
 
 Found by a security review of 0.1.0. It changes what 0.1.0 did in ways a
 project may notice - each is marked **Changed** - so it is released as 0.2.0,
-not as a patch.
+not as a patch. Still alpha: the API may change before 1.0.
 
 * **The page of a user opens in the admin site.** Adding or changing one was
   a server error with Django's `UserAdmin`, for everybody.
