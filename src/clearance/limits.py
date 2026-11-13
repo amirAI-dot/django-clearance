@@ -14,7 +14,7 @@ ceiling costs nothing to ask.
 
 from typing import Any
 
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.db.models import Q, QuerySet
 
 from clearance.protocols import User
@@ -31,6 +31,13 @@ class Limits:
         """
         The condition that a permission is within ``user``'s ceiling -
         ``permission`` names the column holding its id in the query it joins.
+        """
+        return Q()
+
+    def within_ceiling(self, permissions: 'QuerySet[Permission]') -> Q:
+        """
+        The condition on the user model that a person's ceiling permits any of
+        ``permissions`` - everybody's, asked at once, for "who holds this?".
         """
         return Q()
 

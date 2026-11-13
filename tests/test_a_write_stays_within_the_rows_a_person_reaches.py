@@ -15,12 +15,14 @@ import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.test import Client
-from rest_framework.test import APIClient
+from rest_framework import serializers
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 
 from clearance.models import ScopeRule
 from clearance.writes import require_within_scope
 from tests.conftest import MakeUser
 from tests.project.accounts.models import Person
+from tests.project.lending.api import PaymentList, PaymentSerializer
 from tests.project.lending.models import Loan, Payment
 
 pytestmark = pytest.mark.django_db
@@ -299,3 +301,86 @@ def test_a_form_in_the_admin_site_keeps_the_related_row_a_row_holds_already(
     assert 'for 654321' not in page.content.decode()
     assert saved.status_code == 302
     assert Payment.objects.get(pk=payment.pk).amount == 6
+
+
+# ---------------------------------------------------------------------- many rows at once
+
+
+class BulkPayments(PaymentList):
+    """A list endpoint taking a list of rows, as a project's bulk create does."""
+
+    def get_serializer(self, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(kwargs.get('data'), list):
+            kwargs['many'] = True
+        return super().get_serializer(*args, **kwargs)
+
+
+def bulk_payments(person: Person, rows: list[dict[str, Any]]) -> Any:
+    request = APIRequestFactory().post('/api/payments/', rows, format='json')
+    force_authenticate(request, person)
+    return BulkPayments.as_view()(request)
+
+
+def test_rows_sent_together_are_each_created_only_within_the_scope(make_user: MakeUser) -> None:
+    """One row outside the scope refuses the list, and none of it is written."""
+    me = make_user(
+        ('lending.loan_view', 'all'),
+        ('lending.view_payment', 'own'),
+        ('lending.add_payment', 'own'),
+    )
+    mine = Loan.objects.create(applicant=me, amount=100)
+    theirs = Loan.objects.create(applicant=make_user(), amount=100)
+
+    refused = bulk_payments(me, [{'loan': mine.pk, 'amount': 5}, {'loan': theirs.pk, 'amount': 5}])
+    taken = bulk_payments(me, [{'loan': mine.pk, 'amount': 5}, {'loan': mine.pk, 'amount': 6}])
+
+    assert refused.status_code == 403
+    assert taken.status_code == 201
+    assert sorted(Payment.objects.values_list('loan_id', 'amount')) == [(mine.pk, 5), (mine.pk, 6)]
+
+
+def test_a_serializer_given_many_rows_creates_each_only_within_the_scope(
+    make_user: MakeUser,
+) -> None:
+    me = make_user(('lending.loan_view', 'all'), ('lending.add_payment', 'own'))
+    mine = Loan.objects.create(applicant=me, amount=100)
+    theirs = Loan.objects.create(applicant=make_user(), amount=100)
+    sent = [{'loan': mine.pk, 'amount': 5}, {'loan': theirs.pk, 'amount': 5}]
+    serializer = PaymentSerializer(data=sent, many=True, context={'user': me})
+
+    assert serializer.is_valid(), serializer.errors
+    with pytest.raises(PermissionDenied):
+        serializer.save()
+
+    assert not Payment.objects.exists()
+
+
+class PlainBulkPayments(BulkPayments):
+    """The same, with a serializer the library never touched: the view asks for each row."""
+
+    def get_serializer_class(self) -> Any:
+        class Plain(serializers.ModelSerializer):  # type: ignore[type-arg]
+            class Meta:
+                model = Payment
+                fields = ('id', 'loan', 'amount')
+
+        return Plain
+
+
+def test_a_view_asks_for_each_row_of_a_list_whatever_its_serializer(make_user: MakeUser) -> None:
+    me = make_user(
+        ('lending.loan_view', 'all'),
+        ('lending.view_payment', 'own'),
+        ('lending.add_payment', 'own'),
+    )
+    mine = Loan.objects.create(applicant=me, amount=100)
+    theirs = Loan.objects.create(applicant=make_user(), amount=100)
+    request = APIRequestFactory().post(
+        '/api/payments/',
+        [{'loan': mine.pk, 'amount': 5}, {'loan': theirs.pk, 'amount': 5}],
+        format='json',
+    )
+    force_authenticate(request, me)
+
+    assert PlainBulkPayments.as_view()(request).status_code == 403
+    assert not Payment.objects.exists()

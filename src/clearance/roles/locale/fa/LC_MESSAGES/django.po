@@ -72,7 +72,7 @@ msgid "There is nobody called %(name)s."
 msgstr "کسی به اسم %(name)s نیست."
 
 msgid "Nobody changes what their own role holds."
-msgstr "هیچ‌کس چیزی را که نقش خودش دارد تغییر نمی‌دهد."
+msgstr "هیچ‌کس نمی‌تواند چیزی را که نقش خودش دارد تغییر دهد."
 
 #, python-format
 msgid ""

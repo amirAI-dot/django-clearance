@@ -9,7 +9,7 @@ not stand in for bundles.
 
 from typing import Any
 
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.db.models import Exists, OuterRef, Q, QuerySet
 
 from clearance.limits import Limits
@@ -28,6 +28,13 @@ class RoleLimits(Limits):
             role__in=roles, permission_id=OuterRef(permission)
         )
         return ~Q(Exists(roles)) | Q(Exists(roles.filter(limited=False))) | Q(Exists(in_a_ceiling))
+
+    def within_ceiling(self, permissions: 'QuerySet[Permission]') -> Q:
+        holders = resolver().holders
+        anybody_with_a_role = holders(Role.objects.all()).values('pk')
+        unlimited = holders(Role.objects.filter(limited=False)).values('pk')
+        permitted = holders(Role.objects.filter(ceiling__permission__in=permissions)).values('pk')
+        return ~Q(pk__in=anybody_with_a_role) | Q(pk__in=unlimited) | Q(pk__in=permitted)
 
     def people_starting_with(self, bundles: 'QuerySet[Group]') -> 'QuerySet[Any]':
         return resolver().holders(Role.objects.filter(bundles__group__in=bundles))

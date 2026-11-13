@@ -168,9 +168,12 @@ class ScopedQuerySetMixin:
             self.require_written_within_scope(serializer.instance, creating=False)
 
     def require_written_within_scope(self, obj: object, *, creating: bool) -> None:
-        if isinstance(obj, Model):
-            action = write_action(self, creating=creating)
-            require_within_scope(user_of(self.request), action, obj)
+        """``obj`` - or each row of it, for a list saved at once - within the action's scope."""
+        given = obj if isinstance(obj, list | tuple) else [obj]
+        action = write_action(self, creating=creating)
+
+        for row in [row for row in given if isinstance(row, Model)]:
+            require_within_scope(user_of(self.request), action, row)
 
 
 class PolicyRequiredMixin(AccessMixin):

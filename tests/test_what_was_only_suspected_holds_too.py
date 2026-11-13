@@ -209,6 +209,7 @@ def test_the_rows_of_rules_and_actions_go_back_into_their_columns() -> None:
         {'field': 'region', 'operator': 'is_one_of', 'value': {'constant': ['north', 'south']}},
         {'field': 'applicant', 'operator': 'is', 'value': {'person': ''}},
         {'field': 'officer', 'operator': 'is_empty'},
+        {'field': 'amount', 'operator': 'at_least', 'value': {'constant': '5'}},
     ]
     access = AccessService(actor=None)
     access.create_scope_rule(Loan, 'mine', 'Mine', conditions, match='any')

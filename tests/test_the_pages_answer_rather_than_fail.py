@@ -183,6 +183,38 @@ def test_a_scope_answering_with_a_queryset_keeps_the_rows_it_was_asked_about(
     assert {loan.region for loan in reached} == {'north'}
 
 
+class NarrowedByVisible(LoanQuerySet):
+    """An override written as 0.1.0 wrote its own: ``visible(self, ...)``, then narrowed."""
+
+    def visible_to(self, user: Any, action: str = 'view') -> Any:
+        return visible(self, user, action).filter(region='north')
+
+
+class NarrowedBySuper(LoanQuerySet):
+    def visible_to(self, user: Any, action: str = 'view') -> Any:
+        return super().visible_to(user, action).filter(region='north')
+
+
+@pytest.mark.parametrize('rows', [NarrowedByVisible, NarrowedBySuper])
+def test_an_override_narrowing_what_the_grants_reach_answers_every_door(
+    make_user: MakeUser, rows: type[LoanQuerySet]
+) -> None:
+    """
+    Inside an override, ``visible`` answers by the grants, as ``super()`` does -
+    asked again, it asked the override again, and never answered.
+    """
+    reader = make_user(('lending.loan_view', 'own'))
+    Loan.objects.create(applicant=reader, amount=5, region='north')
+    Loan.objects.create(applicant=reader, amount=5, region='south')
+    Loan.objects.create(applicant=make_user(), amount=5, region='north')
+
+    asked_itself = rows(model=Loan).visible_to(reader)
+    asked_by_a_door = visible(rows(model=Loan), reader)
+
+    assert [(loan.applicant_id, loan.region) for loan in asked_itself] == [(reader.pk, 'north')]
+    assert list(asked_by_a_door) == list(asked_itself)
+
+
 # ---------------------------------------------------------------------- queries
 
 

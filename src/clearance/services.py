@@ -259,9 +259,9 @@ class AccessService:
         for scope in self._scopes_bundles_give(person, found):
             self.rules.require_holds({permission: scope})
 
-        if PermissionRevocation.objects.filter(user=person, permission=found).delete()[0]:
-            forget_grants(person)
-            self._announce(signals.permission_restored, person=person, permission=permission)
+        PermissionRevocation.objects.filter(user=person, permission=found).delete()
+        forget_grants(person)
+        self._announce(signals.permission_restored, person=person, permission=permission)
 
     # ------------------------------------------------------------------
     # Rule scopes
@@ -843,12 +843,6 @@ def too_long(model: type[Model], **values: str) -> list[str]:
             )
 
     return problems
-
-
-def offered_scopes(permission: Permission) -> set[str]:
-    """The scopes ``permission``'s model offers: ``all``, its code scopes, its rule scopes."""
-    model = permission.content_type.model_class()
-    return set(querysets.offered_scopes(model)) if model is not None else {EVERY_ROW}
 
 
 def status_key(action: StatusAction) -> str:

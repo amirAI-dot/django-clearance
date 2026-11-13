@@ -87,6 +87,8 @@ branch = true
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+# Every line of the library is run by a test: a line no test runs fails the suite.
+fail_under = 100
 
 # ---------------------------------------------------------------- lint
 

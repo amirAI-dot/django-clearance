@@ -27,7 +27,8 @@ there, which is all somebody who may not see it should learn.
 **What it saves stays among the rows the person reaches**: a row made outside
 the scope ``create`` was given in, or edited out of the scope it was reached
 in, is refused with a 403 and the write undone - whatever ``perform_create``
-the view wrote, because it is ``save`` that asks.
+the view wrote, because ``create`` and ``update`` ask. So does every row of a
+list sent at once (``many=True``), which is saved whole or not at all.
 
 The person is the request's (``context['request'].user``), or
 ``context['user']`` for a serializer used outside a view. A serializer with
@@ -89,9 +90,9 @@ class ProtectedFieldsSerializerMixin:
         model, user = self.protected_model, self.protected_for
         protected = protection_of(user).fields(model)
 
-        for field in fields.values():
+        for name, field in fields.items():
             _protect_nested(field)
-            self._offer_reachable_rows(field)
+            self._offer_reachable_rows(name, field)
 
         if not protected:
             return fields
@@ -111,7 +112,7 @@ class ProtectedFieldsSerializerMixin:
 
         return fields
 
-    def _offer_reachable_rows(self, field: Any) -> None:
+    def _offer_reachable_rows(self, name: str, field: Any) -> None:
         """
         Narrow the rows a related field takes to those of its model the person
         may view - and the one this row holds already, or a row whose loan they
@@ -130,8 +131,11 @@ class ProtectedFieldsSerializerMixin:
         offered = Q(pk__in=visible(rows.model._default_manager.all(), user, 'view').values('pk'))
         held = self.instance if isinstance(self.instance, Model) else None
 
-        if held is not None and field.source and '.' not in field.source:
-            now: Any = getattr(held, field.source, None)
+        # Not yet bound: a field's source is its name unless it was given one.
+        source = getattr(field, '_kwargs', {}).get('source') or name
+
+        if held is not None and '.' not in source:
+            now: Any = getattr(held, source, None)
             keys = now.values('pk') if hasattr(now, 'values') else [getattr(now, 'pk', now)]
             offered |= Q(pk__in=keys)
 
@@ -147,11 +151,8 @@ class ProtectedFieldsSerializerMixin:
                 raise serializers.ValidationError({name: [why] for name, why in refused.items()})
 
         validated = super().to_internal_value(data)  # type: ignore[misc]
-
-        if isinstance(validated, Mapping):
-            # Again by the names of the model's fields: a field may be sent under another.
-            self._refuse(validated)
-
+        # Again by the names of the model's fields: a field may be sent under another.
+        self._refuse(validated)
         return validated
 
     def build_nested_field(self, *args: Any, **kwargs: Any) -> Any:
@@ -169,17 +170,48 @@ class ProtectedFieldsSerializerMixin:
                 {named.get(source, source): [why] for source, why in refused.items()}
             )
 
-    def save(self, **kwargs: Any) -> Any:
-        creating = self.instance is None
-
+    def create(self, validated_data: Any) -> Any:
+        """The row made, refused and undone when it is outside the scope of ``create``."""
         with transaction.atomic():
-            saved = super().save(**kwargs)  # type: ignore[misc]
+            made = super().create(validated_data)  # type: ignore[misc]
+            self._require_written_within_scope(made, creating=True)
 
-            if isinstance(saved, Model):
-                action = write_action(self.context.get('view'), creating=creating)
-                require_within_scope(self.protected_for, action, saved)
+        return made
+
+    def update(self, instance: Any, validated_data: Any) -> Any:
+        """The row changed, refused and undone when it is moved out of the rows reached."""
+        with transaction.atomic():
+            saved = super().update(instance, validated_data)  # type: ignore[misc]
+            self._require_written_within_scope(saved, creating=False)
 
         return saved
+
+    def _require_written_within_scope(self, saved: Model, *, creating: bool) -> None:
+        # Asked in create and update, not save: a list sent at once is saved by
+        # its ListSerializer, which calls them for each row and never this save.
+        action = write_action(self.context.get('view'), creating=creating)
+        require_within_scope(self.protected_for, action, saved)
+
+    @classmethod
+    def many_init(cls, *args: Any, **kwargs: Any) -> Any:
+        """A list of these, saved in one transaction: a row refused undoes the rows before it."""
+        rows = super().many_init(*args, **kwargs)  # type: ignore[misc]
+        list_class: Any = type(rows)
+        rows.__class__ = _all_or_none(list_class)
+        return rows
+
+
+class AllOrNoneListSerializerMixin:
+    """A ``ListSerializer`` that saves every row or none of them."""
+
+    def save(self, **kwargs: Any) -> Any:
+        with transaction.atomic():
+            return super().save(**kwargs)  # type: ignore[misc]
+
+
+@cache
+def _all_or_none(list_class: type[Any]) -> type[Any]:
+    return type(list_class.__name__, (AllOrNoneListSerializerMixin, list_class), {})
 
 
 def _protect_nested(field: Any) -> None:
