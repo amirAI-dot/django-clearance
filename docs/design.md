@@ -873,7 +873,10 @@ goes through `AccessService`, which refuses:
   the sync changes it (5.8);
 * **lifting a ceiling from anybody without `role_ceiling_edit`, or changing
   what your own role holds** (11.2);
-* **a widened ceiling**, without `role_ceiling_edit`.
+* **a widened ceiling**, without `role_ceiling_edit`;
+* **changing or deleting an account that holds more than you** - a
+  permission you do not hold, a wider scope of one, or the superuser's flag.
+  Setting an account's password is signing in as it.
 
 Every refusal says which rule, and every change is a signal.
 
@@ -1315,3 +1318,9 @@ Made by the owner.
     DRF's settings import imports DRF's views - the example found both, with
     its user model in the same app as its orders and DRF's default
     permission set as the guide says.
+63. **An account is changed only by its equal or more.** Whoever may change
+    users could otherwise set the password of somebody who manages access,
+    and sign in as them. It is asked in `policy.allows`, so every door asks it.
+64. **A delete takes nothing its maker may not delete.** A cascade into a
+    model the library guards is asked as the delete itself; another model's
+    rows go as Django sends them, as its admin site does.

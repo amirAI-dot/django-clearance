@@ -12,9 +12,10 @@ works on its own on any other DRF view:
 * ``ModelPolicyPermission`` - the model's policy asked, writes guarded;
 * ``ProtectedSerializerMixin`` - the serializer leaves out and locks the
   protected fields, whether or not it was written to; and DRF's
-  ``SearchFilter`` and ``OrderingFilter`` leave out a field the person may
-  not read - searching or sorting by it tells what it holds. A filter of the
-  project's own asks ``clearance.fields.path_readable`` for itself.
+  ``SearchFilter`` and ``OrderingFilter`` - and django-filter's
+  ``DjangoFilterBackend``, when it is installed - leave out a field the person
+  may not read: searching, sorting or filtering by it tells what it holds. A
+  filter of the project's own asks ``clearance.fields.path_readable`` for itself.
 """
 
 from functools import cache
@@ -66,15 +67,43 @@ class ReadableOrderingMixin:
         ]
 
 
+class ReadableFilterSetMixin:
+    """A ``DjangoFilterBackend`` whose filtersets filter only by the fields the person may read."""
+
+    def get_filterset(self, request: Any, queryset: Any, view: Any) -> Any:
+        filterset = super().get_filterset(request, queryset, view)  # type: ignore[misc]
+
+        if filterset is not None:
+            user = user_of(request)
+
+            for name, found in list(filterset.filters.items()):
+                if not path_readable(user, queryset.model, found.field_name):
+                    del filterset.filters[name]  # as if the filterset never had it
+
+        return filterset
+
+
+def _backends() -> list[tuple[type[Any], type[Any]]]:
+    """Each filter backend the library knows, with what it adds - django-filter's if installed."""
+    known: list[tuple[type[Any], type[Any]]] = [
+        (ReadableSearchMixin, filters.SearchFilter),
+        (ReadableOrderingMixin, filters.OrderingFilter),
+    ]
+
+    try:
+        from django_filters.rest_framework import DjangoFilterBackend
+    except ImportError:  # the project does not use it
+        return known
+
+    return [*known, (ReadableFilterSetMixin, DjangoFilterBackend)]
+
+
 @cache
 def protected_backend(backend: type[Any]) -> type[Any]:
     """``backend``, leaving out what the person may not read - made once per class."""
     mixins = [
         mixin
-        for mixin, base in (
-            (ReadableSearchMixin, filters.SearchFilter),
-            (ReadableOrderingMixin, filters.OrderingFilter),
-        )
+        for mixin, base in _backends()
         if issubclass(backend, base) and not issubclass(backend, mixin)
     ]
     return type(backend.__name__, (*mixins, backend), {}) if mixins else backend

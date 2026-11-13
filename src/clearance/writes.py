@@ -28,16 +28,20 @@ and admin pages ask by themselves; a view of the project's own that saves by
 hand asks as above.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from django.core.exceptions import PermissionDenied
+from django.db import router
 from django.db.models import Model
+from django.db.models.deletion import Collector
 from django.utils.translation import gettext_lazy as _
 
 from clearance.actions import clean_value, status_actions_of, writable_values
 from clearance.fields import writable_fields
+from clearance.permissions import DeclaredPermissions
 from clearance.protocols import User
+from clearance.querysets import ScopedQuerySet, visible
 from clearance.registry import registry
 
 #: The actions that only look: a write made by a view of one is an edit.
@@ -102,3 +106,52 @@ def write_action(view: object, *, creating: bool) -> str:
     named = getattr(view, 'get_scope_action', None)
     action = named() if callable(named) else None
     return action if isinstance(action, str) and action not in _READS else 'edit'
+
+
+def require_deletable(user: User, rows: Model | Iterable[Model]) -> None:
+    """
+    ``PermissionDenied`` unless deleting ``rows`` - a row, or several - takes
+    only rows ``user`` may delete: those rows, and every row a cascade would
+    take with them.
+
+    Asked before the delete. A row deleted with another is deleted all the
+    same, so somebody allowed to delete a loan but no payment would otherwise
+    delete its payments. A cascade reaching a model the library guards - one
+    with a ``ScopedQuerySet``, or permissions declared with
+    ``build_permissions`` - asks its delete scope; another model's rows go as
+    Django sends them, as its admin site does for a model it does not show.
+    """
+    found = [rows] if isinstance(rows, Model) else list(rows)
+
+    if not found:
+        return
+
+    collector = _EveryRow(using=router.db_for_write(type(found[0])))
+    collector.collect(found)
+
+    for model, instances in collector.data.items():
+        if not _guarded(model):
+            continue
+
+        keys = {instance.pk for instance in instances}
+        reached = visible(model._default_manager.all(), user, 'delete').filter(pk__in=keys)
+
+        if reached.count() != len(keys):
+            raise PermissionDenied
+
+
+class _EveryRow(Collector):
+    """
+    Django's collector, gathering every row a delete takes - as its admin site
+    does - rather than deleting some by a query it never reads.
+    """
+
+    def can_fast_delete(self, *args: Any, **kwargs: Any) -> bool:
+        return False
+
+
+def _guarded(model: type[Model]) -> bool:
+    """Whether the library guards ``model``'s rows: scoped, or declaring its permissions."""
+    return isinstance(model._default_manager.all(), ScopedQuerySet) or isinstance(
+        model._meta.permissions, DeclaredPermissions
+    )

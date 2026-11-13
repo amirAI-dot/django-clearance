@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
@@ -93,7 +93,7 @@ class PolicyPermission(BasePermission):
             return False
 
         if action == 'create':
-            self.refuse_writes(request, policy, None)
+            self.refuse_writes(request, policy, None, view)
 
         return True
 
@@ -104,21 +104,33 @@ class PolicyPermission(BasePermission):
             return False
 
         if action == 'edit':
-            self.refuse_writes(request, policy, obj)
+            self.refuse_writes(request, policy, obj, view)
 
         return True
 
     @staticmethod
-    def refuse_writes(request: Request, policy: BasePolicy, obj: Model | None) -> None:
-        """A 400 naming every field the request sends that the person may not write."""
+    def refuse_writes(
+        request: Request, policy: BasePolicy, obj: Model | None, view: object = None
+    ) -> None:
+        """
+        A 400 naming every field the request sends that the person may not
+        write - by the model field each name writes: ``decision``, sent to a
+        serializer whose field has ``source='status'``, is the status.
+        """
         if policy.model is None:
             return
 
+        renamed = _sources(view)
+
         for item in _items(request.data):
-            refused = refused_writes(user_of(request), policy.model, item, obj)
+            fields = {renamed.get(name, name): value for name, value in item.items()}
+            refused = refused_writes(user_of(request), policy.model, fields, obj)
 
             if refused:
-                raise ValidationError({name: [why] for name, why in refused.items()})
+                sent = {source: name for name, source in renamed.items()}
+                raise ValidationError(
+                    {sent.get(name, name): [why] for name, why in refused.items()}
+                )
 
 
 class ModelPolicyPermission(PolicyPermission):
@@ -157,6 +169,26 @@ def finds_model_by_queryset(view: type[APIView]) -> bool:
     from rest_framework.generics import GenericAPIView
 
     return definer not in (None, GenericAPIView, ScopedQuerySetMixin)
+
+
+def _sources(view: object) -> dict[str, str]:
+    """
+    ``{name sent: model field written}`` for the fields of ``view``'s
+    serializer that write another name than their own - none when it has none.
+    """
+    if getattr(view, 'get_serializer_class', None) is None:
+        return {}
+
+    try:
+        serializer = cast(Any, view).get_serializer()
+    except AssertionError:  # DRF's word for a generic view that names no serializer
+        return {}
+
+    return {
+        name: field.source
+        for name, field in serializer.fields.items()
+        if field.source not in (name, '*') and '.' not in field.source
+    }
 
 
 def _items(data: object) -> Iterator[Mapping[str, Any]]:

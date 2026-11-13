@@ -47,7 +47,7 @@ from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponseBase
 from django.urls import URLPattern, URLResolver, get_resolver
 from django.views.generic.detail import BaseDetailView
-from django.views.generic.edit import BaseCreateView, BaseDeleteView, BaseUpdateView
+from django.views.generic.edit import BaseCreateView, BaseDeleteView, BaseUpdateView, DeletionMixin
 from django.views.generic.list import BaseListView
 
 from clearance.fields import readable_fields, writable_fields
@@ -56,7 +56,7 @@ from clearance.policies import BasePolicy
 from clearance.protocols import user_of
 from clearance.querysets import visible
 from clearance.registry import registry
-from clearance.writes import require_within_scope, write_action
+from clearance.writes import require_deletable, require_within_scope, write_action
 
 #: How an action is read off a Django generic view, most specific first:
 #: a ``DeleteView`` is a ``BaseDetailView`` too.
@@ -146,7 +146,15 @@ class ScopedQuerySetMixin:
     # ------------------------------------------------------------------ writes
 
     def form_valid(self, form: Any) -> HttpResponseBase:
-        """Django's ``CreateView`` and ``UpdateView``: the row saved stays within the scope."""
+        """
+        Django's ``CreateView`` and ``UpdateView``: the row saved stays within
+        the scope. Its ``DeleteView``: the rows a cascade takes are deletable too.
+        """
+        if isinstance(self, DeletionMixin):
+            require_deletable(user_of(self.request), cast(Any, self).get_object())
+            deleted: HttpResponseBase = cast(Any, super()).form_valid(form)
+            return deleted
+
         creating = getattr(self, 'object', None) is None
 
         with transaction.atomic():
@@ -154,6 +162,11 @@ class ScopedQuerySetMixin:
             self.require_written_within_scope(getattr(self, 'object', None), creating=creating)
 
         return response
+
+    def perform_destroy(self, instance: Any) -> None:
+        """DRF's ``DestroyModelMixin``: nothing a cascade takes is outside the delete scope."""
+        require_deletable(user_of(self.request), instance)
+        cast(Any, super()).perform_destroy(instance)
 
     def perform_create(self, serializer: Any) -> None:
         """DRF's ``CreateModelMixin``: the row made is one the person may make."""

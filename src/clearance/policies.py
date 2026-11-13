@@ -36,7 +36,7 @@ that could never be a permission - ``Approve!`` - raises instead.
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Final, cast
 
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db.models import Model
@@ -46,6 +46,16 @@ from clearance.protocols import User
 
 #: A hook: the person, and the object when there is one.
 Hook = Callable[[User, Any], bool]
+
+
+#: The actions that only look at a row, or make a new one: no account is taken over by them.
+_LOOKS: Final = frozenset({'view', 'list', 'create'})
+
+
+def _is_account(obj: object) -> bool:
+    from django.contrib.auth import get_user_model
+
+    return isinstance(obj, get_user_model())
 
 
 class BasePolicy:
@@ -102,7 +112,19 @@ class BasePolicy:
     # ------------------------------------------------------------------
 
     def allows(self, user: User, action: str, obj: object | None = None) -> bool:
-        """Whether ``user`` may do ``action``, to ``obj`` when there is one."""
+        """
+        Whether ``user`` may do ``action``, to ``obj`` when there is one.
+
+        Whatever the hook says, an account is changed or deleted only by
+        somebody holding at least what it holds (``safety.outranks``): setting
+        its password is signing in as it. Reading and creating are the hook's.
+        """
+        if action not in _LOOKS and _is_account(obj):
+            from clearance.safety import outranks
+
+            if outranks(obj, user):
+                return False
+
         return bool(self.hook(action)(user, obj))
 
     def authorize(self, user: User, action: str, obj: object | None = None) -> None:

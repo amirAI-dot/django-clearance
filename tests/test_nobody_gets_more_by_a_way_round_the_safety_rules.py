@@ -268,15 +268,9 @@ def test_nobody_gives_themselves_a_role_on_the_user_page(
 
 
 def test_the_user_page_does_not_leave_nobody_able_to_manage_access(make_user: MakeUser) -> None:
+    """Even the superuser - who outranks every account - leaves somebody to manage."""
     manager = make_user(*MANAGE)
-    clerk = staff(
-        make_user(
-            ('accounts.view_person', 'all'),
-            ('accounts.change_person', 'all'),
-            ('accounts.delete_person', 'all'),
-        )
-    )
-    client = admin_of(clerk)
+    client = admin_of(staff(make_user(superuser=True)))
     page = client.get(f'/admin/accounts/person/{manager.pk}/change/')
     data = posted(page.context['adminform'].form)
     data.pop('is_active')
@@ -418,3 +412,59 @@ def test_with_perm_costs_the_same_however_many_people_hold_it(
         RoleService(actor=None).assign(make_user(bundles=(approvers,)), clerk)
 
     assert holders() == few
+
+
+def test_an_account_is_changed_only_by_somebody_holding_what_it_holds(make_user: MakeUser) -> None:
+    """
+    Setting a password is signing in with it: whoever may change accounts
+    took over a manager's, and with it every permission to manage access.
+    """
+    manager = make_user(*MANAGE)
+    retired = make_user(*MANAGE, active=False)  # switching it on would hand those back
+    colleague = make_user(('accounts.view_person', 'all'))
+    helpdesk = staff(
+        make_user(
+            ('accounts.view_person', 'all'),
+            ('accounts.change_person', 'all'),
+            ('accounts.delete_person', 'all'),
+        )
+    )
+    client = admin_of(helpdesk)
+    new_password = {'password1': 'Long-and-new-8172', 'password2': 'Long-and-new-8172'}
+
+    for account in (manager, retired):
+        assert (
+            client.post(f'/admin/accounts/person/{account.pk}/password/', new_password).status_code
+            == 403
+        )
+        assert (
+            client.post(f'/admin/accounts/person/{account.pk}/delete/', {'post': 'yes'}).status_code
+            == 403
+        )
+        assert not fresh(account).check_password('Long-and-new-8172')
+
+    client.post(
+        '/admin/accounts/person/',
+        {
+            'action': 'delete_selected',
+            '_selected_action': [manager.pk, colleague.pk],
+            'post': 'yes',
+        },
+    )
+
+    # The bulk delete takes the account holding no more than the helpdesk, and leaves the other.
+    assert Person.objects.filter(pk=manager.pk).exists()
+    assert not Person.objects.filter(pk=colleague.pk).exists()
+
+
+def test_an_account_holding_a_wider_scope_outranks_one_holding_a_narrower(
+    make_user: MakeUser,
+) -> None:
+    from clearance.registry import registry
+
+    wide = make_user(('lending.loan_view', 'all'))
+    narrow = make_user(('lending.loan_view', 'own'), ('accounts.change_person', 'all'))
+    policy = registry.policy_for(Person)
+
+    assert not policy.allows(narrow, 'edit', wide)
+    assert policy.allows(narrow, 'edit', narrow), 'their own account outranks nobody'

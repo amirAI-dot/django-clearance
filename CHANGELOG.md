@@ -122,6 +122,28 @@ And what the review's fixes left:
 * **Every line of the library is run by a test**, and the suite fails below
   that (`fail_under = 100`).
 
+And what the review had left open:
+
+* **An account is changed or deleted only by somebody holding at least what
+  it holds.** Whoever could change users set the password of a manager of
+  access and signed in as them; only a superuser's account was guarded.
+  Asked in `policy.allows`, so every door asks it. **Changed:** a helpdesk
+  that resets passwords holds what the accounts it resets hold.
+* **A delete takes nothing the person may not delete.** Deleting a loan
+  through the API deleted its payments for somebody allowed to delete none.
+  A cascade into a model the library guards is asked in DRF's
+  `perform_destroy`, Django's `DeleteView` and the admin site;
+  `clearance.writes.require_deletable` asks the same by hand.
+* **A rule reaching another model needs its writer to view all of it.** A
+  condition on `applicant__email` read people for somebody who may see none.
+* **The permission class reads a renamed field by what it writes.** A view
+  choosing an unprotected serializer at run time - out of E003's sight - let
+  `decision`, with `source='status'`, write a status.
+* **django-filter's `DjangoFilterBackend` filters only by readable fields**
+  on a view with `ProtectedSerializerMixin`, as DRF's own filters do.
+* **The guide says what a long-lived process does** with what is kept on a
+  user: read them again, or `forget_grants(user)`.
+
 ## 0.1.0 - the first release
 
 Alpha: every part is built and tested, but not yet used in a project with

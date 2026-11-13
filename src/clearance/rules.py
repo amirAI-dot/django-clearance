@@ -158,6 +158,17 @@ class Path:
         return '__'.join(self.names)
 
     @property
+    def crossed(self) -> list[type[models.Model]]:
+        """The models the path reaches on its way to its field - not its own."""
+        found, current = [], self.model
+
+        for name in self.names[:-1]:
+            current = current._meta.get_field(name).related_model  # type: ignore[assignment]
+            found.append(current)
+
+        return found
+
+    @property
     def target(self) -> type[models.Model] | None:
         """The model a relation reaches - or, for an empty path, the model itself."""
         if self.field is None:

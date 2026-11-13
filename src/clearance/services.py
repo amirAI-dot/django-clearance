@@ -369,12 +369,18 @@ class AccessService:
             )
 
         try:
-            rule.compiled()
+            compiled = rule.compiled()
         except ValidationError as error:
             problems += error.messages
 
         if problems:
             raise ValidationError(problems)
+
+        # A condition reaching another model reads it: its writer may view all of it.
+        crossed = {model for condition in compiled.conditions for model in condition.field.crossed}
+        self.rules.require_holds(
+            {permission_for(model, 'view'): EVERY_ROW for model in sorted(crossed, key=str)}
+        )
 
     def _grants_in(self, rule: ScopeRule) -> Any:
         return ScopeGrant.objects.filter(

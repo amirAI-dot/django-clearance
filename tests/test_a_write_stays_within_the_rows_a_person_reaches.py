@@ -12,18 +12,21 @@ Each of these was a finding of the 0.1.0 review.
 from typing import Any
 
 import pytest
+from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
-from django.test import Client
+from django.test import Client, RequestFactory
+from django.views.generic import DeleteView
 from rest_framework import serializers
 from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 
 from clearance.models import ScopeRule
-from clearance.writes import require_within_scope
+from clearance.views import PolicyRequiredMixin, ScopedQuerySetMixin
+from clearance.writes import require_deletable, require_within_scope
 from tests.conftest import MakeUser
 from tests.project.accounts.models import Person
 from tests.project.lending.api import PaymentList, PaymentSerializer
-from tests.project.lending.models import Loan, Payment
+from tests.project.lending.models import Loan, Payment, Statement
 
 pytestmark = pytest.mark.django_db
 
@@ -384,3 +387,80 @@ def test_a_view_asks_for_each_row_of_a_list_whatever_its_serializer(make_user: M
 
     assert PlainBulkPayments.as_view()(request).status_code == 403
     assert not Payment.objects.exists()
+
+
+# ---------------------------------------------------------------------- what a delete takes with it
+
+
+def test_a_delete_takes_no_row_the_person_may_not_delete(make_user: MakeUser) -> None:
+    """Deleting a loan deleted its payments too, for somebody allowed to delete no payment."""
+    clerk = make_user(('lending.loan_view', 'all'), ('lending.loan_delete', 'all'))
+    loan = Loan.objects.create(applicant=make_user(), amount=1)
+    Payment.objects.create(loan=loan, amount=7)
+
+    response = api(clerk).delete(f'/api/loans/{loan.pk}/')
+
+    assert response.status_code == 403
+    assert Loan.objects.filter(pk=loan.pk).exists()
+    assert Payment.objects.count() == 1
+
+
+def test_a_delete_takes_the_rows_the_person_may_delete_and_what_the_library_does_not_guard(
+    make_user: MakeUser,
+) -> None:
+    clerk = make_user(
+        ('lending.loan_view', 'all'),
+        ('lending.loan_delete', 'all'),
+        ('lending.delete_payment', 'all'),
+    )
+    loan = Loan.objects.create(applicant=make_user(), amount=1)
+    Payment.objects.create(loan=loan, amount=7)
+    Statement.objects.create(loan=loan, total=7)  # Django's own permissions: not the library's
+
+    assert api(clerk).delete(f'/api/loans/{loan.pk}/').status_code == 204
+    assert (Loan.objects.count(), Payment.objects.count(), Statement.objects.count()) == (0, 0, 0)
+
+
+class LoanDelete(PolicyRequiredMixin, ScopedQuerySetMixin, DeleteView):  # type: ignore[misc, type-arg]
+    queryset = Loan.objects.all()
+    success_url = '/loans/'
+
+
+def deleted_by_view(person: Person, loan: Loan) -> Any:
+    request = RequestFactory().post('/')
+    request.user = person
+    return LoanDelete.as_view()(request, pk=loan.pk)
+
+
+def test_a_django_delete_view_deletes_within_the_scope_and_what_goes_with_it(
+    make_user: MakeUser,
+) -> None:
+    clerk = make_user(('lending.loan_view', 'own'), ('lending.loan_delete', 'own'))
+    bare, paid = (Loan.objects.create(applicant=clerk, amount=1) for _ in range(2))
+    Payment.objects.create(loan=paid, amount=7)  # theirs to see, not to delete
+
+    assert deleted_by_view(clerk, bare).status_code == 302
+    with pytest.raises(PermissionDenied):
+        deleted_by_view(clerk, paid)
+    assert list(Loan.objects.all()) == [paid]
+
+
+def test_the_admin_site_deletes_nothing_a_cascade_takes_outside_the_scope(
+    make_user: MakeUser,
+) -> None:
+    clerk = staff(make_user(('lending.loan_view', 'all'), ('lending.loan_delete', 'all')))
+    loan = Loan.objects.create(applicant=make_user(), amount=1)
+    Payment.objects.create(loan=loan, amount=7)
+    request = RequestFactory().post('/')
+    request.user = clerk
+    loans = admin.site._registry[Loan]
+
+    with pytest.raises(PermissionDenied):
+        loans.delete_queryset(request, Loan.objects.all())
+    with pytest.raises(PermissionDenied):
+        loans.delete_model(request, loan)
+    assert Payment.objects.count() == 1
+
+
+def test_deleting_nothing_asks_nothing(make_user: MakeUser) -> None:
+    require_deletable(make_user(), Loan.objects.none())
