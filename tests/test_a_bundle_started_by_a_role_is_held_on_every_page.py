@@ -1,7 +1,7 @@
 """
 Somebody who holds a bundle by their role holds it on every access page:
-the people, the overview's count, the bundle's holders, and what deleting it
-takes from.
+the people, the overview's count, the list of bundles, the bundle's holders,
+and what deleting it takes from.
 
 If these fail, the people page leaves out every branch manager whose access
 comes from their role, a bundle half the staff starts with reads "Nobody
@@ -9,6 +9,7 @@ holds it", and deleting it is shown as taking from nobody - while it takes
 from all of them.
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from django.contrib.auth.models import Group
 from django.test import Client
 from pytest_django import DjangoAssertNumQueries
 
+from clearance.limits import install, limits, uninstall
 from clearance.roles.models import Role, RoleAssignment, RoleBundle
 from tests.conftest import MakeBundle, MakeUser
 from tests.project.accounts.models import Person
@@ -130,3 +132,30 @@ def test_the_people_page_costs_the_same_however_many_start_with_a_bundle(
 
     with django_assert_max_num_queries(len(few.captured_queries)):
         looking.get('/admin/access/people/')
+
+
+def test_the_list_of_bundles_marks_one_a_role_starts_people_with(
+    looking: Client, make_bundle: MakeBundle, editors: Group, editor_role: Role
+) -> None:
+    other = make_bundle({'lending.loan_view': 'all'}, name='Others')
+
+    response = looking.get('/admin/access/bundles/')
+
+    assert response.context['started'] == {editors.pk}
+    assert other.pk not in response.context['started']
+    assert 'from their role' in shown(response)
+
+
+@pytest.fixture
+def no_roles() -> Iterator[None]:
+    installed = limits()
+    uninstall()
+    yield
+    install(installed)
+
+
+def test_without_roles_no_bundle_is_marked_and_nobody_starts_with_one(
+    no_roles: None, looking: Client, editors: Group
+) -> None:
+    assert looking.get('/admin/access/bundles/').context['started'] == set()
+    assert looking.get(f'/admin/access/bundles/{editors.pk}/').context['starting'] == []

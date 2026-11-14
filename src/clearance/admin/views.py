@@ -189,7 +189,12 @@ class AccessPages(PageSet):
             people=Count('user', distinct=True), held=Count('permissions', distinct=True)
         ).order_by('name')
         return self.render(
-            request, 'bundles', _('Bundles'), bundles=bundles, declared=Declared.keys('bundle')
+            request,
+            'bundles',
+            _('Bundles'),
+            bundles=bundles,
+            declared=Declared.keys('bundle'),
+            started=set(limits().bundles_started().values_list('pk', flat=True)),
         )
 
     def bundle(self, request: HttpRequest, pk: int | None = None) -> HttpResponse:
