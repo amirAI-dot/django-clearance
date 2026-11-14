@@ -47,6 +47,10 @@ class Limits:
 
         return get_user_model().objects.none()
 
+    def bundles_started(self) -> 'QuerySet[Group]':
+        """The bundles anybody is given by what they are - marked in the list of bundles."""
+        return Group.objects.none()
+
     def describe(self, user: User) -> list[str]:
         """What ``user`` is, in words - shown on their page in the admin site."""
         return []

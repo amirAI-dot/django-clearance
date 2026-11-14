@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: django-clearance\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 12:46-0600\n"
+"POT-Creation-Date: 2026-11-14 02:35-0600\n"
 "Last-Translator: amir mohammad kashanchian\n"
 "Language-Team: Persian\n"
 "Language: fa\n"
@@ -656,6 +656,9 @@ msgstr "اسم‌هایش در زبان‌های دیگر"
 msgid "Held by"
 msgstr "دارندگان"
 
+msgid "from their role"
+msgstr "از نقششان"
+
 msgid "Nobody holds it."
 msgstr "هیچ کس آن را ندارد."
 
@@ -692,7 +695,7 @@ msgid "no"
 msgstr "خیر"
 
 msgid "Unprotected in code."
-msgstr "در کد از محافظت خارج شده."
+msgstr "فقط در کد از محافظت خارج می‌شود."
 
 msgid "Unprotect"
 msgstr "برداشتن محافظت"
@@ -759,9 +762,6 @@ msgstr "پس گرفتن"
 
 msgid "No bundles."
 msgstr "بسته‌ای ندارد."
-
-msgid "from their role"
-msgstr "از نقششان"
 
 msgid "Give"
 msgstr "دادن"

@@ -39,6 +39,9 @@ class RoleLimits(Limits):
     def people_starting_with(self, bundles: 'QuerySet[Group]') -> 'QuerySet[Any]':
         return resolver().holders(Role.objects.filter(bundles__group__in=bundles))
 
+    def bundles_started(self) -> 'QuerySet[Group]':
+        return Group.objects.filter(role_bundles__isnull=False).distinct()
+
     def describe(self, user: User) -> list[str]:
         return [str(role) for role in resolver().roles(user)]
 

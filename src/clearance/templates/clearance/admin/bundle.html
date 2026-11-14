@@ -48,7 +48,9 @@
 
   {% if bundle %}
   <h2>{% translate 'Held by' %}</h2>
-  <ul>{% for person in holders %}<li><a href="{% url 'admin:clearance_person' person.pk %}">{{ person }}</a></li>{% empty %}<li>{% translate 'Nobody holds it.' %}</li>{% endfor %}</ul>
+  <ul>{% for person in holders %}<li><a href="{% url 'admin:clearance_person' person.pk %}">{{ person }}</a></li>{% endfor %}
+    {% for person in starting %}<li><a href="{% url 'admin:clearance_person' person.pk %}">{{ person }}</a> <span class="clearance-note">{% translate 'from their role' %}</span></li>{% endfor %}
+    {% if not holders and not starting %}<li>{% translate 'Nobody holds it.' %}</li>{% endif %}</ul>
   {% endif %}
 </div>
 {% endblock %}
