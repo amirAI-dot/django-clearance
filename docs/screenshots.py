@@ -56,13 +56,14 @@ print(json.dumps({
     'person': Person.objects.get(username='north_manager').pk,
     'rule': rule.pk,
     'role': Role.objects.get(code='manager').pk,
+    'customer_role': Role.objects.get(code='customer').pk,
     'order': Order.objects.filter(branch__name='North').first().pk,
 }))
 """
 
 
 #: The pictures that show a part of a long page, by the text the part starts at.
-FOCUS = {'bundle': 'Shop: orders'}
+FOCUS = {'bundle': 'Shop: orders', 'role-customer': 'Shop: orders'}
 
 
 def pages(keys: dict[str, int]) -> dict[str, tuple[str, str]]:
@@ -81,9 +82,12 @@ def pages(keys: dict[str, int]) -> dict[str, tuple[str, str]]:
         'actions': ('admin', '/admin/access/actions/'),
         'roles': ('admin', '/admin/access/roles/'),
         'role': ('admin', f'/admin/access/roles/{keys["role"]}/'),
+        'role-customer': ('admin', f'/admin/access/roles/{keys["customer_role"]}/'),
+        'action-values': ('admin', '/admin/access/actions/add/?model=shop.Order&field=status'),
         'names': ('admin', f'/admin/access/names/auth.group/{keys["bundle"]}/'),
         'orders-as-a-manager': ('north_manager', '/admin/shop/order/'),
         'order-as-a-manager': ('north_manager', f'/admin/shop/order/{keys["order"]}/change/'),
+        'order-as-the-accountant': ('accountant', f'/admin/shop/order/{keys["order"]}/change/'),
     }
 
 

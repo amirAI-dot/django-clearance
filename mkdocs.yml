@@ -63,6 +63,7 @@ plugins:
             Home: خانه
             Getting started: شروع
             Tutorial: آموزش
+            Admin panel: پنل ادمین
             Guide: راهنما
             Design: طراحی
             Changelog: تغییرات
@@ -87,6 +88,18 @@ nav:
       - tutorial/10-roles.md
       - tutorial/11-access-as-code.md
       - tutorial/12-names-in-every-language.md
+  - Admin panel:
+      - admin/index.md
+      - admin/your-models.md
+      - admin/bundles.md
+      - admin/people.md
+      - admin/permissions.md
+      - admin/row-scopes.md
+      - admin/protected-fields.md
+      - admin/actions.md
+      - admin/roles.md
+      - admin/names.md
+      - admin/safety-rules.md
   - Guide: guide.md
   - Design: design.md
   - Changelog: changelog.md

@@ -44,6 +44,7 @@ AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 |---|---|
 | [شروع](getting-started/introduction.md) | به چه کاری می‌آید، نصب، و اولین بسته در چند خط |
 | [آموزش](tutorial/index.md) | فروشگاه نمونه، که لایه به لایه ساخته می‌شود |
+| [پنل ادمین](admin/index.md) | همه‌ی صفحه‌های دسترسی، با عکس |
 | [راهنما](guide.md) | همه‌ی بخش‌های کتابخانه، و اینکه چطور به کارشان ببرید |
 | [طراحی](design.md) | اینکه چرا این‌طور ساخته شده |
 | [تغییرات](changelog.md) | اینکه هر نسخه چه چیزی را عوض کرد |
