@@ -16,6 +16,10 @@ What the pictures of the admin site showed, for the documentation:
 * **A bundle's grid fits a 1280-pixel screen.** A model's other permissions -
   approving, printing, a field's - run on a row of their own under its four,
   where they were pushed off the side.
+* **Somebody who holds a bundle by their role is on every access page.** The
+  people page and the overview's count left them out, a bundle a role starts
+  people with read "Nobody holds it", and deleting it was shown as taking
+  from nobody. They are listed now, marked *from their role*.
 
 ## 0.2.0 - the security review
 

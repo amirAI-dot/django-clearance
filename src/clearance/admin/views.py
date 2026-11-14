@@ -28,6 +28,7 @@ from django.utils.translation import gettext as _
 from clearance.admin.standing import PermissionGrid, Standing, name_of
 from clearance.health import findings
 from clearance.labels import labels_in
+from clearance.limits import limits
 from clearance.models import Declared, PermissionRevocation
 from clearance.protocols import user_of
 from clearance.safety import AccessRefused, SafetyRules
@@ -222,7 +223,7 @@ class AccessPages(PageSet):
                     messages.success(request, _('The bundle %(name)s was saved.') % {'name': name})
                     return self.redirect('clearance_bundle', bundle.pk)
 
-        holders = list(bundle.user_set.order_by('pk')) if bundle is not None else []
+        holders, starting = _holders(bundle) if bundle is not None else ([], [])
         return self.render(
             request,
             'bundle',
@@ -231,6 +232,7 @@ class AccessPages(PageSet):
             name=name,
             grid=PermissionGrid.build(grants),
             holders=holders,
+            starting=starting,
             errors=errors,
             declared=bundle is not None and Declared.holds('bundle', bundle.name),
         )
@@ -249,13 +251,13 @@ class AccessPages(PageSet):
             messages.success(request, _('The bundle %(name)s was deleted.') % {'name': bundle.name})
             return self.redirect('clearance_bundles')
 
-        holders = list(bundle.user_set.order_by('pk'))
+        holders, starting = _holders(bundle)
         return self.render(
             request,
             'bundle_delete',
             _('Delete %(name)s') % {'name': bundle.name},
             bundle=bundle,
-            holders=holders,
+            holders=[*holders, *starting],
         )
 
     def people(self, request: HttpRequest) -> HttpResponse:
@@ -265,7 +267,17 @@ class AccessPages(PageSet):
         people = _matching(people, query) if query else _with_access(people)
         people = people.annotate(bundles=Count('groups', distinct=True)).order_by('pk')
         page = Paginator(people, PEOPLE_PER_PAGE).get_page(request.GET.get('page'))
-        return self.render(request, 'people', _('People'), page=page, query=query)
+        shown = [person.pk for person in page]
+        # Who on this page starts with a bundle by their role - one query, not one a row.
+        starting = set(
+            limits()
+            .people_starting_with(Group.objects.all())
+            .filter(pk__in=shown)
+            .values_list('pk', flat=True)
+        )
+        return self.render(
+            request, 'people', _('People'), page=page, query=query, starting=starting
+        )
 
     def person(self, request: HttpRequest, pk: int) -> HttpResponse:
         self.require(request, 'view')
@@ -369,10 +381,32 @@ def bundle_named(key: object) -> Group:
 
 
 def _with_access(people: Any) -> Any:
-    """The people with any access at all: a bundle, a grant of their own, or every permission."""
+    """
+    The people with any access at all: a bundle - given, or by their role - a
+    grant of their own, or every permission.
+    """
+    by_role = limits().people_starting_with(Group.objects.all()).values('pk')
     return people.filter(
-        Q(groups__isnull=False) | Q(user_permissions__isnull=False) | Q(is_superuser=True)
+        Q(groups__isnull=False)
+        | Q(user_permissions__isnull=False)
+        | Q(is_superuser=True)
+        | Q(pk__in=by_role)
     ).distinct()
+
+
+def _holders(bundle: Group) -> tuple[list[Any], list[Any]]:
+    """
+    Who holds ``bundle``: the people given it, and the people who start with
+    it by their role and were not given it as well.
+    """
+    given = list(bundle.user_set.order_by('pk'))
+    starting = (
+        limits()
+        .people_starting_with(Group.objects.filter(pk=bundle.pk))
+        .exclude(pk__in=[person.pk for person in given])
+        .order_by('pk')
+    )
+    return given, list(starting)
 
 
 def _matching(people: Any, query: str) -> Any:
