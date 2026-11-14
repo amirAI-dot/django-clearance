@@ -41,11 +41,36 @@ theme:
         icon: material/brightness-4
         name: Light mode
 
+hooks:
+  - docs/hooks.py
+
 extra_css:
   - stylesheets/extra.css
 
 plugins:
   - search
+  - autorefs:
+      resolve_closest: true
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            filters: ['!^_']
+            show_if_no_docstring: false
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: false
+            heading_level: 2
+            docstring_section_style: list
+            merge_init_into_class: true
   - i18n:
       docs_structure: suffix
       reconfigure_material: true
@@ -64,6 +89,8 @@ plugins:
             Getting started: شروع
             Tutorial: آموزش
             Admin panel: پنل ادمین
+            Reference: مرجع
+            Python API: API پایتون
             Guide: راهنما
             Design: طراحی
             Changelog: تغییرات
@@ -100,6 +127,27 @@ nav:
       - admin/roles.md
       - admin/names.md
       - admin/safety-rules.md
+  - Reference:
+      - reference/index.md
+      - reference/settings.md
+      - reference/access-file.md
+      - reference/checks.md
+      - reference/commands.md
+      - reference/signals.md
+      - reference/models.md
+      - reference/template-tags.md
+      - Python API:
+          - reference/api/permissions.md
+          - reference/api/querysets.md
+          - reference/api/policies.md
+          - reference/api/services.md
+          - reference/api/fields.md
+          - reference/api/views.md
+          - reference/api/drf.md
+          - reference/api/admin.md
+          - reference/api/roles.md
+          - reference/api/names.md
+          - reference/api/extending.md
   - Guide: guide.md
   - Design: design.md
   - Changelog: changelog.md

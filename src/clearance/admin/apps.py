@@ -10,6 +10,8 @@ from django.contrib.admin.apps import AdminConfig
 
 
 class ClearanceAdminConfig(AdminConfig):
+    """Django's admin app, with ``ClearanceAdminSite`` as its default site."""
+
     default_site = 'clearance.admin.sites.ClearanceAdminSite'
 
     def ready(self) -> None:

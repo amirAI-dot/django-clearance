@@ -25,6 +25,11 @@ from clearance.translations.models import Translation
 
 
 class TranslationService:
+    """
+    Every change to the names of a permission, a bundle or a role, made as
+    ``actor`` - who needs ``clearance.permission_edit``.
+    """
+
     def __init__(self, actor: User | None) -> None:
         self.actor = actor
         self.rules = SafetyRules(actor)

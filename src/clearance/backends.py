@@ -39,6 +39,12 @@ from clearance.safety import holders_of
 
 
 class ClearanceBackend(ModelBackend):
+    """
+    Django's ``ModelBackend``, less what was taken away from the person, with
+    the bundles they start with, and within their ceiling. Named in
+    ``AUTHENTICATION_BACKENDS`` in place of ``ModelBackend``, never beside it.
+    """
+
     def _get_user_permissions(self, user_obj: Any) -> 'QuerySet[Permission]':
         permissions: QuerySet[Permission] = cast(Any, super())._get_user_permissions(user_obj)
         return permissions.filter(limits().allowed(user_obj, 'pk'))
