@@ -37,6 +37,7 @@ WHAT_FOR_FA = '\u0628\u0631\u0627\u06cc \u0686\u06cc\u0633\u062a'
 
 @dataclass
 class Entry:
+    msgctxt: str = ''
     msgid: str = ''
     msgid_plural: str = ''
     msgstr: dict[int, str] = field(default_factory=dict)
@@ -123,6 +124,8 @@ def test_the_compiled_catalogue_says_what_the_source_says(path: Path) -> None:
         if entry.msgid_plural:
             said = [catalogue.ngettext(entry.msgid, entry.msgid_plural, n) for n in (1, 2)]
             meant = [entry.msgstr[0], entry.msgstr[1]]
+        elif entry.msgctxt:
+            said, meant = [catalogue.pgettext(entry.msgctxt, entry.msgid)], [entry.msgstr[0]]
         else:
             said, meant = [catalogue.gettext(entry.msgid)], [entry.msgstr[0]]
 
@@ -200,6 +203,33 @@ def test_the_grid_and_the_rule_builder_say_their_words_in_persian(
     assert f'<th>{view}</th>' in grid
     assert f'>{IS_ONE_OF_FA}</option>' in builder
     assert 'clearance-breadcrumbs' in grid, "the bar Django's own pages have"
+
+
+#: "Permissions" as the access pages say it, and as Django's own auth app does.
+PERMISSIONS_FA = '\u0645\u062c\u0648\u0632\u0647\u0627'
+DJANGOS_PERMISSIONS_FA = '\u0627\u062c\u0627\u0632\u0647\u200c\u0647\u0627'
+
+
+@pytest.mark.django_db
+def test_the_permissions_page_is_named_in_the_librarys_word_not_djangos(
+    client: Client, make_user: MakeUser
+) -> None:
+    """
+    Django's auth app translates "Permissions" too, and comes first in
+    INSTALLED_APPS: the menu read one word and every page another.
+    """
+    person = make_user(superuser=True)
+    person.is_staff = True
+    person.save()
+    client.force_login(person)
+
+    with override_settings(LANGUAGE_CODE='fa'):
+        page = client.get('/admin/access/permissions/').content.decode()
+        overview = client.get('/admin/access/').content.decode()
+
+    for shown in (page, overview):
+        assert PERMISSIONS_FA in shown
+        assert DJANGOS_PERMISSIONS_FA not in shown
 
 
 def test_every_operator_of_a_rule_has_words() -> None:

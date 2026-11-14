@@ -9,7 +9,7 @@
   <ul class="object-tools"><li><a class="addlink" href="{% url 'admin:clearance_bundle_add' %}">{% translate 'Add a bundle' %}</a></li></ul>
   {% endif %}
   <table class="clearance-list">
-    <thead><tr><th>{% translate 'Bundle' %}</th><th>{% translate 'Permissions' %}</th><th>{% translate 'People' %}</th></tr></thead>
+    <thead><tr><th>{% translate 'Bundle' %}</th><th>{% translate 'Permissions' context 'access' %}</th><th>{% translate 'People' %}</th></tr></thead>
     <tbody>
     {% for bundle in bundles %}
       <tr><td><a href="{% url 'admin:clearance_bundle' bundle.pk %}">{{ bundle|label:labels }}</a>{% if bundle.name in declared %} <span class="clearance-note">{% translate 'declared in code' %}</span>{% endif %}</td><td>{{ bundle.held }}</td><td>{{ bundle.people }}{% if bundle.pk in started %} <span class="clearance-note">+ {% translate 'from their role' %}</span>{% endif %}</td></tr>

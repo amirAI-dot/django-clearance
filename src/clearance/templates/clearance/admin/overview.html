@@ -7,7 +7,7 @@
     <tbody>
       <tr><th scope="row"><a href="{% url 'admin:clearance_bundles' %}">{% translate 'Bundles' %}</a></th><td>{{ bundles }}</td></tr>
       <tr><th scope="row"><a href="{% url 'admin:clearance_people' %}">{% translate 'People with access' %}</a></th><td>{{ people }}</td></tr>
-      <tr><th scope="row"><a href="{% url 'admin:clearance_permissions' %}">{% translate 'Permissions' %}</a></th><td>{{ permissions }}</td></tr>
+      <tr><th scope="row"><a href="{% url 'admin:clearance_permissions' %}">{% translate 'Permissions' context 'access' %}</a></th><td>{{ permissions }}</td></tr>
       <tr><th scope="row"><a href="{% url 'admin:clearance_permissions' %}?held=nobody">{% translate 'Permissions nobody holds' %}</a></th><td>{{ unheld }}</td></tr>
     </tbody>
   </table>
