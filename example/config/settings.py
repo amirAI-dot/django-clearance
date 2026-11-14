@@ -61,6 +61,7 @@ DATABASES = {
 
 AUTH_USER_MODEL = 'shop.Person'
 
+# --8<-- [start:clearance]
 # clearance: the backend that reads bundles, scopes and what was taken away.
 AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 
@@ -76,6 +77,7 @@ CLEARANCE = {
     'ACCESS': 'config.access.ACCESS',
     'SYNC_ON_MIGRATE': True,
 }
+# --8<-- [end:clearance]
 
 LANGUAGE_CODE = 'en'
 LANGUAGES = [('en', 'English'), ('fa', 'Persian')]

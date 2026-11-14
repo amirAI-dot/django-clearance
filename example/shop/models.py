@@ -39,6 +39,7 @@ class Person(AbstractUser):
     )
 
 
+# --8<-- [start:order]
 class Order(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', _('Pending')
@@ -80,3 +81,6 @@ class Order(models.Model):
 
     def __str__(self):
         return f'{self.item} ({self.branch})'
+
+
+# --8<-- [end:order]
