@@ -2,7 +2,18 @@
 
 Role, policy and row-level access control for Django. Denied by default.
 
-[فارسی](https://github.com/amirAI-dot/django-clearance/blob/main/README.fa.md)
+[![PyPI](https://img.shields.io/pypi/v/django-clearance)](https://pypi.org/project/django-clearance/)
+[![Python](https://img.shields.io/pypi/pyversions/django-clearance)](https://pypi.org/project/django-clearance/)
+[![Django](https://img.shields.io/pypi/frameworkversions/django/django-clearance)](https://pypi.org/project/django-clearance/)
+[![CI](https://github.com/amirAI-dot/django-clearance/actions/workflows/ci.yml/badge.svg)](https://github.com/amirAI-dot/django-clearance/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/amirAI-dot/django-clearance/blob/main/pyproject.toml)
+[![Docs](https://img.shields.io/badge/docs-English%20%7C%20%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-blue)](https://amirai-dot.github.io/django-clearance/)
+[![Licence](https://img.shields.io/pypi/l/django-clearance)](https://github.com/amirAI-dot/django-clearance/blob/main/LICENSE)
+
+[فارسی](https://github.com/amirAI-dot/django-clearance/blob/main/README.fa.md) ·
+[Documentation](https://amirai-dot.github.io/django-clearance/)
+
+![A row scope built in the admin site, with no code: the orders whose status is pending or approved](https://raw.githubusercontent.com/amirAI-dot/django-clearance/main/docs/img/en/scope.png)
 
 An administrator decides, in Django's admin site and with no code, who may
 do what - and to which rows, and with which fields:
@@ -17,6 +28,10 @@ Every door asks the same rules: Django's views and templates, DRF, the admin
 site, and your own code. A change is refused when it would let somebody give
 themselves more. The pages, messages and permissions come in English and
 Persian, and read right to left in Persian.
+
+Held by its tests: 100% coverage, enforced; every supported Python with
+every supported Django, on PostgreSQL and SQLite; the admin pages in a real
+browser; and the number of queries each door costs, counted.
 
 ## In a project
 
