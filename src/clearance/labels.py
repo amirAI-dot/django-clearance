@@ -67,4 +67,5 @@ def install_labels(source: type[Labels]) -> None:
 
 
 def uninstall_labels() -> None:
+    """Back to the names the code and the rows give."""
     install_labels(Labels)

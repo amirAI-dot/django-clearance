@@ -145,6 +145,10 @@ class AccessService:
         self._announce(signals.bundle_deleted, name=name, grants=grants, people=people)
 
     def give_bundle(self, person: UserModel, bundle: Group) -> None:
+        """
+        Give ``person`` ``bundle``. Refused for one's own account, and for a
+        bundle holding what the actor does not hold; giving it twice is no change.
+        """
         self.rules.require_may('edit')
         self.rules.require_not_own(person)
         self.rules.require_holds(self.bundle_grants(bundle))
@@ -157,6 +161,11 @@ class AccessService:
         self._announce(signals.bundle_given, person=person, bundle=bundle)
 
     def take_bundle(self, person: UserModel, bundle: Group) -> None:
+        """
+        Take ``bundle`` back from ``person`` - one given to them, not one they
+        start with by their role. Refused for one's own account, and when it
+        would leave nobody but the superuser able to manage access.
+        """
         self.rules.require_may('edit')
         self.rules.require_not_own(person)
 

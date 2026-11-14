@@ -19,6 +19,11 @@ UserModel: TypeAlias = Any
 
 
 class User(Protocol):
+    """
+    What the library asks of a person: Django's user, or anything answering
+    the same three questions - ``AnonymousUser`` among them.
+    """
+
     @property
     def is_authenticated(self) -> bool: ...
 

@@ -4,3 +4,10 @@
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+/* The Python API is the code's own English: on a Persian page it still reads
+   left to right, or every sentence ends with its full stop at the start. */
+[dir="rtl"] .md-typeset .doc {
+  direction: ltr;
+  text-align: left;
+}

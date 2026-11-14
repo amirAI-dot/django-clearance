@@ -46,6 +46,7 @@ AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 | [Getting started](getting-started/introduction.md) | what it is for, installing it, and a first bundle in a few lines |
 | [The tutorial](tutorial/index.md) | the example shop, built a layer at a time |
 | [The admin panel](admin/index.md) | every access page, with pictures |
+| [The reference](reference/index.md) | every setting, check, command, signal and model - and the Python API |
 | [The guide](guide.md) | every part of the library, and how to use it |
 | [The design](design.md) | why it is built the way it is |
 | [The changelog](changelog.md) | what each release changed |

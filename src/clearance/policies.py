@@ -233,18 +233,26 @@ class BasePolicy:
     # ------------------------------------------------------------------
 
     def can_list(self, user: User, obj: object | None = None) -> bool:
+        """Whether ``user`` may see a list at all - the rows are the queryset's to narrow."""
         return self.has(user, 'view')
 
     def can_view(self, user: User, obj: object | None = None) -> bool:
+        """Whether ``user`` may read ``obj``: the view permission, within its scope."""
         return self.has_within_scope(user, 'view', obj)
 
     def can_create(self, user: User, obj: object | None = None) -> bool:
+        """
+        Whether ``user`` may create rows. Whether the row made is within the
+        scope ``create`` was given in is asked once it is saved.
+        """
         return self.has(user, 'create')
 
     def can_edit(self, user: User, obj: object | None = None) -> bool:
+        """Whether ``user`` may change ``obj``: the edit permission, within its scope."""
         return self.has_within_scope(user, 'edit', obj)
 
     def can_delete(self, user: User, obj: object | None = None) -> bool:
+        """Whether ``user`` may delete ``obj``: the delete permission, within its scope."""
         return self.has_within_scope(user, 'delete', obj)
 
 
