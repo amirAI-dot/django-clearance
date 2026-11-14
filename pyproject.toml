@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-clearance"
-version = "0.2.0"
+version = "0.2.1"
 description = "Role, policy and row-level access control for Django. Denied by default."
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -40,8 +40,8 @@ drf = ["djangorestframework>=3.16"]
 Repository = "https://github.com/amirAI-dot/django-clearance"
 Documentation = "https://amirai-dot.github.io/django-clearance/"
 Changelog = "https://github.com/amirAI-dot/django-clearance/blob/main/CHANGELOG.md"
-Guide = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md"
-Design = "https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md"
+Guide = "https://amirai-dot.github.io/django-clearance/guide/"
+Design = "https://amirai-dot.github.io/django-clearance/design/"
 
 [dependency-groups]
 test = [

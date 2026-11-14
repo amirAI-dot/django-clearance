@@ -46,6 +46,8 @@ class OrderViewSet(ScopedModelViewSet):  # the rows, the policy, the fields - as
 Order.objects.visible_to(user, 'edit')  # the orders this person may edit
 ```
 
+* [مستندات](https://amirai-dot.github.io/django-clearance/fa/) - شروع، آموزش، پنل ادمین با عکس،
+  راهنماهای کاربردی و مرجع.
 * [راهنما](docs/guide.fa.md) - همه‌ی بخش‌ها، و اینکه چطور به کارشان ببرید.
 * [فروشگاه نمونه](example/README.fa.md) - پروژه‌ای که همه‌اش را به کار می‌برد، برای
   اجرا کردن.

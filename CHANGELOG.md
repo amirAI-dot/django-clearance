@@ -4,7 +4,10 @@
 
 ## Unreleased
 
-What the pictures of the admin site showed, for the documentation:
+## 0.2.1 - what the pictures showed
+
+What the pictures of the admin site showed, for the documentation. Nothing a
+project wrote changes.
 
 * **The access pages say their own words in Persian** - the grid's column
   headings, the library's own permissions ("Can create access") and the
@@ -23,6 +26,8 @@ What the pictures of the admin site showed, for the documentation:
   are listed now, marked *from their role*.
 * **A field protected in code says, in Persian, where it is unprotected** -
   "only in code" - where it read as if it had been unprotected there.
+* **The permissions page is named in the library's own Persian word** - the
+  menu read Django's word for it, and every other page the library's.
 
 ## 0.2.0 - the security review
 

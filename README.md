@@ -47,9 +47,11 @@ class OrderViewSet(ScopedModelViewSet):  # the rows, the policy, the fields - as
 Order.objects.visible_to(user, 'edit')  # the orders this person may edit
 ```
 
-* [The guide](https://github.com/amirAI-dot/django-clearance/blob/main/docs/guide.md) - every part, how to use it.
+* [The documentation](https://amirai-dot.github.io/django-clearance/) - getting started, a tutorial,
+  the admin panel in pictures, how-to guides and the reference.
+* [The guide](https://amirai-dot.github.io/django-clearance/guide/) - every part, how to use it.
 * [The example shop](https://github.com/amirAI-dot/django-clearance/blob/main/example/README.md) - a project using all of it, to run.
-* [The design](https://github.com/amirAI-dot/django-clearance/blob/main/docs/design.md) - why it is built the way it is.
+* [The design](https://amirai-dot.github.io/django-clearance/design/) - why it is built the way it is.
 
 Python 3.11 to 3.14; Django 5.2, 6.0 and 6.1; Django REST framework 3.16 and
 later, optional; any database Django supports.

@@ -24,6 +24,7 @@ from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import URLPattern, path, reverse
 from django.utils.translation import gettext as _
+from django.utils.translation import pgettext
 
 from clearance.admin.standing import PermissionGrid, Standing, name_of
 from clearance.health import findings
@@ -143,7 +144,7 @@ class AccessPages(PageSet):
                 'view_only': view_only,
             },
             {
-                'name': _('Permissions'),
+                'name': pgettext('access', 'Permissions'),
                 'object_name': 'Permission',
                 'admin_url': self.url('clearance_permissions'),
                 'add_url': None,
@@ -333,7 +334,11 @@ class AccessPages(PageSet):
             permission.taken = taken.get(permission.pk, 0)  # type: ignore[attr-defined]
 
         return self.render(
-            request, 'permissions', _('Permissions'), permissions=permissions, nobody=nobody
+            request,
+            'permissions',
+            pgettext('access', 'Permissions'),
+            permissions=permissions,
+            nobody=nobody,
         )
 
     def _change_person(self, request: HttpRequest, person: Any) -> None:
