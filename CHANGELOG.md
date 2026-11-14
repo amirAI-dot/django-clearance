@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+* **The example shop speaks Persian** - its menu, its orders, their fields and
+  statuses, and its scopes - so the documentation's Persian pictures are
+  Persian throughout. `nox -s messages` holds its catalogue too.
+
 ## 0.2.1 - what the pictures showed
 
 What the pictures of the admin site showed, for the documentation. Nothing a

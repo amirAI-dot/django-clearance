@@ -113,6 +113,8 @@ def messages(session: nox.Session) -> None:
     """
     The catalogues hold every string the library marks, and nothing it no
     longer marks: the strings are extracted again, and git finds no change.
+    The example shop's catalogue too - its words are what the documentation's
+    Persian pictures show.
 
     Needs gettext installed. After marking a string, run this, translate what
     it added, and compile: ``django-admin compilemessages`` in ``src/clearance``.
@@ -135,6 +137,20 @@ def messages(session: nox.Session) -> None:
                 '--settings=tests.project.settings',
                 env={'PYTHONPATH': root},
             )
+
+    with session.chdir('example/shop'):
+        session.run(
+            'python',
+            '-m',
+            'django',
+            'makemessages',
+            '--locale=fa',
+            '--no-location',
+            '--no-obsolete',
+            '--ignore=__pycache__',
+            '--settings=config.settings',
+            env={'PYTHONPATH': os.path.join(root, 'example')},
+        )
 
     session.run(
         'git',

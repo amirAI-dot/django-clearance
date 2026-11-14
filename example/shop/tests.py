@@ -14,6 +14,9 @@ from django.test import TestCase
 
 from shop.models import Order, Person
 
+#: "Orders", in Persian - written as escapes: the code is English only.
+ORDERS_FA = '\u0633\u0641\u0627\u0631\u0634\u200c\u0647\u0627'
+
 
 class TheShop(TestCase):
     @classmethod
@@ -58,6 +61,17 @@ class TheShop(TestCase):
         self.assertIn('Office chair', page)
         self.assertNotIn('Bookshelf', page)
         self.assertNotIn('240.00', page)
+
+    def test_the_shop_speaks_persian_to_a_persian_browser(self):
+        """Its own catalogue: the documentation's Persian pictures show these words."""
+        self.sign_in('north_manager')
+
+        page = self.client.get('/admin/', headers={'accept-language': 'fa'}).content.decode()
+        listing = self.client.get('/orders/', headers={'accept-language': 'fa'}).content.decode()
+
+        self.assertIn(ORDERS_FA, page)
+        self.assertIn(ORDERS_FA, listing)
+        self.assertNotIn('>Orders<', listing)
 
     def test_somebody_signed_out_is_refused(self):
         self.assertEqual(self.client.get('/api/orders/').status_code, 403)
