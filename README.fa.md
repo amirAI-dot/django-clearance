@@ -2,7 +2,18 @@
 
 کنترل دسترسی مبتنی بر نقش، سیاست (policy) و سطح ردیف برای جنگو. پیش‌فرض: رد.
 
-[English](README.md)
+[![PyPI](https://img.shields.io/pypi/v/django-clearance)](https://pypi.org/project/django-clearance/)
+[![Python](https://img.shields.io/pypi/pyversions/django-clearance)](https://pypi.org/project/django-clearance/)
+[![Django](https://img.shields.io/pypi/frameworkversions/django/django-clearance)](https://pypi.org/project/django-clearance/)
+[![CI](https://github.com/amirAI-dot/django-clearance/actions/workflows/ci.yml/badge.svg)](https://github.com/amirAI-dot/django-clearance/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/amirAI-dot/django-clearance/blob/main/pyproject.toml)
+[![Docs](https://img.shields.io/badge/docs-English%20%7C%20%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-blue)](https://amirai-dot.github.io/django-clearance/)
+[![Licence](https://img.shields.io/pypi/l/django-clearance)](https://github.com/amirAI-dot/django-clearance/blob/main/LICENSE)
+
+[English](README.md) ·
+[مستندات](https://amirai-dot.github.io/django-clearance/fa/)
+
+![یک دامنه‌ی ردیف که بدون کد در پنل ادمین ساخته شده: سفارش‌هایی که وضعیتشان در انتظار یا تأییدشده است](https://raw.githubusercontent.com/amirAI-dot/django-clearance/main/docs/img/fa/scope.png)
 
 مدیر سایت، در پنل ادمین Django و بدون هیچ کدی، تصمیم می‌گیرد چه کسی چه کاری
 می‌تواند بکند - و روی کدام ردیف‌ها، و با کدام فیلدها:
@@ -16,6 +27,10 @@
 همه‌ی درها همان قانون‌ها را می‌پرسند: viewها و قالب‌های Django، DRF، پنل ادمین، و
 کد خودتان. هر تغییری که بگذارد کسی به خودش بیشتر بدهد رد می‌شود. صفحه‌ها، پیام‌ها
 و مجوزها به انگلیسی و فارسی هستند، و به فارسی راست به چپ خوانده می‌شوند.
+
+تست‌ها این‌ها را نگه می‌دارند: پوشش ۱۰۰٪، که اجباری است؛ همه‌ی نسخه‌های پشتیبانی‌شده‌ی
+پایتون با همه‌ی نسخه‌های Django، روی PostgreSQL و SQLite؛ صفحه‌های پنل ادمین در یک
+مرورگر واقعی؛ و تعداد کوئری‌هایی که هر در هزینه دارد، شمرده‌شده.
 
 ## در یک پروژه
 
