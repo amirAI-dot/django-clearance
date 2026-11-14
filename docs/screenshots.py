@@ -62,8 +62,10 @@ print(json.dumps({
 """
 
 
-#: The pictures that show a part of a long page, by the text the part starts at.
-FOCUS = {'bundle': 'Shop: orders', 'role-customer': 'Shop: orders'}
+#: The pictures that show a part of a long page: the row holding this checkbox -
+#: the orders' own, the same in every language.
+ORDERS_ROW = 'input[value="shop.order_view"]'
+FOCUS = {'bundle': ORDERS_ROW, 'role-customer': ORDERS_ROW}
 
 
 def pages(keys: dict[str, int]) -> dict[str, tuple[str, str]]:
@@ -158,8 +160,8 @@ def photograph(server: str, shown: dict[str, tuple[str, str]]) -> None:
                 page.goto(f'{server}{address}')
 
                 if picture in FOCUS:
-                    part = page.get_by_text(FOCUS[picture], exact=True).first
-                    part.evaluate("node => node.scrollIntoView({block: 'start'})")
+                    part = page.locator(FOCUS[picture]).first
+                    part.evaluate("node => node.closest('tr').scrollIntoView({block: 'start'})")
                     page.evaluate('window.scrollBy(0, -120)')  # the column headings above it
 
                 page.screenshot(path=folder / f'{picture}.png')

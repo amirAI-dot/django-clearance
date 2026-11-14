@@ -1,0 +1,96 @@
+# Persian translation of the django-clearance example shop.
+# This file is distributed under the same licence as django-clearance.
+msgid ""
+msgstr ""
+"Project-Id-Version: django-clearance example shop\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-14 09:56+0000\n"
+"Last-Translator: amir mohammad kashanchian\n"
+"Language-Team: Persian\n"
+"Language: fa\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Shop"
+msgstr "فروشگاه"
+
+msgid "name"
+msgstr "نام"
+
+msgid "branch"
+msgstr "شعبه"
+
+msgid "branches"
+msgstr "شعبه‌ها"
+
+msgid "Pending"
+msgstr "در انتظار"
+
+msgid "Approved"
+msgstr "تأییدشده"
+
+msgid "Rejected"
+msgstr "ردشده"
+
+msgid "Delivered"
+msgstr "تحویل‌شده"
+
+msgid "customer"
+msgstr "مشتری"
+
+msgid "item"
+msgstr "کالا"
+
+msgid "status"
+msgstr "وضعیت"
+
+msgid "price"
+msgstr "قیمت"
+
+msgid "order"
+msgstr "سفارش"
+
+msgid "orders"
+msgstr "سفارش‌ها"
+
+#, python-format
+msgid "Can approve or reject %(resource)s"
+msgstr "می‌تواند %(resource)s را تأیید یا رد کند"
+
+msgid "Their own orders"
+msgstr "سفارش‌های خودشان"
+
+msgid "Their branch's orders"
+msgstr "سفارش‌های شعبه‌شان"
+
+msgid "Orders"
+msgstr "سفارش‌ها"
+
+msgid "Admin site"
+msgstr "پنل ادمین"
+
+msgid "Save"
+msgstr "ذخیره"
+
+msgid "Back to the orders"
+msgstr "بازگشت به سفارش‌ها"
+
+msgid "Item"
+msgstr "کالا"
+
+msgid "Branch"
+msgstr "شعبه"
+
+msgid "Customer"
+msgstr "مشتری"
+
+msgid "Status"
+msgstr "وضعیت"
+
+msgid "Price"
+msgstr "قیمت"
+
+msgid "No orders you may see."
+msgstr "سفارشی نیست که بتوانید ببینید."
