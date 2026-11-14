@@ -21,6 +21,8 @@ What the pictures of the admin site showed, for the documentation:
   counted nobody for a bundle a role starts people with, its own page read
   "Nobody holds it", and deleting it was shown as taking from nobody. They
   are listed now, marked *from their role*.
+* **A field protected in code says, in Persian, where it is unprotected** -
+  "only in code" - where it read as if it had been unprotected there.
 
 ## 0.2.0 - the security review
 

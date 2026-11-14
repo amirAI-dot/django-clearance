@@ -695,7 +695,7 @@ msgid "no"
 msgstr "خیر"
 
 msgid "Unprotected in code."
-msgstr "در کد از محافظت خارج شده."
+msgstr "فقط در کد از محافظت خارج می‌شود."
 
 msgid "Unprotect"
 msgstr "برداشتن محافظت"
