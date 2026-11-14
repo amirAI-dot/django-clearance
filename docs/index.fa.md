@@ -45,9 +45,12 @@ AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 | [شروع](getting-started/introduction.md) | به چه کاری می‌آید، نصب، و اولین بسته در چند خط |
 | [آموزش](tutorial/index.md) | فروشگاه نمونه، که لایه به لایه ساخته می‌شود |
 | [پنل ادمین](admin/index.md) | همه‌ی صفحه‌های دسترسی، با عکس |
+| [راهنماهای کاربردی](how-to/index.md) | یک پرسشی که پروژه‌ها با آن روبه‌رو می‌شوند، در چند قدم |
 | [مرجع](reference/index.md) | همه‌ی تنظیمات، بررسی‌ها، دستورها، سیگنال‌ها و مدل‌ها - و API پایتون |
 | [راهنما](guide.md) | همه‌ی بخش‌های کتابخانه، و اینکه چطور به کارشان ببرید |
-| [طراحی](design.md) | اینکه چرا این‌طور ساخته شده |
+| [توضیح‌ها](explanation/index.md) و [طراحی](design.md) | اینکه چرا این‌طور ساخته شده |
+| [پرسش‌ها](faq.md) | آنچه اول از همه پرسیده می‌شود |
+| [مشارکت](project/contributing.md)، [امنیت](project/security.md)، [نسخه‌ها](project/versions.md) | کار روی آن، گزارش یک مشکل، روی چه چیزی اجرا می‌شود |
 | [تغییرات](changelog.md) | اینکه هر نسخه چه چیزی را عوض کرد |
 | [فروشگاه نمونه](https://github.com/amirAI-dot/django-clearance/tree/main/example) | پروژه‌ای که همه‌اش را به کار می‌برد، برای اجرا کردن |
 

@@ -91,6 +91,10 @@ plugins:
             Admin panel: پنل ادمین
             Reference: مرجع
             Python API: API پایتون
+            How-to guides: راهنماهای کاربردی
+            Explanation: توضیح‌ها
+            Questions: پرسش‌ها
+            Project: پروژه
             Guide: راهنما
             Design: طراحی
             Changelog: تغییرات
@@ -148,9 +152,32 @@ nav:
           - reference/api/roles.md
           - reference/api/names.md
           - reference/api/extending.md
+  - How-to guides:
+      - how-to/index.md
+      - how-to/adopt.md
+      - how-to/scope-by-the-person.md
+      - how-to/approval.md
+      - how-to/reference-data.md
+      - how-to/view-without-a-model.md
+      - how-to/own-admin-site.md
+      - how-to/roles-on-the-user.md
+      - how-to/audit-trail.md
+      - how-to/ci.md
+      - how-to/long-lived-processes.md
+      - how-to/testing.md
   - Guide: guide.md
-  - Design: design.md
-  - Changelog: changelog.md
+  - Explanation:
+      - explanation/index.md
+      - explanation/how-a-question-is-answered.md
+      - explanation/denied-by-default.md
+      - explanation/performance.md
+      - Design: design.md
+  - Questions: faq.md
+  - Project:
+      - project/contributing.md
+      - project/security.md
+      - project/versions.md
+      - Changelog: changelog.md
 
 markdown_extensions:
   - admonition

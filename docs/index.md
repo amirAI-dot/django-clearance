@@ -46,9 +46,12 @@ AUTHENTICATION_BACKENDS = ['clearance.backends.ClearanceBackend']
 | [Getting started](getting-started/introduction.md) | what it is for, installing it, and a first bundle in a few lines |
 | [The tutorial](tutorial/index.md) | the example shop, built a layer at a time |
 | [The admin panel](admin/index.md) | every access page, with pictures |
+| [How-to guides](how-to/index.md) | one question a project meets, answered in a few steps |
 | [The reference](reference/index.md) | every setting, check, command, signal and model - and the Python API |
 | [The guide](guide.md) | every part of the library, and how to use it |
-| [The design](design.md) | why it is built the way it is |
+| [Explanation](explanation/index.md) and [the design](design.md) | why it is built the way it is |
+| [Questions](faq.md) | what people ask first |
+| [Contributing](project/contributing.md), [security](project/security.md), [versions](project/versions.md) | working on it, reporting a problem, what it runs on |
 | [The changelog](changelog.md) | what each release changed |
 | [The example shop](https://github.com/amirAI-dot/django-clearance/tree/main/example) | a project using all of it, to run |
 
